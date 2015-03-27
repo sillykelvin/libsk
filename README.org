@@ -1,0 +1,7 @@
+#+TITLE:     libsk - my own C++ lib
+#+AUTHOR:    Kelvin Hu
+#+EMAIL:     ini.kelvin@gmail.com
+#+DATE:      2015-03-25
+
+
+My own C++ library.
