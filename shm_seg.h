@@ -93,8 +93,8 @@ struct shm_seg {
         return !resume ? create(key, size) : attach(key);
     }
 
-    void *base_addr() {
-        return base_addr;
+    void *address() {
+        return static_cast<void *>(base_addr);
     }
 
     void *malloc(size_t size) {
