@@ -2,7 +2,7 @@
 
 int main(int argc, char **argv) {
     sk::shm_seg seg;
-    int ret = seg.init(0x0012, 0xFF);
+    int ret = seg.init(0x0012, 0xFF, false);
     if (ret != 0) {
         ERR("shm segment init failure, ret<%d>.", ret);
         return -1;
