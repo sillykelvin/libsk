@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <stddef.h>
 #include <string.h>
+#include "assert_helper.h"
 #include "log.h"
 
 namespace sk {
@@ -89,7 +90,7 @@ struct shm_seg {
     }
 
     int init(key_t key, size_t size, bool resume) {
-        return resume ? create(key, size) : attach(key);
+        return !resume ? create(key, size) : attach(key);
     }
 
     void *malloc(size_t size) {
