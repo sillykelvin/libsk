@@ -1,22 +1,46 @@
+#include <gtest/gtest.h>
 #include "shm_seg.h"
 
-int main(int argc, char **argv) {
+#define SHM_KEY (0x77)
+
+TEST(shm_seg, create) {
     sk::shm_seg seg;
-    int ret = seg.init(0x0012, 0xFF, false);
-    if (ret != 0) {
-        ERR("shm segment init failure, ret<%d>.", ret);
-        return -1;
-    }
+    int ret = seg.init(SHM_KEY, sizeof(int), false);
+    ASSERT_EQ(ret, 0);
 
     int *i = (int *) seg.malloc(sizeof(int));
-    if (!i) {
-        ERR("shm segment malloc failure.");
-        return -1;
-    }
+    ASSERT_EQ(i != NULL, true);
+    ASSERT_EQ(seg.free_size, 0);
 
     *i = 7;
 
-    DBG("i: addr<0x%x>, val<%d>.", i, *i);
+    int *n = (int *) seg.address();
+    ASSERT_EQ(n != NULL, true);
 
-    return 0;
+    EXPECT_EQ(*n, 7);
+}
+
+TEST(shm_seg, resume) {
+    sk::shm_seg seg;
+    int ret = seg.init(SHM_KEY, sizeof(int), true);
+    ASSERT_EQ(ret, 0);
+
+    int *i = (int *) seg.malloc(sizeof(int));
+    ASSERT_EQ(i == NULL, true);
+
+    i = (int *) seg.address();
+
+    EXPECT_EQ(*i, 7);
+}
+
+TEST(shm_seg, free) {
+    sk::shm_seg seg;
+    int ret = seg.init(SHM_KEY, sizeof(int), true);
+    ASSERT_EQ(ret, 0);
+
+    seg.free();
+
+    sk::shm_seg seg2;
+    ret = seg2.init(SHM_KEY, sizeof(int), true);
+    EXPECT_NE(ret, 0);
 }
