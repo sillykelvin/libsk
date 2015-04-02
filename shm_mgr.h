@@ -110,7 +110,7 @@ struct small_chunk {
 
     small_chunk() : magic(MAGIC), free_count(0), free_head(IDX_NULL), block_size(0) {}
 
-    int init(size_t block_size) {
+    int init(size_t chunk_size, size_t block_size) {
         assert_retval(magic == MAGIC, -1);
 
         if (block_size % ALIGN_SIZE != 0)
@@ -118,7 +118,7 @@ struct small_chunk {
 
         assert_retval(block_size >= sizeof(int), -1);
 
-        free_count = (SMALL_CHUNK_SIZE - sizeof(small_chunk)) / block_size;
+        free_count = (chunk_size - sizeof(small_chunk)) / block_size;
         free_head  = 0;
         this->block_size = block_size;
 
