@@ -10,6 +10,7 @@ namespace sk {
 
 static const int MAGIC            = 0xC0DEFEED;  // "code feed" :-)
 static const int ALIGN_SIZE       = 8;           // memory align size, 8 bytes
+static const int ALIGN_MASK       = ALIGN_SIZE - 1;
 static const int SMALL_CHUNK_SIZE = 1024 * 1024; // 1MB
 
 namespace detail {
@@ -234,6 +235,10 @@ struct small_chunk {
 
     small_chunk() : magic(MAGIC), free_count(0), free_head(IDX_NULL), block_size(0) {}
 
+    /*
+     * chunk_size: the size of entire memory chunk
+     * block_size: the size of blocks in this chunk
+     */
     int init(size_t chunk_size, size_t block_size) {
         assert_retval(magic == MAGIC, -1);
 
@@ -294,7 +299,12 @@ struct small_chunk {
 } // namespace detail
 
 struct shm_mgr {
-    detail::hash<size_t, shm_ptr> block_hash;
+    typedef detail::hash<size_t, shm_ptr, true, detail::hashcode> size_ptr_hash;
+
+    int small_chunk_size;
+
+    size_ptr_hash *free_chunk_hash;
+    size_ptr_hash *full_chunk_hash;
 
     static shm_mgr *create(key_t main_key, key_t aux_key, bool resume,
                            int small_chunk_count, int big_chunk_count) {
@@ -305,6 +315,39 @@ struct shm_mgr {
         (void) big_chunk_count;
         // TODO implement this function!
         return NULL;
+    }
+
+    static size_t align_size(size_t size) {
+        bool has_lo = false;
+        if (size & ALIGN_MASK)
+            has_lo = true;
+
+        size &= ~ALIGN_MASK;
+        if (has_lo)
+            size += ALIGN_SIZE;
+
+        return size;
+    }
+
+    void *offset2ptr(shm_ptr ptr) {
+        return static_cast<void *>(static_cast<char *>(static_cast<void *>(this)) + ptr);
+    }
+
+    template<typename T>
+    shm_ptr malloc(T *&t) {
+        size_t mem_size = align_size(sizeof(T));
+        bool use_small = (mem_size < small_chunk_size - sizeof(detail::small_chunk));
+
+        shm_ptr *addr = free_chunk_hash->find(mem_size);
+        if (addr) {
+            DBG("free chunk found, size<%ld>.", mem_size);
+            // TODO add implementation here!
+        } else {
+            DBG("no free chunk, alloc one, size<%ld>.", mem_size);
+            // TODO add implementation here!
+        }
+
+        return SHM_NULL;
     }
 };
 
