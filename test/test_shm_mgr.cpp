@@ -9,8 +9,66 @@ using namespace std;
 using namespace sk::detail;
 
 TEST(shm_mgr, hash) {
-    hash<int, int> *h = hash<int, int>::create(SHM_KEY, false, 10);
+    hash<int, int> *h = hash<int, int>::create(SHM_KEY, false, 30, 10);
     ASSERT_EQ(h != NULL, true);
+
+    EXPECT_TRUE(h->empty());
+
+    int *v = h->find(1);
+    EXPECT_TRUE(v == NULL);
+
+    int ret = h->insert(0, 0);
+    EXPECT_TRUE(ret == 0);
+
+    ret = h->insert(10, 10);
+    EXPECT_TRUE(ret == 0);
+
+    EXPECT_EQ(*(h->find(0)), 0);
+    EXPECT_EQ(*(h->find(10)), 10);
+
+    ret = h->erase(0);
+    EXPECT_TRUE(ret == 0);
+
+    ret = h->erase(10);
+    EXPECT_TRUE(ret == 0);
+
+    for (int i = 0; i < 30; ++i) {
+        ASSERT_TRUE(h->insert(i, i) == 0);
+    }
+
+    ASSERT_TRUE(h->full());
+
+    EXPECT_TRUE(h->insert(100, 100) != 0);
+
+    for (int i = 29; i >= 0; --i) {
+        EXPECT_TRUE(*h->find(i) == i);
+    }
+
+    for (int i = 0; i < 30; ++i) {
+        EXPECT_TRUE(h->erase(i) == 0);
+    }
+
+    EXPECT_TRUE(h->empty());
+
+    EXPECT_TRUE(h->insert(101, 1) == 0);
+    EXPECT_TRUE(h->insert(101, 2) == 0);
+
+    EXPECT_TRUE(h->find(101) != NULL);
+    EXPECT_TRUE(h->erase(101) == 0);
+    EXPECT_TRUE(h->find(101) != NULL);
+    EXPECT_TRUE(h->erase(101) == 0);
+    EXPECT_TRUE(h->find(101) == NULL);
+    EXPECT_TRUE(h->empty());
+
+    EXPECT_TRUE(h->insert(1000, 1000) == 0);
+
+    hash<int, int> *h2 = hash<int, int>::create(SHM_KEY, true, 30, 10);
+    ASSERT_EQ(h != NULL, true);
+
+    EXPECT_TRUE(h2->find(1000) != NULL);
+    EXPECT_EQ(*(h2->find(1000)), 1000);
+    EXPECT_TRUE(!h2->empty());
+    EXPECT_TRUE(!h2->full());
 }
 
 TEST(shm_mgr, small_chunk) {
