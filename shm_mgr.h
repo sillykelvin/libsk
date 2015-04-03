@@ -14,6 +14,11 @@ static const int SMALL_CHUNK_SIZE = 1024 * 1024; // 1MB
 
 namespace detail {
 
+template<typename K>
+size_t hashcode(const K& k) {
+    return static_cast<size_t>(k);
+}
+
 template<typename K, typename V>
 struct hash_node {
     K k;
@@ -22,7 +27,13 @@ struct hash_node {
     int next;
 };
 
-template<typename K, typename V>
+/**
+ * K: hash key
+ * V: hash value
+ * D: allow duplication or not
+ * F: the function to calculate hashcode for K
+ */
+template<typename K, typename V, bool D = true, size_t(*F)(const K& k) = hashcode>
 struct hash {
     typedef hash_node<K, V> node;
 
@@ -97,6 +108,119 @@ struct hash {
         }
 
         return self;
+    }
+
+    bool full() const {
+        return curr_node_count >= max_node_count;
+    }
+
+    bool empty() const {
+        return curr_node_count <= 0;
+    }
+
+    node *search(const K& k) {
+        if (empty())
+            return NULL;
+
+        size_t hashcode = F(k);
+        int bucket_idx = hashcode % hash_size;
+
+        int idx = buckets[bucket_idx];
+        while (idx != IDX_NULL) {
+            node& n = nodes[idx];
+            if (n.k == k)
+                return &n;
+
+            idx = n.next;
+        }
+
+        return NULL;
+    }
+
+    V* find(const K& k) {
+        if (empty())
+            return NULL;
+
+        node *n = search(k);
+        if (!n)
+            return NULL;
+
+        return &n->v;
+    }
+
+    int insert(const K& k, const V& v) {
+        if (full())
+            return -ENOMEM;
+
+        /*
+         * if duplication is not allowed
+         */
+        if (!D) {
+            node *n = search(k);
+            if (n) {
+                n->v = v;
+                return 0;
+            }
+        }
+
+        size_t hashcode = F(k);
+        int idx = hashcode % hash_size;
+
+        if (buckets[idx] != IDX_NULL)
+            DBG("hash collision detected, idx<%d>, hashcode<%ld>.", idx, hashcode);
+
+        int node_idx = free_node_head;
+        node& n = nodes[node_idx];
+
+        free_node_head = n.next;
+
+        n.k = k;
+        n.v = v;
+        n.next = buckets[idx];
+        buckets[idx] = node_idx;
+
+        ++curr_node_count;
+
+        return 0;
+    }
+
+    int erase(const K& k) {
+        if (empty())
+            return 0;
+
+        size_t hashcode = F(k);
+        int bucket_idx = hashcode % hash_size;
+
+        bool found = false;
+        int prev = IDX_NULL;
+        int idx = buckets[bucket_idx];
+        while (idx != IDX_NULL) {
+            node& n = nodes[idx];
+            if (n.k == k){
+                found = true;
+                break;
+            }
+
+            prev = idx;
+            idx = n.next;
+        }
+
+        if (!found)
+            return 0;
+
+        if (prev == IDX_NULL) {
+            assert_noeffect(buckets[bucket_idx] == idx);
+            buckets[bucket_idx] = nodes[idx].next;
+        } else {
+            assert_noeffect(nodes[prev].next == idx);
+            nodes[prev].next = nodes[idx].next;
+        }
+
+        nodes[idx].next = free_node_head;
+        free_node_head = idx;
+        --curr_node_count;
+
+        return 0;
     }
 };
 
