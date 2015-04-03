@@ -22,4 +22,11 @@
         return;                                 \
     } while (0)
 
+#define assert_noeffect(exp)                    \
+    do {                                        \
+        if (exp)                                \
+            break;                              \
+        ASSERT(exp);                            \
+    } while (0)
+
 #endif // ASSERT_HELPER_H
