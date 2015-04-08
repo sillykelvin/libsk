@@ -119,6 +119,14 @@ struct hash {
         return curr_node_count <= 0;
     }
 
+    /**
+     * @brief search
+     * @param k
+     * @return the first node holds key k, NULL if not found
+     *
+     * NOTE: this function will always return the first matching node,
+     *       even if there could be several nodes all hold key k.
+     */
     node *search(const K& k) {
         if (empty())
             return NULL;
@@ -138,6 +146,13 @@ struct hash {
         return NULL;
     }
 
+    /**
+     * @brief find
+     * @param k
+     * @return the first found value
+     *
+     * NOTE: like search, only the first value will be returned
+     */
     V* find(const K& k) {
         if (empty())
             return NULL;
@@ -185,6 +200,13 @@ struct hash {
         return 0;
     }
 
+    /**
+     * @brief erase
+     * @param k
+     * @return success or not, success: 0
+     *
+     * NOTE: like search, it will always operate on the first found node
+     */
     int erase(const K& k) {
         if (empty())
             return 0;
@@ -304,7 +326,7 @@ struct shm_mgr {
     int small_chunk_size;
 
     size_ptr_hash *free_chunk_hash;
-    size_ptr_hash *full_chunk_hash;
+    size_ptr_hash *used_chunk_hash;
 
     static shm_mgr *create(key_t main_key, key_t aux_key, bool resume,
                            int small_chunk_count, int big_chunk_count) {
