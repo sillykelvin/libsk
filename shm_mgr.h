@@ -45,9 +45,6 @@ struct hash {
     int *buckets;
     node *nodes;
 
-    hash() : max_node_count(0), curr_node_count(0), hash_size(0), free_node_head(-1), buckets(NULL), nodes(NULL) {}
-    ~hash() {}
-
     static hash *create(key_t key, bool resume, int max_node_count, int hash_size = 0) {
         if (hash_size == 0)
             hash_size = max_node_count;
@@ -255,14 +252,12 @@ struct small_chunk {
     size_t block_size;
     char data[0];
 
-    small_chunk() : magic(MAGIC), free_count(0), free_head(IDX_NULL), block_size(0) {}
-
     /*
      * chunk_size: the size of entire memory chunk
      * block_size: the size of blocks in this chunk
      */
     int init(size_t chunk_size, size_t block_size) {
-        assert_retval(magic == MAGIC, -1);
+        magic = MAGIC;
 
         if (block_size % ALIGN_SIZE != 0)
             return -EINVAL;
