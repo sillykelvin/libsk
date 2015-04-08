@@ -15,7 +15,7 @@ TEST_SRCS = $(wildcard $(TEST_DIR)/*.cpp)
 TEST_OBJS = $(TEST_SRCS:%.cpp=%.o)
 
 CXX_INC   = -I .
-LD_LIBS   = -lgtest
+LD_LIBS   = -lgtest -lpthread
 
 TEST_EXEC = sk-test
 
