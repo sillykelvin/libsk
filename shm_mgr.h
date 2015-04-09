@@ -6,12 +6,24 @@
 #include "types.h"
 #include "shm_seg.h"
 
+#define CAST_PTR(type, ptr) static_cast<type *>(ptr)
+#define CHAR_PTR(ptr) CAST_PTR(char, ptr)
+#define VOID_PTR(ptr) CAST_PTR(void, ptr)
+
 namespace sk {
 
 static const int MAGIC            = 0xC0DEFEED;  // "code feed" :-)
 static const int ALIGN_SIZE       = 8;           // memory align size, 8 bytes
 static const int ALIGN_MASK       = ALIGN_SIZE - 1;
 static const int SMALL_CHUNK_SIZE = 1024 * 1024; // 1MB
+
+enum singleton_type {
+    ST_MIN = 0,
+
+    // ...
+
+    ST_MAX
+};
 
 namespace detail {
 
@@ -319,6 +331,12 @@ struct shm_mgr {
     typedef detail::hash<size_t, shm_ptr, true, detail::hashcode> size_ptr_hash;
 
     int small_chunk_size;
+
+    char *pool;
+    shm_ptr singletons[ST_MAX];
+
+    size_t lo_bound;
+    size_t hi_bound;
 
     size_ptr_hash *free_chunk_hash;
     size_ptr_hash *used_chunk_hash;
