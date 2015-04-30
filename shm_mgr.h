@@ -258,29 +258,54 @@ struct hash {
     }
 };
 
-struct small_chunk {
-    int magic;         // for memory overflow verification
-    // TODO: seems free_count and free_head are duplicate, try to remove free_count
-    int free_count;    // free block count
-    int free_head;     // free head index
-    size_t block_size;
+struct mem_chunk {
+    int magic;          // for memory overflow verification
+    int free_head;      // free head index
+    int free_count;     // free block count
+    int total_count;    // total block count
+    size_t block_size;  // block size
     char data[0];
 
-    /*
-     * chunk_size: the size of entire memory chunk
-     * block_size: the size of blocks in this chunk
+    // void set_flag(int flag) {
+    //     if (flags & flag)
+    //         DBG("flag<%x> already exists.", flag);
+    //     flags |= flag;
+    // }
+
+    // bool has_flag(int flag) const {
+    //     return flags & flag;
+    // }
+
+    /**
+     * @brief init
+     * @param chunk_size: see the graph below
+     * @param block_size: see the graph below
+     * @return 0 if successfully inited
+     *
+     * NOTE: a chunk may contain many blocks, at lease 1 block
+     *
+     *    +-----------+   ---
+     *    | mem_chunk |    |      block_size
+     *    +-----------+    |         ---
+     *    |  block 0  |    |          |
+     *    +-----------+ chunk_size   ---
+     *    |    ...    |    |
+     *    +-----------+    |
+     *    |  block N  |    |
+     *    +-----------+   ---
      */
     int init(size_t chunk_size, size_t block_size) {
+        assert_retval(chunk_size >= sizeof(mem_chunk) + block_size, -EINVAL);
+        assert_retval(block_size % ALIGN_SIZE == 0, -EINVAL);
+        assert_retval(block_size >= sizeof(int), -EINVAL);
+
         magic = MAGIC;
-
-        if (block_size % ALIGN_SIZE != 0)
-            return -EINVAL;
-
-        assert_retval(block_size >= sizeof(int), -1);
-
-        free_count = (chunk_size - sizeof(small_chunk)) / block_size;
-        free_head  = 0;
+        // flags = 0;
+        free_head = 0;
+        free_count = (chunk_size - sizeof(mem_chunk)) / block_size;
+        total_count = free_count;
         this->block_size = block_size;
+        memset(data, 0x00, chunk_size - sizeof(mem_chunk));
 
         // link the free blocks
         int *n = NULL;
@@ -299,12 +324,17 @@ struct small_chunk {
         return free_count <= 0;
     }
 
+    bool empty() const {
+        assert_retval(magic == MAGIC, false);
+
+        return free_count >= total_count;
+    }
+
     void *malloc() {
         if (full())
             return NULL;
 
         void *tmp = static_cast<void *>(data + free_head * block_size);
-
         free_head = *(static_cast<int *>(tmp));
         --free_count;
 
@@ -331,14 +361,17 @@ struct small_chunk {
 
 struct shm_mgr {
     typedef detail::hash<size_t, shm_ptr, true, detail::hashcode> size_ptr_hash;
+    typedef detail::mem_chunk mem_chunk;
 
     int small_chunk_size;
+    int max_small_block_size;
 
     char *pool;
     shm_ptr singletons[ST_MAX];
 
-    size_t lo_bound;
-    size_t hi_bound;
+    // if lo_bound meets hi_bound, then there is no available fresh memory
+    size_t lo_bound; // the low  addr bound of free memory
+    size_t hi_bound; // the high addr bound of free memory
 
     size_ptr_hash *free_chunk_hash;
     size_ptr_hash *used_chunk_hash;
@@ -350,7 +383,12 @@ struct shm_mgr {
         (void) resume;
         (void) small_chunk_count;
         (void) big_chunk_count;
+
         // TODO implement this function!
+
+        // max_small_block_size = small_chunk_size - static_cast<int>(sizeof(detail::mem_chunk));
+        // other fields initialization here
+
         return NULL;
     }
 
@@ -367,6 +405,8 @@ struct shm_mgr {
     }
 
     void *ptr2ptr(shm_ptr ptr) {
+        assert_retval(ptr != SHM_NULL, NULL);
+
         return static_cast<void *>(static_cast<char *>(static_cast<void *>(this)) + ptr);
     }
 
@@ -377,7 +417,18 @@ struct shm_mgr {
         return offset;
     }
 
-    int exchange_hash(size_ptr_hash *src, size_ptr_hash *dst, size_t k, shm_ptr v) {
+    mem_chunk *__ptr2chunk(shm_ptr ptr) {
+        void *p = ptr2ptr(ptr);
+        assert_retval(p, NULL);
+
+        // TODO: here may add alignment verification:
+        // if ptr is in small chunk allocation area, check if:
+        //    (ptr - base_addr) % small_chunk_size == 0
+
+        return static_cast<mem_chunk *>(p);
+    }
+
+    int __exchange_hash(size_ptr_hash *src, size_ptr_hash *dst, size_t k, shm_ptr v) {
         int ret = dst->insert(k, v);
         if (ret != 0) {
             ERR("cannot insert into hash map, key<%lu>, result<%d>.", k, ret);
@@ -397,52 +448,71 @@ struct shm_mgr {
         return 0;
     }
 
+    shm_ptr __malloc_from_free_hash(shm_ptr *chunk_ptr, void *&ptr) {
+        mem_chunk *chunk = __ptr2chunk(*chunk_ptr);
+        assert_retval(chunk, SHM_NULL);
+        assert_retval(!chunk->full(), SHM_NULL);
+
+        ptr = chunk->malloc();
+        assert_retval(ptr, SHM_NULL);
+
+        if (chunk->full()) {
+            int ret = __exchange_hash(free_chunk_hash, used_chunk_hash,
+                                      chunk->block_size, *chunk_ptr);
+            // we do nothing here, if this happens, the next allocation of this memory
+            // size will properly handle this
+            if (ret != 0)
+                assert_noeffect(0);
+        }
+
+        return ptr2ptr(ptr);
+    }
+
+    shm_ptr __malloc_from_free_store(bool use_small) {
+        (void) use_small;
+        return SHM_NULL;
+    }
+
     template<typename T>
     shm_ptr malloc(T *&t) {
         size_t mem_size = align_size(sizeof(T));
-        bool use_small = (mem_size < small_chunk_size - sizeof(detail::small_chunk));
+        bool use_small = mem_size <= max_small_block_size;
 
         shm_ptr *ptr = free_chunk_hash->find(mem_size);
+
+        // if there is free chunk can hold this memory block
         if (ptr) {
             DBG("free chunk found, size<%ld>.", mem_size);
 
-            if (use_small) {
-                detail::small_chunk *chunk = static_cast<detail::small_chunk *>(ptr2ptr(*ptr));
-                assert_retval(chunk, SHM_NULL);
+            mem_chunk *chunk = __ptr2chunk(*ptr);
+            assert_retval(chunk, SHM_NULL);
 
-                // this should never happen
-                if (chunk->full()) {
-                    assert_noeffect(0);
-                    int ret = exchange_hash(free_chunk_hash, used_chunk_hash, mem_size, *ptr);
-                    if (ret != 0)
-                        return SHM_NULL;
-
-                    return malloc(t);
-                }
-
-                void *addr = chunk->malloc();
-                assert_retval(addr, SHM_NULL);
-
-                if (chunk->full()) {
-                    int ret = exchange_hash(free_chunk_hash, used_chunk_hash, mem_size, *ptr);
-                    // we do nothing here, if this happens, the next allocation of this memory
-                    // size will properly handle this
-                    if (ret != 0)
-                        assert_noeffect(0);
-                }
-
-                return ptr2ptr(addr);
-            } else {
-                int ret = exchange_hash(free_chunk_hash, used_chunk_hash, mem_size, *ptr);
+            // this should never happen
+            if (chunk->full()) {
+                assert_noeffect(0);
+                int ret = __exchange_hash(free_chunk_hash, used_chunk_hash, mem_size, *ptr);
                 if (ret != 0)
                     return SHM_NULL;
 
-                return *ptr;
+                return malloc(t);
             }
-        } else {
-            DBG("no free chunk, alloc one, size<%ld>.", mem_size);
-            // TODO add implementation here!
+
+            void *tmp = NULL;
+            shm_ptr offset = __malloc_from_free_hash(ptr, tmp);
+            assert_retval(offset != SHM_NULL, SHM_NULL);
+
+            assert_noeffect(tmp);
+
+            t = static_cast<T *>(tmp);
+            return offset;
         }
+
+        // now we need to allocate one block from free store
+        DBG("no free chunk, allocate one, size<%ld>.", mem_size);
+
+
+
+        // TODO add implementation here!
 
         return SHM_NULL;
     }

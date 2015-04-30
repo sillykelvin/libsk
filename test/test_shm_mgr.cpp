@@ -71,10 +71,9 @@ TEST(shm_mgr, hash) {
     EXPECT_TRUE(!h2->full());
 }
 
-TEST(shm_mgr, small_chunk) {
-    size_t mem_size = sizeof(small_chunk) + sizeof(long) * BLK_CNT;
-    small_chunk *chunk = (small_chunk *) malloc(mem_size);
-    new (chunk) small_chunk();
+TEST(shm_mgr, mem_chunk) {
+    size_t mem_size = sizeof(mem_chunk) + sizeof(long) * BLK_CNT;
+    mem_chunk *chunk = (mem_chunk *) malloc(mem_size);
 
     ASSERT_EQ(chunk != NULL, true);
 
