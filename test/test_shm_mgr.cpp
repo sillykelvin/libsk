@@ -2,14 +2,16 @@
 #include <vector>
 #include "shm_mgr.h"
 
-#define SHM_KEY (0x77)
-#define BLK_CNT (20)
+#define HASH_SHM_KEY  (0x77)
+#define BLK_CNT       (20)
+#define STACK_SHM_KEY (0x777)
+#define STACK_SIZE    (5)
 
 using namespace std;
 using namespace sk::detail;
 
 TEST(shm_mgr, hash) {
-    hash<int, int> *h = hash<int, int>::create(SHM_KEY, false, 30, 10);
+    hash<int, int> *h = hash<int, int>::create(HASH_SHM_KEY, false, 30, 10);
     ASSERT_EQ(h != NULL, true);
 
     EXPECT_TRUE(h->empty());
@@ -62,7 +64,7 @@ TEST(shm_mgr, hash) {
 
     EXPECT_TRUE(h->insert(1000, 1000) == 0);
 
-    hash<int, int> *h2 = hash<int, int>::create(SHM_KEY, true, 30, 10);
+    hash<int, int> *h2 = hash<int, int>::create(HASH_SHM_KEY, true, 30, 10);
     ASSERT_EQ(h != NULL, true);
 
     EXPECT_TRUE(h2->find(1000) != NULL);
@@ -116,4 +118,57 @@ TEST(shm_mgr, mem_chunk) {
     }
 
     free(chunk);
+}
+
+TEST(shm_mgr, stack) {
+    stack<int> *s = stack<int>::create(STACK_SHM_KEY, false, STACK_SIZE);
+    ASSERT_EQ(s != NULL, true);
+
+    EXPECT_TRUE(s->empty());
+    EXPECT_TRUE(!s->full());
+
+    int *i = s->emplace();
+    *i = 1;
+
+    EXPECT_TRUE(!s->empty());
+    EXPECT_TRUE(!s->full());
+
+    i = s->emplace();
+    *i = 2;
+    EXPECT_EQ(s->push(3), 0);
+
+    i = s->pop();
+    EXPECT_EQ(*i, 3);
+    i = s->pop();
+    EXPECT_EQ(*i, 2);
+    i = s->pop();
+    EXPECT_EQ(*i, 1);
+    EXPECT_TRUE(s->pop() == NULL);
+
+    s->push(1);
+    s->push(2);
+    s->push(3);
+    s->push(4);
+    s->push(5);
+    EXPECT_TRUE(s->full());
+    EXPECT_TRUE(s->emplace() == NULL);
+    EXPECT_TRUE(s->push(6) == -ENOMEM);
+
+    s->pop();
+    s->pop();
+
+
+    stack<int> *s2 = stack<int>::create(STACK_SHM_KEY, true, STACK_SIZE);
+    ASSERT_EQ(s2 != NULL, true);
+
+    EXPECT_TRUE(!s2->empty());
+    EXPECT_TRUE(!s2->full());
+
+    i = s2->pop();
+    EXPECT_EQ(*i, 3);
+    i = s2->pop();
+    EXPECT_EQ(*i, 2);
+    i = s2->pop();
+    EXPECT_EQ(*i, 1);
+    EXPECT_TRUE(s2->pop() == NULL);
 }
