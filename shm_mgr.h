@@ -102,6 +102,8 @@ struct hash {
                 return NULL;
             }
 
+            assert_noeffect(seg.free_size == 0);
+
             self->max_node_count = max_node_count;
             self->curr_node_count = 0;
             self->hash_size = hash_size;
