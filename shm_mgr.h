@@ -599,20 +599,46 @@ struct buddy {
 
 struct shm_mgr {
     typedef detail::hash<size_t, shm_ptr, true, detail::hashcode> size_ptr_hash;
+    typedef detail::stack<shm_ptr> stack;
     typedef detail::mem_chunk mem_chunk;
+    typedef detail::buddy heap_allocator;
 
-    int small_chunk_size;
-    int max_small_block_size;
+    size_t chunk_size;
+    /*
+     * a block is an area inside a chunk, so:
+     *     [max block size] = [chunk size] - [chunk header size]
+     */
+    size_t max_block_size;
 
-    char *pool;
+    size_t heap_total_size;
+    size_t heap_unit_size;
+
     shm_ptr singletons[ST_MAX];
 
-    // if lo_bound meets hi_bound, then there is no available fresh memory
-    size_t lo_bound; // the low  addr bound of free memory
-    size_t hi_bound; // the high addr bound of free memory
+    /*
+     * the base address of entire mem pool
+     */
+    char *pool;
+
+    /*
+     * the pool will be divided into two parts:
+     *     1. chunk pool
+     *     2. heap
+     *
+     * chunk_end is the "realtime" end of chunk pool
+     * heap_head is the fixed head of heap
+     *
+     * chunk_end can grow or shrink, if it meets heap_head,
+     * then there is no more available chunk, but, it does
+     * NOT mean there is no more space on heap
+     */
+    size_t chunk_end;
+    size_t heap_head;
 
     size_ptr_hash *free_chunk_hash;
-    size_ptr_hash *used_chunk_hash;
+    stack *empty_chunk_stack;
+
+    heap_allocator *heap;
 
     static shm_mgr *create(key_t main_key, key_t aux_key, bool resume,
                            int small_chunk_count, int big_chunk_count) {
@@ -666,94 +692,133 @@ struct shm_mgr {
         return static_cast<mem_chunk *>(p);
     }
 
-    int __exchange_hash(size_ptr_hash *src, size_ptr_hash *dst, size_t k, shm_ptr v) {
-        int ret = dst->insert(k, v);
-        if (ret != 0) {
-            ERR("cannot insert into hash map, key<%lu>, result<%d>.", k, ret);
-            assert_noeffect(0);
-            return ret;
-        }
+    shm_ptr __malloc_from_chunk_pool(size_t mem_size, void *&ptr) {
+        mem_chunk *chunk = NULL;
 
-        ret = src->erase(k);
-        if (ret != 0) {
-            ERR("cannot erase from hash map, key<%lu>.", k);
-            assert_noeffect(0);
+        do {
+            shm_ptr *chunk_ptr = free_chunk_hash->find(mem_size);
 
-            dst->erase(k);
-            return ret;
-        }
+            // 1. there exists free chunk with same size
+            if (chunk_ptr) {
+                chunk = __ptr2chunk(*chunk_ptr);
+                break;
+            }
 
-        return 0;
-    }
+            // 2. no free chunk exists, but there is empty chunk
+            if (!empty_chunk_stack->empty()) {
+                chunk_ptr = empty_chunk_stack->pop();
+                assert_retval(chunk_ptr, SHM_NULL);
 
-    shm_ptr __malloc_from_free_hash(shm_ptr *chunk_ptr, void *&ptr) {
-        mem_chunk *chunk = __ptr2chunk(*chunk_ptr);
+                chunk = __ptr2chunk(*chunk_ptr);
+                chunk->init(chunk_size, mem_size);
+
+                // TODO: here if the chunk has only one block,
+                // then there is no need to insert it into the
+                // hash, as we will remove it from the hash later
+                // this condition also applies to item 3
+                int ret = free_chunk_hash->insert(mem_size, *chunk_ptr);
+                assert_retval(ret == 0, SHM_NULL);
+
+                break;
+            }
+
+            // 3. there is available chunk in pool
+            if (chunk_end + chunk_size <= heap_head) {
+                void *addr = static_cast<void *>(pool + chunk_end);
+                chunk = static_cast<mem_chunk *>(addr);
+                chunk->init(chunk_size, mem_size);
+
+                int ret = free_chunk_hash->insert(mem_size, ptr2ptr(addr));
+                assert_retval(ret == 0, SHM_NULL);
+
+                chunk_end += chunk_size;
+                break;
+            }
+
+            // 4. no empty chunk, and also chunk pool has used up
+            //    we hope it will never get here :(
+            ERR("chunk pool has been used up!!!");
+            return SHM_NULL;
+
+        } while (0);
+
         assert_retval(chunk, SHM_NULL);
-        assert_retval(!chunk->full(), SHM_NULL);
+
+        // actually, it should never get here
+        if (chunk->full()) {
+            assert_noeffect(0);
+
+            // however, if it gets here, we still can handle:
+            // remove the full chunk, and call this function recursively
+            free_chunk_hash->erase(mem_size);
+            return __malloc_from_chunk_pool(mem_size, ptr);
+        }
 
         ptr = chunk->malloc();
         assert_retval(ptr, SHM_NULL);
 
-        if (chunk->full()) {
-            int ret = __exchange_hash(free_chunk_hash, used_chunk_hash,
-                                      chunk->block_size, *chunk_ptr);
-            // we do nothing here, if this happens, the next allocation of this memory
-            // size will properly handle this
-            if (ret != 0)
-                assert_noeffect(0);
-        }
+        if (chunk->full())
+            free_chunk_hash->erase(mem_size);
 
         return ptr2ptr(ptr);
     }
 
-    shm_ptr __malloc_from_free_store(bool use_small) {
-        // TODO: implement this function
-        (void) use_small;
-        return SHM_NULL;
+    shm_ptr __malloc_from_heap(size_t mem_size, void *&ptr) {
+        assert_retval(mem_size <= static_cast<size_t>(static_cast<u32>(-1)), SHM_NULL);
+
+        int offset = heap->malloc(mem_size);
+
+        // there is no more memory
+        // we hope it will never get here :(
+        if (offset < 0) {
+            ERR("no more space on heap!!!");
+            return SHM_NULL;
+        }
+
+        ptr = static_cast<void *>(pool + heap_head + heap_unit_size * offset);
+        return ptr2ptr(ptr);
     }
 
     template<typename T>
     shm_ptr malloc(T *&t) {
         size_t mem_size = align_size(sizeof(T));
-        bool use_small = mem_size <= max_small_block_size;
+        bool use_chunk = mem_size <= max_block_size;
 
-        shm_ptr *ptr = free_chunk_hash->find(mem_size);
+        shm_ptr ptr = SHM_NULL;
+        void *raw_ptr = NULL;
 
-        // if there is free chunk can hold this memory block
-        if (ptr) {
-            DBG("free chunk found, size<%ld>.", mem_size);
-
-            mem_chunk *chunk = __ptr2chunk(*ptr);
-            assert_retval(chunk, SHM_NULL);
-
-            // this should never happen
-            if (chunk->full()) {
-                assert_noeffect(0);
-                int ret = __exchange_hash(free_chunk_hash, used_chunk_hash, mem_size, *ptr);
-                if (ret != 0)
-                    return SHM_NULL;
-
-                return malloc(t);
+        if (use_chunk) {
+            ptr = __malloc_from_chunk_pool(mem_size, raw_ptr);
+            if (ptr == SHM_NULL) {
+                // TODO: no more space in chunk pool, consider allocate one on heap
+                return SHM_NULL;
             }
 
-            void *tmp = NULL;
-            shm_ptr offset = __malloc_from_free_hash(ptr, tmp);
-            assert_retval(offset != SHM_NULL, SHM_NULL);
+            assert_noeffect(raw_ptr);
 
-            assert_noeffect(tmp);
-
-            t = static_cast<T *>(tmp);
-            return offset;
+            t = static_cast<T *>(raw_ptr);
+            return ptr;
         }
 
-        // now we need to allocate one block from free store
-        DBG("no free chunk, allocate one, size<%ld>.", mem_size);
+        DBG("a big memory block<%lu>, allocate it on heap.", mem_size);
 
+        ptr = __malloc_from_heap(mem_size, raw_ptr);
+        if (ptr == SHM_NULL) // no more memory :(
+            return SHM_NULL;
 
+        assert_noeffect(raw_ptr);
+        t = static_cast<T *>(raw_ptr);
+        return ptr;
+    }
 
-        // TODO add implementation here!
+    void free(shm_ptr ptr) {
+        (void) ptr;
+        // TODO: implement this function
+    }
 
-        return SHM_NULL;
+    void free(void *ptr) {
+        (void) ptr;
+        // TODO: implement this function
     }
 };
 
