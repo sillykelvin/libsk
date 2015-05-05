@@ -6,6 +6,8 @@
 #define BLK_CNT       (20)
 #define STACK_SHM_KEY (0x777)
 #define STACK_SIZE    (5)
+#define BUDDY_SHM_KEY (0x7777)
+#define BUDDY_SIZE    (60)
 
 using namespace std;
 using namespace sk::detail;
@@ -171,4 +173,52 @@ TEST(shm_mgr, stack) {
     i = s2->pop();
     EXPECT_EQ(*i, 1);
     EXPECT_TRUE(s2->pop() == NULL);
+}
+
+TEST(shm_mgr, buddy) {
+    buddy *b = buddy::create(BUDDY_SHM_KEY, false, BUDDY_SIZE);
+    ASSERT_TRUE(b != NULL);
+
+    int offset1 = b->malloc(4);
+    ASSERT_TRUE(offset1 != -1);
+
+    int offset2 = b->malloc(30);
+    ASSERT_TRUE(offset2 != -1);
+
+    int offset3 = b->malloc(1);
+    ASSERT_TRUE(offset3 != -1);
+
+    int offset4 = b->malloc(6);
+    ASSERT_TRUE(offset4 != -1);
+
+    int offset5 = b->malloc(10);
+    ASSERT_TRUE(offset5 != -1);
+
+    int invalid = b->malloc(3);
+    ASSERT_TRUE(invalid == -1);
+
+    b->free(offset3);
+
+    int valid = b->malloc(3);
+    ASSERT_TRUE(valid != -1);
+
+    b->free(offset1);
+    b->free(offset2);
+    b->free(offset4);
+    b->free(offset5);
+    b->free(valid);
+
+    valid = b->malloc(62);
+    ASSERT_TRUE(valid != -1);
+
+    b->free(valid);
+
+
+    buddy *b2 = buddy::create(BUDDY_SHM_KEY, true, BUDDY_SIZE);
+    ASSERT_TRUE(b2 != NULL);
+
+    valid = b2->malloc(30);
+    ASSERT_TRUE(valid != -1);
+    valid = b2->malloc(27);
+    ASSERT_TRUE(valid != -1);
 }
