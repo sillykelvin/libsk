@@ -1,6 +1,8 @@
 #ifndef FIXED_ARRAY_H
 #define FIXED_ARRAY_H
 
+namespace sk {
+
 /*
  * fixed_array is an array with fixed size, can be used
  * in both normal memory and shared memory.
@@ -55,5 +57,7 @@ struct fixed_array {
     iterator begin() { return elems; }
     iterator end()   { return elems + elem_count; }
 };
+
+} // namespace sk
 
 #endif // FIXED_ARRAY_H
