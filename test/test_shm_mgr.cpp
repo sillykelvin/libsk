@@ -64,6 +64,17 @@ TEST(shm_mgr, hash) {
     EXPECT_TRUE(h->find(101) == NULL);
     EXPECT_TRUE(h->empty());
 
+    EXPECT_TRUE(h->insert(101, 1) == 0);
+    EXPECT_TRUE(h->insert(101, 2) == 0);
+    EXPECT_TRUE(h->insert(101, 3) == 0);
+    EXPECT_EQ(*(h->find(101)), 3);
+    EXPECT_TRUE(h->erase(101, 3) == 0);
+    EXPECT_EQ(*(h->find(101)), 2);
+    EXPECT_TRUE(h->erase(101, 1) == 0);
+    EXPECT_EQ(*(h->find(101)), 2);
+    EXPECT_TRUE(h->erase(101, 2) == 0);
+    EXPECT_TRUE(h->empty());
+
     EXPECT_TRUE(h->insert(1000, 1000) == 0);
 
     hash<int, int> *h2 = hash<int, int>::create(HASH_SHM_KEY, true, 30, 10);

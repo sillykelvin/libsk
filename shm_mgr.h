@@ -256,6 +256,57 @@ struct hash {
 
         return 0;
     }
+
+    /**
+     * @brief erase
+     * @param k
+     * @param v
+     * @return success or not, success: 0
+     *
+     * NOTE: this function will erase the node whose key and value
+     *       both exactly match the given parameters
+     *
+     * TODO: this function has much same code with erase(const K& k),
+     *       consider to refactor it
+     */
+    int erase(const K& k, const V& v) {
+        if (!D)
+            return erase(k);
+
+        size_t hashcode = F(k);
+        int bucket_idx = hashcode % hash_size;
+
+        bool found = false;
+        int prev = IDX_NULL;
+        int idx = buckets[bucket_idx];
+        while (idx != IDX_NULL) {
+            node& n = nodes[idx];
+            if (n.k == k && n.v == v){
+                found = true;
+                break;
+            }
+
+            prev = idx;
+            idx = n.next;
+        }
+
+        if (!found)
+            return 0;
+
+        if (prev == IDX_NULL) {
+            assert_noeffect(buckets[bucket_idx] == idx);
+            buckets[bucket_idx] = nodes[idx].next;
+        } else {
+            assert_noeffect(nodes[prev].next == idx);
+            nodes[prev].next = nodes[idx].next;
+        }
+
+        nodes[idx].next = free_node_head;
+        free_node_head = idx;
+        --curr_node_count;
+
+        return 0;
+    }
 };
 
 template<typename T>
