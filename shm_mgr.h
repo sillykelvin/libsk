@@ -25,6 +25,8 @@ enum singleton_type {
     ST_MAX
 };
 
+int register_singleton(int id, size_t size);
+
 namespace detail {
 
 template<typename K>
