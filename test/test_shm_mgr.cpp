@@ -2,14 +2,19 @@
 #include <vector>
 #include "shm_mgr.h"
 
-#define HASH_SHM_KEY  (0x77)
-#define BLK_CNT       (20)
-#define STACK_SHM_KEY (0x777)
-#define STACK_SIZE    (5)
-#define BUDDY_SHM_KEY (0x7777)
-#define BUDDY_SIZE    (60)
+#define HASH_SHM_KEY        (0x77)
+#define BLK_CNT             (20)
+#define STACK_SHM_KEY       (0x777)
+#define STACK_SIZE          (5)
+#define BUDDY_SHM_KEY       (0x7777)
+#define BUDDY_SIZE          (60)
+#define SHM_MGR_KEY         (0x77777)
+#define SHM_MGR_CHUNK_SIZE  (1024)
+#define SHM_MGR_CHUNK_COUNT (1024)
+#define SHM_MGR_HEAP_SIZE   (10240)
 
 using namespace std;
+using namespace sk;
 using namespace sk::detail;
 
 TEST(shm_mgr, hash) {
@@ -235,4 +240,140 @@ TEST(shm_mgr, buddy) {
     ASSERT_TRUE(valid != -1);
     valid = b2->malloc(27);
     ASSERT_TRUE(valid != -1);
+}
+
+
+struct size24 {
+    size_t a;
+    size_t b;
+    size_t c;
+};
+
+struct size1000 {
+    char str[1000];
+};
+
+struct size1024 {
+    char str1[256];
+    char str2[256];
+    char str3[256];
+    char str4[256];
+};
+
+struct size1032 {
+    char str[1024];
+    size_t i;
+};
+
+struct size2064 {
+    char str1[1024];
+    char str2[1024];
+    int a;
+    int b;
+    int c;
+    int d;
+};
+
+TEST(shm_mgr, shm_mgr) {
+    shm_mgr *mgr = shm_mgr::create(SHM_MGR_KEY, HASH_SHM_KEY,
+                                   STACK_SHM_KEY, BUDDY_SHM_KEY,
+                                   false, SHM_MGR_CHUNK_SIZE,
+                                   SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
+    ASSERT_TRUE(mgr != NULL);
+
+    size24 *s24_1 = NULL;
+    shm_ptr ps24_1 = mgr->malloc(s24_1);
+    ASSERT_TRUE(ps24_1 != SHM_NULL && s24_1 != NULL);
+    ASSERT_TRUE(CHAR_PTR(VOID_PTR(s24_1)) - CHAR_PTR(VOID_PTR(mgr)) == (ptrdiff_t) ps24_1);
+
+    size24 *s24_2 = NULL;
+    shm_ptr ps24_2 = mgr->malloc(s24_2);
+    ASSERT_TRUE(ps24_2 != SHM_NULL && s24_2 != NULL);
+    ASSERT_TRUE(CHAR_PTR(VOID_PTR(s24_2)) - CHAR_PTR(VOID_PTR(mgr)) == (ptrdiff_t) ps24_2);
+    ASSERT_TRUE(ps24_2 - ps24_1 == sizeof(size24));
+
+    mgr->free(s24_1);
+    mgr->free(ps24_2);
+
+    ASSERT_TRUE(sizeof(size1000) == mgr->max_block_size);
+    shm_ptr s1000_blocks[SHM_MGR_CHUNK_COUNT] = {0};
+    for (int i = 0; i < SHM_MGR_CHUNK_COUNT; ++i) {
+        size1000 *tmp = NULL;
+        s1000_blocks[i] = mgr->malloc(tmp);
+        ASSERT_TRUE(s1000_blocks[i] != SHM_NULL && tmp != NULL);
+    }
+
+    size24 *invalid = NULL;
+    shm_ptr pinvalid = mgr->malloc(invalid);
+    ASSERT_TRUE(pinvalid == SHM_NULL && invalid == NULL);
+
+    mgr->free(s1000_blocks[0]);
+
+    shm_ptr s24_blocks[50] = {0};
+    int avail_count = mgr->max_block_size / sizeof(size24);
+    for (int i = 0; i < avail_count; ++i) {
+        size24 *tmp = NULL;
+        s24_blocks[i] = mgr->malloc(tmp);
+        ASSERT_TRUE(s24_blocks[i] != SHM_NULL && tmp != NULL);
+    }
+
+    pinvalid = mgr->malloc(invalid);
+    ASSERT_TRUE(pinvalid == SHM_NULL && invalid == NULL);
+
+    shm_ptr s1024_blocks[8];
+    for (int i = 0; i < 8; ++i) {
+        size1024 *tmp = NULL;
+        s1024_blocks[i] = mgr->malloc(tmp);
+        ASSERT_TRUE(s1024_blocks[i] != SHM_NULL && tmp != NULL);
+    }
+
+    size1024 *s1024_inval = NULL;
+    shm_ptr ps1024_inval = mgr->malloc(s1024_inval);
+    ASSERT_TRUE(ps1024_inval == SHM_NULL && s1024_inval == NULL);
+
+    mgr->free(s1024_blocks[0]);
+    mgr->free(s1024_blocks[1]);
+
+    size2064 *s2064 = NULL;
+    shm_ptr ps2064 = mgr->malloc(s2064);
+    ASSERT_TRUE(ps2064 != SHM_NULL && s2064 != NULL);
+
+
+    s2064->a = 10;
+    s2064->b = 20;
+    s2064->c = 30;
+    snprintf(s2064->str1, sizeof(s2064->str1), "%s", "Talk is cheap.");
+    snprintf(s2064->str2, sizeof(s2064->str2), "%s", "Show me the code.");
+
+    size24 *s24 = CAST_PTR(size24, mgr->ptr2ptr(s24_blocks[10]));
+    s24->a = 1;
+    s24->b = 2;
+    s24->c = 3;
+
+    size1000 *s1000 = CAST_PTR(size1000, mgr->ptr2ptr(s1000_blocks[20]));
+    snprintf(s1000->str, sizeof(s1000->str), "%s", "silly kelvin");
+
+
+    shm_mgr *mgr2 = shm_mgr::create(SHM_MGR_KEY, HASH_SHM_KEY,
+                                    STACK_SHM_KEY, BUDDY_SHM_KEY,
+                                    true, SHM_MGR_CHUNK_SIZE,
+                                    SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
+
+    s2064 = CAST_PTR(size2064, mgr2->ptr2ptr(ps2064));
+    ASSERT_TRUE(s2064 != NULL);
+    ASSERT_TRUE(s2064->a == 10);
+    ASSERT_TRUE(s2064->b == 20);
+    ASSERT_TRUE(s2064->c == 30);
+    ASSERT_STREQ(s2064->str1, "Talk is cheap.");
+    ASSERT_STREQ(s2064->str2, "Show me the code.");
+
+    s24 = CAST_PTR(size24, mgr2->ptr2ptr(s24_blocks[10]));
+    ASSERT_TRUE(s24 != NULL);
+    ASSERT_TRUE(s24->a == 1);
+    ASSERT_TRUE(s24->b == 2);
+    ASSERT_TRUE(s24->c == 3);
+
+    s1000 = CAST_PTR(size1000, mgr2->ptr2ptr(s1000_blocks[20]));
+    ASSERT_TRUE(s1000 != NULL);
+    ASSERT_STREQ(s1000->str, "silly kelvin");
 }

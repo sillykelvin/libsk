@@ -7,8 +7,8 @@
 #include "shm_seg.h"
 
 #define CAST_PTR(type, ptr) static_cast<type *>(ptr)
-#define CHAR_PTR(ptr) CAST_PTR(char, ptr)
-#define VOID_PTR(ptr) CAST_PTR(void, ptr)
+#define VOID_PTR(ptr) CAST_PTR(void, (ptr))
+#define CHAR_PTR(ptr) CAST_PTR(char, (ptr))
 
 namespace sk {
 
@@ -515,7 +515,7 @@ struct buddy {
         return !(num & (num - 1));
     }
 
-    static u32 __fix_size(u32 size) {
+    static inline u32 __fix_size(u32 size) {
         if (__power_of_two(size))
             return size;
 
@@ -668,8 +668,21 @@ struct shm_mgr {
 
     /*
      * the base address of entire mem pool
+     * also, it is the head of chunk pool
      */
     char *pool;
+
+    /*
+     * pool_head_ptr is the head ptr of pool:
+     *     [pool head] = [pool addr] - [addr of this]
+     *
+     * pool_end_ptr is the end ptr of pool:
+     *     [pool end] = [actual total shm size]
+     *
+     * NOTE: pool_end_ptr is NOT in the pool!!!
+     */
+    shm_ptr pool_head_ptr;
+    shm_ptr pool_end_ptr;
 
     /*
      * the pool will be divided into two parts:
@@ -691,23 +704,121 @@ struct shm_mgr {
 
     heap_allocator *heap;
 
-    static shm_mgr *create(key_t main_key, key_t aux_key, bool resume,
-                           int small_chunk_count, int big_chunk_count) {
-        (void) main_key;
-        (void) aux_key;
-        (void) resume;
-        (void) small_chunk_count;
-        (void) big_chunk_count;
-
-        // TODO implement this function!
-
-        // max_small_block_size = small_chunk_size - static_cast<int>(sizeof(detail::mem_chunk));
-        // other fields initialization here
-
-        return NULL;
+    static inline bool __power_of_two(size_t num) {
+        return !(num & (num - 1));
     }
 
-    static size_t align_size(size_t size) {
+    static inline size_t __fix_size(size_t size) {
+        if (__power_of_two(size))
+            return size;
+
+        size |= size >> 1;
+        size |= size >> 2;
+        size |= size >> 4;
+        size |= size >> 8;
+        size |= size >> 16;
+        size |= size >> 32;
+        return size + 1;
+    }
+
+    static shm_mgr *create(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3,
+                           bool resume, size_t chunk_size, int chunk_count, size_t heap_size) {
+        chunk_size = __align_size(chunk_size);
+
+        size_t max_block_size = chunk_size - sizeof(mem_chunk);
+        // for blocks with size > max_block_size will go into heap
+        size_t heap_unit_size = __align_size(max_block_size);
+        size_t heap_unit_count = heap_size / heap_unit_size;
+
+        // heap unit count must be 2^n
+        heap_unit_count = __fix_size(heap_unit_count);
+        heap_size  = heap_unit_count * heap_unit_size;
+
+        // TODO: calculate singleton sizes here
+        size_t singleton_size = 8;
+
+        size_t shm_size = 0;
+        shm_size += sizeof(shm_mgr);
+        shm_size += singleton_size;
+        shm_size += chunk_size * chunk_count;
+        shm_size += heap_size;
+
+        sk::shm_seg seg;
+        int ret = seg.init(main_key, shm_size, resume);
+        if (ret != 0) {
+            ERR("cannot create shm mgr, key<%d>, size<%lu>.", main_key, shm_size);
+            return NULL;
+        }
+
+        shm_mgr *self = NULL;
+        if (resume)
+            self = static_cast<shm_mgr *>(seg.address());
+        else
+            self = static_cast<shm_mgr *>(seg.malloc(sizeof(shm_mgr)));
+
+        if (!self) {
+            ERR("memory error.");
+            seg.free();
+            return NULL;
+        }
+
+        char *base_addr = static_cast<char *>(static_cast<void *>(self));
+        self->pool = base_addr + sizeof(*self) + singleton_size;
+
+        if (!resume) {
+            self->chunk_size = chunk_size;
+            self->max_block_size = chunk_size - sizeof(mem_chunk);
+
+            self->heap_total_size = heap_size;
+            self->heap_unit_size = heap_unit_size;
+
+            // TODO: singletons here
+
+            self->pool_head_ptr = self->pool - base_addr;
+            self->pool_end_ptr  = shm_size;
+
+            self->chunk_end = 0;
+            self->heap_head = chunk_size * chunk_count;
+        }
+
+        // 1. init hash
+        {
+            int node_count = chunk_count;
+            int hash_size  = chunk_size - sizeof(mem_chunk); // max block size
+            self->free_chunk_hash = size_ptr_hash::create(aux_key1, resume, node_count, hash_size);
+            if (!self->free_chunk_hash) {
+                ERR("cannot create free chunk hash.");
+                seg.free();
+                return NULL;
+            }
+        }
+
+        // 2. init stack
+        {
+            int node_count = chunk_count;
+            self->empty_chunk_stack = stack::create(aux_key2, resume, node_count);
+            if (!self->empty_chunk_stack) {
+                ERR("cannot create empty chunk stack.");
+                seg.free();
+                return NULL;
+            }
+        }
+
+        // 3. init heap
+        {
+            int unit_count = static_cast<int>(heap_unit_count);
+            self->heap = heap_allocator::create(aux_key3, resume, unit_count);
+            if (!self->heap) {
+                ERR("cannot create heap.");
+                seg.free();
+                return NULL;
+            }
+        }
+
+        return self;
+    }
+
+    static size_t __align_size(size_t size) {
         bool has_lo = false;
         if (size & ALIGN_MASK)
             has_lo = true;
@@ -741,6 +852,12 @@ struct shm_mgr {
         //    (ptr - base_addr) % small_chunk_size == 0
 
         return static_cast<mem_chunk *>(p);
+    }
+
+    shm_ptr __chunk2ptr(mem_chunk *chunk) {
+        assert_retval(chunk, SHM_NULL);
+
+        return ptr2ptr(static_cast<void *>(chunk));
     }
 
     shm_ptr __malloc_from_chunk_pool(size_t mem_size, void *&ptr) {
@@ -815,9 +932,11 @@ struct shm_mgr {
     }
 
     shm_ptr __malloc_from_heap(size_t mem_size, void *&ptr) {
-        assert_retval(mem_size <= static_cast<size_t>(static_cast<u32>(-1)), SHM_NULL);
+        u32 unit_count = mem_size / heap_unit_size;
+        if (mem_size % heap_unit_size != 0)
+            unit_count += 1;
 
-        int offset = heap->malloc(mem_size);
+        int offset = heap->malloc(unit_count);
 
         // there is no more memory
         // we hope it will never get here :(
@@ -832,7 +951,7 @@ struct shm_mgr {
 
     template<typename T>
     shm_ptr malloc(T *&t) {
-        size_t mem_size = align_size(sizeof(T));
+        size_t mem_size = __align_size(sizeof(T));
         bool use_chunk = mem_size <= max_block_size;
 
         shm_ptr ptr = SHM_NULL;
@@ -862,14 +981,65 @@ struct shm_mgr {
         return ptr;
     }
 
+    void __free_from_chunk_pool(size_t offset) {
+        size_t chunk_offset = (offset / chunk_size) * chunk_size;
+        assert_retnone(offset >= chunk_offset + sizeof(mem_chunk));
+
+        size_t offset_in_chunk = offset - chunk_offset - sizeof(mem_chunk);
+
+        mem_chunk *chunk = static_cast<mem_chunk *>(static_cast<void *>(pool + chunk_offset));
+
+        bool full_before_free = chunk->full();
+
+        chunk->free(offset_in_chunk);
+
+        bool empty_after_free = chunk->empty();
+
+        shm_ptr chunk_ptr = __chunk2ptr(chunk);
+
+        if (full_before_free && empty_after_free) {
+            int ret = empty_chunk_stack->push(chunk_ptr);
+            assert_retnone(ret == 0);
+        } else if (full_before_free) {
+            int ret = free_chunk_hash->insert(chunk->block_size, chunk_ptr);
+            assert_retnone(ret == 0);
+        } else if (empty_after_free) {
+            int ret = free_chunk_hash->erase(chunk->block_size, chunk_ptr);
+            assert_retnone(ret == 0);
+
+            ret = empty_chunk_stack->push(chunk_ptr);
+            assert_retnone(ret == 0);
+        } else {
+            // not full before free, also not empty after free, it
+            // will still lay in free_chunk_hash, so we do nothing here
+        }
+    }
+
+    void __free_from_heap(size_t offset) {
+        assert_retnone(offset >= heap_head);
+
+        size_t heap_offset = offset - heap_head;
+        assert_retnone(heap_offset % heap_unit_size == 0);
+
+        int heap_unit_offset = heap_offset / heap_unit_size;
+        heap->free(heap_unit_offset);
+    }
+
     void free(shm_ptr ptr) {
-        (void) ptr;
-        // TODO: implement this function
+        /*
+         * NOTE: the condition between ptr and pool_end_ptr is <, not <=
+         */
+        assert_retnone(ptr >= pool_head_ptr && ptr < pool_end_ptr);
+
+        size_t offset = ptr - pool_head_ptr;
+        if (offset < chunk_end)
+            return __free_from_chunk_pool(offset);
+
+        return __free_from_heap(offset);
     }
 
     void free(void *ptr) {
-        (void) ptr;
-        // TODO: implement this function
+        free(ptr2ptr(ptr));
     }
 };
 
