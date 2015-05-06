@@ -33,6 +33,25 @@ struct fixed_array {
         return elems[index];
     }
 
+    T *find(const T& value) {
+        for (size_t i = 0; i < elem_count; ++i) {
+            if (elems[i] == value)
+                return &elems[i];
+        }
+
+        return NULL;
+    }
+
+    template<typename Pred>
+    T *find(const T& value, Pred p) {
+        for (size_t i = 0; i < elem_count; ++i) {
+            if (p(elems[i], value))
+                return &elems[i];
+        }
+
+        return NULL;
+    }
+
     iterator begin() { return elems; }
     iterator end()   { return elems + elem_count; }
 };
