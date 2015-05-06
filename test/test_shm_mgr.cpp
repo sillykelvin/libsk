@@ -110,7 +110,8 @@ TEST(shm_mgr, mem_chunk) {
     ASSERT_EQ(chunk->full(), true);
 
     for (int i = 0; i < 10; ++i) {
-        chunk->free(container[i]);
+        size_t offset = static_cast<char *>(static_cast<void *>(container[i])) - chunk->data;
+        chunk->free(offset);
         container.erase(container.begin() + i);
     }
 
@@ -127,7 +128,9 @@ TEST(shm_mgr, mem_chunk) {
     for (std::vector<long *>::iterator it = container.begin();
          it != container.end(); ++it) {
         cout << *(*it) << endl;
-        chunk->free(*it);
+
+        size_t offset = static_cast<char *>(static_cast<void *>(*it)) - chunk->data;
+        chunk->free(offset);
     }
 
     free(chunk);

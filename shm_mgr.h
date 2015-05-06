@@ -468,17 +468,17 @@ struct mem_chunk {
         return tmp;
     }
 
-    void free(void *p) {
+    /*
+     * NOTE: the offset here is measured from field data
+     */
+    void free(size_t offset) {
         assert_retnone(magic == MAGIC);
-        assert_retnone(p);
-        assert_retnone(p >= data);
-
-        size_t offset = static_cast<char *>(p) - static_cast<char *>(data);
+        assert_retnone(offset <= block_size * (total_count - 1));
         assert_retnone(offset % block_size == 0);
 
         int idx = offset / block_size;
 
-        *(static_cast<int *>(p)) = free_head;
+        *(static_cast<int *>(static_cast<void *>(data + offset))) = free_head;
         free_head = idx;
         ++free_count;
     }
