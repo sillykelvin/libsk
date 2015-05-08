@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
-#include <vector>
-#include "shm_mgr.h"
+#include "sk_inc.h"
 
 #define HASH_SHM_KEY        (0x77)
 #define BLK_CNT             (20)

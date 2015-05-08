@@ -1,11 +1,6 @@
 #ifndef SHM_MGR_H
 #define SHM_MGR_H
 
-#include <stddef.h>
-#include "assert_helper.h"
-#include "types.h"
-#include "shm_seg.h"
-
 #define cast_ptr(type, ptr) static_cast<type *>(static_cast<void *>(ptr))
 #define void_ptr(ptr)       static_cast<void *>(ptr)
 #define char_ptr(ptr)       cast_ptr(char, ptr)

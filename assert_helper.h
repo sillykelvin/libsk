@@ -1,8 +1,6 @@
 #ifndef ASSERT_HELPER_H
 #define ASSERT_HELPER_H
 
-#include <assert.h>
-
 // TODO: enhance this macro
 #define ASSERT(exp) assert(exp)
 

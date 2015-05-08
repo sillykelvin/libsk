@@ -1,13 +1,6 @@
 #ifndef SHM_SEG_H
 #define SHM_SEG_H
 
-#include <sys/shm.h>
-#include <errno.h>
-#include <stddef.h>
-#include <string.h>
-#include "assert_helper.h"
-#include "log.h"
-
 namespace sk {
 
 struct shm_seg {
