@@ -281,13 +281,17 @@ TEST(shm_mgr, shm_mgr) {
                                    SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
     ASSERT_TRUE(mgr != NULL);
 
+    void *void_ptr = NULL;
+
     size24 *s24_1 = NULL;
-    shm_ptr ps24_1 = mgr->malloc(s24_1);
+    shm_ptr ps24_1 = mgr->malloc(sizeof(*s24_1), void_ptr);
+    s24_1 = static_cast<size24 *>(void_ptr);
     ASSERT_TRUE(ps24_1 != SHM_NULL && s24_1 != NULL);
     ASSERT_TRUE(CHAR_PTR(VOID_PTR(s24_1)) - CHAR_PTR(VOID_PTR(mgr)) == (ptrdiff_t) ps24_1);
 
     size24 *s24_2 = NULL;
-    shm_ptr ps24_2 = mgr->malloc(s24_2);
+    shm_ptr ps24_2 = mgr->malloc(sizeof(*s24_2), void_ptr);
+    s24_2 = static_cast<size24 *>(void_ptr);
     ASSERT_TRUE(ps24_2 != SHM_NULL && s24_2 != NULL);
     ASSERT_TRUE(CHAR_PTR(VOID_PTR(s24_2)) - CHAR_PTR(VOID_PTR(mgr)) == (ptrdiff_t) ps24_2);
     ASSERT_TRUE(ps24_2 - ps24_1 == sizeof(size24));
@@ -299,12 +303,15 @@ TEST(shm_mgr, shm_mgr) {
     shm_ptr s1000_blocks[SHM_MGR_CHUNK_COUNT] = {0};
     for (int i = 0; i < SHM_MGR_CHUNK_COUNT; ++i) {
         size1000 *tmp = NULL;
-        s1000_blocks[i] = mgr->malloc(tmp);
+        s1000_blocks[i] = mgr->malloc(sizeof(*tmp), void_ptr);
+        tmp = static_cast<size1000 *>(void_ptr);
         ASSERT_TRUE(s1000_blocks[i] != SHM_NULL && tmp != NULL);
     }
 
+    void_ptr = NULL;
     size24 *invalid = NULL;
-    shm_ptr pinvalid = mgr->malloc(invalid);
+    shm_ptr pinvalid = mgr->malloc(sizeof(*invalid), void_ptr);
+    invalid = static_cast<size24 *>(void_ptr);
     ASSERT_TRUE(pinvalid == SHM_NULL && invalid == NULL);
 
     mgr->free(s1000_blocks[0]);
@@ -313,29 +320,36 @@ TEST(shm_mgr, shm_mgr) {
     int avail_count = mgr->max_block_size / sizeof(size24);
     for (int i = 0; i < avail_count; ++i) {
         size24 *tmp = NULL;
-        s24_blocks[i] = mgr->malloc(tmp);
+        s24_blocks[i] = mgr->malloc(sizeof(*tmp), void_ptr);
+        tmp = static_cast<size24 *>(void_ptr);
         ASSERT_TRUE(s24_blocks[i] != SHM_NULL && tmp != NULL);
     }
 
-    pinvalid = mgr->malloc(invalid);
+    void_ptr = NULL;
+    pinvalid = mgr->malloc(sizeof(*invalid), void_ptr);
+    invalid = static_cast<size24 *>(void_ptr);
     ASSERT_TRUE(pinvalid == SHM_NULL && invalid == NULL);
 
     shm_ptr s1024_blocks[8];
     for (int i = 0; i < 8; ++i) {
         size1024 *tmp = NULL;
-        s1024_blocks[i] = mgr->malloc(tmp);
+        s1024_blocks[i] = mgr->malloc(sizeof(*tmp), void_ptr);
+        tmp = static_cast<size1024 *>(void_ptr);
         ASSERT_TRUE(s1024_blocks[i] != SHM_NULL && tmp != NULL);
     }
 
+    void_ptr = NULL;
     size1024 *s1024_inval = NULL;
-    shm_ptr ps1024_inval = mgr->malloc(s1024_inval);
+    shm_ptr ps1024_inval = mgr->malloc(sizeof(*s1024_inval), void_ptr);
+    s1024_inval = static_cast<size1024 *>(void_ptr);
     ASSERT_TRUE(ps1024_inval == SHM_NULL && s1024_inval == NULL);
 
     mgr->free(s1024_blocks[0]);
     mgr->free(s1024_blocks[1]);
 
     size2064 *s2064 = NULL;
-    shm_ptr ps2064 = mgr->malloc(s2064);
+    shm_ptr ps2064 = mgr->malloc(sizeof(*s2064), void_ptr);
+    s2064 = static_cast<size2064 *>(void_ptr);
     ASSERT_TRUE(ps2064 != SHM_NULL && s2064 != NULL);
 
 
