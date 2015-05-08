@@ -34,7 +34,7 @@ int sk::register_singleton(int id, size_t size) {
     return 0;
 }
 
-int sk::init_shm_mgr(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3,
+int sk::shm_mgr_init(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3,
                      bool resume, size_t chunk_size, int chunk_count, size_t heap_size) {
     mgr = sk::shm_mgr::create(main_key, aux_key1, aux_key2, aux_key3,
                               resume, chunk_size, chunk_count, heap_size);
@@ -45,6 +45,18 @@ int sk::init_shm_mgr(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_k
     return 0;
 }
 
+int sk::shm_mgr_fini() {
+    if (!mgr)
+        return 0;
+
+    shmctl(mgr->heap->shmid, IPC_RMID, 0);
+    shmctl(mgr->empty_chunk_stack->shmid, IPC_RMID, 0);
+    shmctl(mgr->free_chunk_hash->shmid, IPC_RMID, 0);
+    shmctl(mgr->shmid, IPC_RMID, 0);
+
+    mgr = NULL;
+    return 0;
+}
 
 inline bool sk::shm_mgr::__power_of_two(size_t num) {
     return !(num & (num - 1));
@@ -119,6 +131,7 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2,
     self->pool = base_addr + sizeof(*self) + singleton_size;
 
     if (!resume) {
+        self->shmid = seg.shmid;
         self->chunk_size = chunk_size;
         self->max_block_size = chunk_size - sizeof(mem_chunk);
 

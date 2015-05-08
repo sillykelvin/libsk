@@ -22,8 +22,9 @@ enum singleton_type {
 
 int register_singleton(int id, size_t size);
 
-int init_shm_mgr(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3,
+int shm_mgr_init(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3,
                  bool resume, size_t chunk_size, int chunk_count, size_t heap_size);
+int shm_mgr_fini();
 
 
 
@@ -52,6 +53,7 @@ template<typename K, typename V, bool D = true, size_t(*F)(const K& k) = hashcod
 struct hash {
     typedef hash_node<K, V> node;
 
+    int shmid;
     int max_node_count;
     int curr_node_count;
     int hash_size;
@@ -106,6 +108,7 @@ struct hash {
 
             assert_noeffect(seg.free_size == 0);
 
+            self->shmid = seg.shmid;
             self->max_node_count = max_node_count;
             self->curr_node_count = 0;
             self->hash_size = hash_size;
@@ -313,6 +316,7 @@ struct hash {
 
 template<typename T>
 struct stack {
+    int  shmid;
     int  pos;
     int  total_count;
     char data[0];
@@ -340,6 +344,7 @@ struct stack {
         }
 
         if (!resume) {
+            self->shmid = seg.shmid;
             self->pos = 0;
             self->total_count = max_count;
             memset(self->data, 0x00, data_size);
@@ -477,6 +482,7 @@ struct mem_chunk {
 };
 
 struct buddy {
+    int shmid;
     u32 size;
     /*
      * NOTE: as the size stored here is always the power of 2,
@@ -532,7 +538,8 @@ struct buddy {
         size = __fix_size(size);
         DBG("create buddy with size<%u>, after fixed<%u>.", old_size, size);
 
-        size_t shm_size = 2 * size * sizeof(u32);
+        u32 leaf_count = 2 * size - 1;
+        size_t shm_size = sizeof(buddy) + (leaf_count * sizeof(u32));
 
         sk::shm_seg seg;
         int ret = seg.init(key, shm_size, resume);
@@ -554,6 +561,7 @@ struct buddy {
         }
 
         if (!resume) {
+            self->shmid = seg.shmid;
             self->size = size;
 
             u32 node_size = size * 2;
@@ -661,6 +669,11 @@ struct shm_mgr {
     typedef detail::stack<shm_ptr> stack;
     typedef detail::mem_chunk mem_chunk;
     typedef detail::buddy heap_allocator;
+
+    /*
+     * id of the shm pool
+     */
+    int shmid;
 
     /*
      * a block is an area inside a chunk, so:
