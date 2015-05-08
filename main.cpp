@@ -124,7 +124,7 @@ int test_shm_mgr(std::vector<shm_ptr>& tiny, std::vector<shm_ptr>& huge) {
         }
 
         for (int j = 0; j < (int) tiny.size(); ++j) {
-            sk::shm_free(tiny[i]);
+            sk::shm_free(tiny[j]);
         }
 
         tiny.clear();
@@ -142,7 +142,7 @@ int test_shm_mgr(std::vector<shm_ptr>& tiny, std::vector<shm_ptr>& huge) {
         }
 
         for (int j = 0; j < (int) huge.size(); ++j) {
-            sk::shm_free(huge[i]);
+            sk::shm_free(huge[j]);
         }
 
         huge.clear();
@@ -161,11 +161,11 @@ int test_shm_mgr(std::vector<shm_ptr>& tiny, std::vector<shm_ptr>& huge) {
         }
 
         for (int j = 0; j < (int) tiny.size(); ++j) {
-            sk::shm_free(tiny[i]);
+            sk::shm_free(tiny[j]);
         }
 
         for (int j = 0; j < (int) huge.size(); ++j) {
-            sk::shm_free(huge[i]);
+            sk::shm_free(huge[j]);
         }
 
         tiny.clear();
