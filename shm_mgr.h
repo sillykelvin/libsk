@@ -6,9 +6,9 @@
 #include "types.h"
 #include "shm_seg.h"
 
-#define CAST_PTR(type, ptr) static_cast<type *>(ptr)
-#define VOID_PTR(ptr) CAST_PTR(void, (ptr))
-#define CHAR_PTR(ptr) CAST_PTR(char, (ptr))
+#define cast_ptr(type, ptr) static_cast<type *>(static_cast<void *>(ptr))
+#define void_ptr(ptr)       static_cast<void *>(ptr)
+#define char_ptr(ptr)       cast_ptr(char, ptr)
 
 namespace sk {
 

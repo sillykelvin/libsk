@@ -287,13 +287,13 @@ TEST(shm_mgr, shm_mgr) {
     shm_ptr ps24_1 = mgr->malloc(sizeof(*s24_1), void_ptr);
     s24_1 = static_cast<size24 *>(void_ptr);
     ASSERT_TRUE(ps24_1 != SHM_NULL && s24_1 != NULL);
-    ASSERT_TRUE(CHAR_PTR(VOID_PTR(s24_1)) - CHAR_PTR(VOID_PTR(mgr)) == (ptrdiff_t) ps24_1);
+    ASSERT_TRUE(char_ptr(s24_1) - char_ptr(mgr) == (ptrdiff_t) ps24_1);
 
     size24 *s24_2 = NULL;
     shm_ptr ps24_2 = mgr->malloc(sizeof(*s24_2), void_ptr);
     s24_2 = static_cast<size24 *>(void_ptr);
     ASSERT_TRUE(ps24_2 != SHM_NULL && s24_2 != NULL);
-    ASSERT_TRUE(CHAR_PTR(VOID_PTR(s24_2)) - CHAR_PTR(VOID_PTR(mgr)) == (ptrdiff_t) ps24_2);
+    ASSERT_TRUE(char_ptr(s24_2) - char_ptr(mgr) == (ptrdiff_t) ps24_2);
     ASSERT_TRUE(ps24_2 - ps24_1 == sizeof(size24));
 
     mgr->free(s24_1);
@@ -359,12 +359,12 @@ TEST(shm_mgr, shm_mgr) {
     snprintf(s2064->str1, sizeof(s2064->str1), "%s", "Talk is cheap.");
     snprintf(s2064->str2, sizeof(s2064->str2), "%s", "Show me the code.");
 
-    size24 *s24 = CAST_PTR(size24, mgr->ptr2ptr(s24_blocks[10]));
+    size24 *s24 = cast_ptr(size24, mgr->ptr2ptr(s24_blocks[10]));
     s24->a = 1;
     s24->b = 2;
     s24->c = 3;
 
-    size1000 *s1000 = CAST_PTR(size1000, mgr->ptr2ptr(s1000_blocks[20]));
+    size1000 *s1000 = cast_ptr(size1000, mgr->ptr2ptr(s1000_blocks[20]));
     snprintf(s1000->str, sizeof(s1000->str), "%s", "silly kelvin");
 
 
@@ -373,7 +373,7 @@ TEST(shm_mgr, shm_mgr) {
                                     true, SHM_MGR_CHUNK_SIZE,
                                     SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
 
-    s2064 = CAST_PTR(size2064, mgr2->ptr2ptr(ps2064));
+    s2064 = cast_ptr(size2064, mgr2->ptr2ptr(ps2064));
     ASSERT_TRUE(s2064 != NULL);
     ASSERT_TRUE(s2064->a == 10);
     ASSERT_TRUE(s2064->b == 20);
@@ -381,13 +381,13 @@ TEST(shm_mgr, shm_mgr) {
     ASSERT_STREQ(s2064->str1, "Talk is cheap.");
     ASSERT_STREQ(s2064->str2, "Show me the code.");
 
-    s24 = CAST_PTR(size24, mgr2->ptr2ptr(s24_blocks[10]));
+    s24 = cast_ptr(size24, mgr2->ptr2ptr(s24_blocks[10]));
     ASSERT_TRUE(s24 != NULL);
     ASSERT_TRUE(s24->a == 1);
     ASSERT_TRUE(s24->b == 2);
     ASSERT_TRUE(s24->c == 3);
 
-    s1000 = CAST_PTR(size1000, mgr2->ptr2ptr(s1000_blocks[20]));
+    s1000 = cast_ptr(size1000, mgr2->ptr2ptr(s1000_blocks[20]));
     ASSERT_TRUE(s1000 != NULL);
     ASSERT_STREQ(s1000->str, "silly kelvin");
 }
