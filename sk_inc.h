@@ -6,8 +6,11 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <sys/shm.h>
+#include <sys/time.h>
 
 #include "assert_helper.h"
 #include "fixed_array.h"
