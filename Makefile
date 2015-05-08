@@ -17,13 +17,20 @@ TEST_OBJS = $(TEST_SRCS:%.cpp=%.o)
 CXX_INC   = -I .
 LD_LIBS   = -lgtest -lpthread
 
+EXEC      = sk
 TEST_EXEC = sk-test
 
 
-all: $(TEST_EXEC)
+all: $(EXEC) $(TEST_EXEC)
+
+test: $(TEST_EXEC)
+	./$(TEST_EXEC)
 
 clean:
-	rm -f $(TEST_EXEC) $(TEST_OBJS) $(OBJS)
+	rm -f $(TEST_EXEC) $(TEST_OBJS) $(EXEC) $(OBJS)
+
+$(EXEC): $(OBJS)
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LD_LIBS)
 
 $(TEST_EXEC): $(TEST_OBJS) $(OBJS)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LD_LIBS)
