@@ -5,9 +5,12 @@
 CXX       = g++
 CXXFLAGS  = -g -Wall -Werror -Wextra
 
-HEADERS   = $(wildcard *.h)
-SOURCES   = $(wildcard *.cpp)
-OBJS      = $(SOURCES:%.cpp=%.o)
+LIB_HEADERS = $(wildcard *.h)
+LIB_SOURCES = $(filter-out main.cpp, $(wildcard *.cpp))
+LIB_OBJS    = $(LIB_SOURCES:%.cpp=%.o)
+
+EXEC_SRCS = main.cpp
+EXEC_OBJS = $(EXEC_SRCS:%.cpp=%.o)
 
 TEST_DIR  = test
 TEST_HDRS = $(wildcard $(TEST_DIR)/*.h)
@@ -27,12 +30,12 @@ test: $(TEST_EXEC)
 	./$(TEST_EXEC)
 
 clean:
-	rm -f $(TEST_EXEC) $(TEST_OBJS) $(EXEC) $(OBJS)
+	rm -f $(TEST_EXEC) $(TEST_OBJS) $(EXEC) $(EXEC_OBJS) $(LIB_OBJS)
 
-$(EXEC): $(OBJS)
+$(EXEC): $(EXEC_OBJS) $(LIB_OBJS)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LD_LIBS)
 
-$(TEST_EXEC): $(TEST_OBJS) $(OBJS)
+$(TEST_EXEC): $(TEST_OBJS) $(LIB_OBJS)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LD_LIBS)
 
 %.o: %.cpp
