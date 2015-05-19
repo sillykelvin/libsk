@@ -12,7 +12,7 @@ struct shm_seg {
     shm_seg() : base_addr(NULL), free_addr(NULL), free_size(0), shmid(-1) {}
     ~shm_seg() {}
 
-    int create(key_t key, size_t size) {
+    int __create(key_t key, size_t size) {
         int shmid = shmget(key, size, 0666 | IPC_CREAT | IPC_EXCL);
         if (shmid != -1) {
             void *addr = shmat(shmid, NULL, 0);
@@ -60,7 +60,7 @@ struct shm_seg {
         return 0;
     }
 
-    int attach(key_t key) {
+    int __attach(key_t key) {
         int shmid = shmget(key, 0, 0666);
         if (shmid == -1) {
             ERR("shmget() failed, error<%s>.", strerror(errno));
@@ -83,7 +83,7 @@ struct shm_seg {
     }
 
     int init(key_t key, size_t size, bool resume) {
-        return !resume ? create(key, size) : attach(key);
+        return !resume ? __create(key, size) : __attach(key);
     }
 
     void *address() {
