@@ -424,12 +424,10 @@ struct mem_chunk {
         assert_retval(block_size >= sizeof(int), -EINVAL);
 
         magic = MAGIC;
-        // flags = 0;
         free_head = 0;
         free_count = (chunk_size - sizeof(mem_chunk)) / block_size;
         total_count = free_count;
         this->block_size = block_size;
-        memset(data, 0x00, chunk_size - sizeof(mem_chunk));
 
         // link the free blocks
         int *n = NULL;
