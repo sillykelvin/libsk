@@ -35,9 +35,9 @@ int sk::register_singleton(int id, size_t size) {
 }
 
 int sk::shm_mgr_init(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3,
-                     bool resume, size_t chunk_size, int chunk_count, size_t heap_size) {
+                     bool resume, size_t max_block_size, int chunk_count, size_t heap_size) {
     mgr = sk::shm_mgr::create(main_key, aux_key1, aux_key2, aux_key3,
-                              resume, chunk_size, chunk_count, heap_size);
+                              resume, max_block_size, chunk_count, heap_size);
 
     if (!mgr)
         return -EINVAL;
@@ -87,10 +87,10 @@ inline size_t sk::shm_mgr::__align_size(size_t size) {
     return size;
 }
 
-sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3, bool resume, size_t chunk_size, int chunk_count, size_t heap_size) {
-    chunk_size = __align_size(chunk_size);
+sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3, bool resume, size_t max_block_size, int chunk_count, size_t heap_size) {
+    max_block_size = __align_size(max_block_size);
+    size_t chunk_size = max_block_size + sizeof(mem_chunk);
 
-    size_t max_block_size = chunk_size - sizeof(mem_chunk);
     // for blocks with size > max_block_size will go into heap
     size_t heap_unit_size = __align_size(max_block_size);
     size_t heap_unit_count = heap_size / heap_unit_size;
@@ -368,8 +368,6 @@ shm_ptr sk::shm_mgr::malloc(size_t size, void *&raw_ptr) {
         assert_noeffect(raw_ptr);
         return ptr;
     }
-
-    DBG("a big memory block<%lu>, allocate it on heap.", mem_size);
 
     ptr = __malloc_from_heap(mem_size, raw_ptr);
     if (ptr == SHM_NULL) // no more memory :(

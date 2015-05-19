@@ -23,7 +23,7 @@ enum singleton_type {
 int register_singleton(int id, size_t size);
 
 int shm_mgr_init(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3,
-                 bool resume, size_t chunk_size, int chunk_count, size_t heap_size);
+                 bool resume, size_t max_block_size, int chunk_count, size_t heap_size);
 int shm_mgr_fini();
 
 
@@ -198,8 +198,8 @@ struct hash {
         size_t hashcode = F(k);
         int idx = hashcode % hash_size;
 
-        if (buckets[idx] != IDX_NULL)
-            DBG("hash collision detected, idx<%d>, hashcode<%ld>.", idx, hashcode);
+        // if (buckets[idx] != IDX_NULL)
+        //     DBG("hash collision detected, idx<%d>, hashcode<%ld>.", idx, hashcode);
 
         int node_idx = free_node_head;
         node& n = nodes[node_idx];
@@ -756,7 +756,7 @@ struct shm_mgr {
     static size_t __align_size(size_t size);
 
     static shm_mgr *create(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3,
-                           bool resume, size_t chunk_size, int chunk_count, size_t heap_size);
+                           bool resume, size_t max_block_size, int chunk_count, size_t heap_size);
 
     static shm_mgr *get();
 
