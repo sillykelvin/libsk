@@ -8,7 +8,7 @@
 #define BUDDY_SHM_KEY       (0x7777)
 #define BUDDY_SIZE          (60)
 #define SHM_MGR_KEY         (0x77777)
-#define SHM_MGR_CHUNK_SIZE  (1024)
+#define SHM_MGR_CHUNK_SIZE  (1000)
 #define SHM_MGR_CHUNK_COUNT (1024)
 #define SHM_MGR_HEAP_SIZE   (10240)
 
