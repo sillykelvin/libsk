@@ -274,6 +274,8 @@ struct size2064 {
 };
 
 TEST(shm_mgr, shm_mgr) {
+    register_singleton(ST_MIN, sizeof(size1032));
+
     shm_mgr *mgr = shm_mgr::create(SHM_MGR_KEY, HASH_SHM_KEY,
                                    STACK_SHM_KEY, BUDDY_SHM_KEY,
                                    false, SHM_MGR_CHUNK_SIZE,
@@ -366,6 +368,11 @@ TEST(shm_mgr, shm_mgr) {
     size1000 *s1000 = cast_ptr(size1000, mgr->ptr2ptr(s1000_blocks[20]));
     snprintf(s1000->str, sizeof(s1000->str), "%s", "silly kelvin");
 
+    size1032 *single_1032 = cast_ptr(size1032, mgr->get_singleton(ST_MIN));
+    ASSERT_TRUE(single_1032 != NULL);
+    single_1032->i = 77;
+    snprintf(single_1032->str, sizeof(single_1032->str), "%s", "silly kelvin");
+
 
     shm_mgr *mgr2 = shm_mgr::create(SHM_MGR_KEY, HASH_SHM_KEY,
                                     STACK_SHM_KEY, BUDDY_SHM_KEY,
@@ -389,4 +396,9 @@ TEST(shm_mgr, shm_mgr) {
     s1000 = cast_ptr(size1000, mgr2->ptr2ptr(s1000_blocks[20]));
     ASSERT_TRUE(s1000 != NULL);
     ASSERT_STREQ(s1000->str, "silly kelvin");
+
+    size1032 *single_1032_2 = cast_ptr(size1032, mgr->get_singleton(ST_MIN));
+    ASSERT_TRUE(single_1032_2 != NULL);
+    ASSERT_TRUE(single_1032_2->i == 77);
+    ASSERT_STREQ(single_1032_2->str, "silly kelvin");
 }
