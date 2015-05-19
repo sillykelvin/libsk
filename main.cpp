@@ -145,10 +145,6 @@ int main(int argc, char **argv) {
 
     sk::shm_mgr_init(0x7777, 0x777, 0x77, 0x7, false, chunk_size, chunk_count, heap_size);
 
-    // sk::shm_mgr_init(0x7777, 0x777, 0x77, 0x7, false, 16, 1, SIZE_RANGE_MAX * 100);
-    // sk::shm_mgr_init(0x7777, 0x777, 0x77, 0x7, false, SIZE_RANGE_MAX, 100, SIZE_RANGE_MAX);
-    // sk::shm_mgr_init(0x7777, 0x777, 0x77, 0x7, false, 1024, 100, SIZE_RANGE_MAX * 100);
-
     timeval begin_time, end_time;
 
     // 1. new/delete, random size
@@ -166,7 +162,7 @@ int main(int argc, char **argv) {
         test_allocation_deallocation<char *, fixed_size, heap_new, heap_del>();
         gettimeofday(&end_time, NULL);
 
-        print_time_cost("new/delete, fixed size", begin_time, end_time);
+        print_time_cost("new/delete,  fixed size", begin_time, end_time);
     }
 
     // 3. shm mgr, random size
@@ -175,7 +171,7 @@ int main(int argc, char **argv) {
         test_allocation_deallocation<shm_ptr, random_size, shm_new, shm_del>();
         gettimeofday(&end_time, NULL);
 
-        print_time_cost("shm_mgr, random size", begin_time, end_time);
+        print_time_cost("shm_mgr,    random size", begin_time, end_time);
     }
 
     // 4. shm mgr, fixed size
@@ -184,7 +180,7 @@ int main(int argc, char **argv) {
         test_allocation_deallocation<shm_ptr, fixed_size, shm_new, shm_del>();
         gettimeofday(&end_time, NULL);
 
-        print_time_cost("shm_mgr, fixed size", begin_time, end_time);
+        print_time_cost("shm_mgr,     fixed size", begin_time, end_time);
     }
 
     sk::shm_mgr_fini();
