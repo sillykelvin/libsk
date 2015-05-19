@@ -776,6 +776,8 @@ struct shm_mgr {
 
     void __free_from_heap(size_t offset);
 
+    void *get_singleton(int id);
+
     shm_ptr malloc(size_t size, void *&raw_ptr);
 
     void free(shm_ptr ptr);
@@ -812,6 +814,8 @@ T *ptr2ptr(shm_ptr ptr) {
 void *shm_malloc(size_t size, shm_ptr& ptr);
 void shm_free(shm_ptr ptr);
 void shm_free(void *ptr);
+void *shm_singleton(int id);
+
 
 template<typename T>
 T *shm_new(shm_ptr& ptr) {

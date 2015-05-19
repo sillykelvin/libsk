@@ -15,20 +15,24 @@ struct singleton_info {
     }
 };
 
-static sk::fixed_array<singleton_info, sk::ST_MAX> singletons;
+typedef sk::fixed_array<singleton_info, sk::ST_MAX> singleton_array;
+static singleton_array singleton_meta_info;
 
 static sk::shm_mgr *mgr = NULL;
 
 
 int sk::register_singleton(int id, size_t size) {
+    assert_retval(id >= ST_MIN && id < ST_MAX, -EINVAL);
+
     singleton_info tmp;
     tmp.id = id;
-    assert_retval(!singletons.find(tmp), -EEXIST);
+    assert_retval(!singleton_meta_info.find(tmp), -EEXIST);
 
-    singleton_info *info = singletons.emplace();
+    singleton_info *info = singleton_meta_info.emplace();
     assert_retval(info, -ENOMEM);
 
     info->id = id;
+    // TODO: we may fix the size here to make it aligned
     info->size = size;
 
     return 0;
@@ -87,7 +91,8 @@ inline size_t sk::shm_mgr::__align_size(size_t size) {
     return size;
 }
 
-sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3, bool resume, size_t max_block_size, int chunk_count, size_t heap_size) {
+sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3,
+                                 bool resume, size_t max_block_size, int chunk_count, size_t heap_size) {
     max_block_size = __align_size(max_block_size);
     size_t chunk_size = max_block_size + sizeof(mem_chunk);
 
@@ -99,8 +104,9 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2,
     heap_unit_count = __fix_size(heap_unit_count);
     heap_size  = heap_unit_count * heap_unit_size;
 
-    // TODO: calculate singleton sizes here
-    size_t singleton_size = 8;
+    size_t singleton_size = 0;
+    for (singleton_array::iterator it = singleton_meta_info.begin(); it != singleton_meta_info.end(); ++it)
+        singleton_size += it->size;
 
     size_t shm_size = 0;
     shm_size += sizeof(shm_mgr);
@@ -133,12 +139,23 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2,
     if (!resume) {
         self->shmid = seg.shmid;
         self->chunk_size = chunk_size;
-        self->max_block_size = chunk_size - sizeof(mem_chunk);
+        self->max_block_size = max_block_size;
 
         self->heap_total_size = heap_size;
         self->heap_unit_size = heap_unit_size;
 
-        // TODO: singletons here
+        {
+            char *singleton_base = base_addr + sizeof(*self);
+            memset(self->singletons, 0x00, sizeof(self->singletons));
+
+            for (singleton_array::iterator it = singleton_meta_info.begin(); it != singleton_meta_info.end(); ++it) {
+                assert_retval(it->id >= ST_MIN && it->id < ST_MAX, NULL);
+                self->singletons[it->id] = singleton_base - char_ptr(self);
+                singleton_base += it->size;
+            }
+
+            assert_retval(singleton_base == self->pool, NULL);
+        }
 
         self->pool_head_ptr = self->pool - base_addr;
         self->pool_end_ptr  = shm_size;
@@ -352,6 +369,15 @@ void sk::shm_mgr::__free_from_heap(size_t offset) {
     heap->free(heap_unit_offset);
 }
 
+void *sk::shm_mgr::get_singleton(int id) {
+    assert_retval(id >= ST_MIN && id < ST_MAX, NULL);
+
+    shm_ptr ptr = singletons[id];
+    assert_retval(ptr != SHM_NULL, NULL);
+
+    return ptr2ptr(ptr);
+}
+
 shm_ptr sk::shm_mgr::malloc(size_t size, void *&raw_ptr) {
     size_t mem_size = __align_size(size);
     bool use_chunk = mem_size <= max_block_size;
@@ -429,4 +455,11 @@ void sk::shm_free(void *ptr) {
     assert_retnone(mgr);
 
     mgr->free(ptr);
+}
+
+void *sk::shm_singleton(int id) {
+    shm_mgr *mgr = shm_mgr::get();
+    assert_retval(mgr, NULL);
+
+    return mgr->get_singleton(id);
 }
