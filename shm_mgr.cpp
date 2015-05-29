@@ -222,10 +222,7 @@ shm_ptr sk::shm_mgr::ptr2ptr(void *ptr) {
 inline sk::shm_mgr::mem_chunk *sk::shm_mgr::__ptr2chunk(shm_ptr ptr) {
     void *p = ptr2ptr(ptr);
     assert_retval(p, NULL);
-
-    // TODO: here may add alignment verification:
-    // if ptr is in small chunk allocation area, check if:
-    //    (ptr - base_addr) % small_chunk_size == 0
+    assert_retval((ptr - pool_head_ptr) % chunk_size == 0, NULL);
 
     return static_cast<mem_chunk *>(p);
 }
@@ -386,10 +383,13 @@ shm_ptr sk::shm_mgr::malloc(size_t size, void *&raw_ptr) {
 
     if (use_chunk) {
         ptr = __malloc_from_chunk_pool(mem_size, raw_ptr);
-        if (ptr == SHM_NULL) {
-            // TODO: no more space in chunk pool, consider allocate one on heap
+
+        // if chunk pool is used up, we allocate it from heap
+        if (ptr == SHM_NULL)
+            ptr == __malloc_from_heap(mem_size, raw_ptr);
+
+        if (ptr == SHM_NULL)
             return SHM_NULL;
-        }
 
         assert_noeffect(raw_ptr);
         return ptr;
