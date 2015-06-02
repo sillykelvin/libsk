@@ -386,7 +386,7 @@ shm_ptr sk::shm_mgr::malloc(size_t size, void *&raw_ptr) {
 
         // if chunk pool is used up, we allocate it from heap
         if (ptr == SHM_NULL)
-            ptr == __malloc_from_heap(mem_size, raw_ptr);
+            ptr = __malloc_from_heap(mem_size, raw_ptr);
 
         if (ptr == SHM_NULL)
             return SHM_NULL;
