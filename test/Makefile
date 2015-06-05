@@ -12,7 +12,7 @@ CXXFILE     = $(foreach dir, $(SUB_MODULES), $(wildcard $(dir)/*.cpp))
 DEP         = $(CXXFILE:.cpp=.d)
 OBJ         = $(CXXFILE:.cpp=.o)
 
-.PHONY: all clean
+.PHONY: all clean test
 
 all: $(APP_BIN)
 
@@ -21,5 +21,8 @@ $(APP_BIN): $(DEP) $(OBJ) $(LIBS)
 
 clean:
 	$(RM) $(OBJ) $(DEP) $(APP_BIN)
+
+test: $(APP_BIN)
+	./$(APP_BIN)
 
 -include $(DEP)
