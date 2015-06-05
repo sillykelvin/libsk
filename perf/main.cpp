@@ -68,8 +68,8 @@ int test_allocation_deallocation() {
     std::vector<P> pointers;
     pointers.reserve(LOOP_COUNT);
 
-    int c = 1;
-    while (c++ <= LOOP_COUNT) {
+    int c = 0;
+    while (++c <= LOOP_COUNT) {
         size_t size = S();
         P p;
         char *addr = M(size, p);
