@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "sk_inc.h"
+#include "detail/buddy.h"
 #include "detail/mem_chunk.h"
 
 #define HASH_SHM_KEY        (0x77)

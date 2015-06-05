@@ -1,4 +1,5 @@
 #include "sk_inc.h"
+#include "detail/buddy.h"
 #include "detail/mem_chunk.h"
 
 struct singleton_info {
