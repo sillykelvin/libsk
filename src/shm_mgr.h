@@ -7,11 +7,6 @@
 
 namespace sk {
 
-static const int MAGIC            = 0xC0DEFEED;  // "code feed" :-)
-static const int ALIGN_SIZE       = 8;           // memory align size, 8 bytes
-static const int ALIGN_MASK       = ALIGN_SIZE - 1;
-static const int SMALL_CHUNK_SIZE = 1024 * 1024; // 1MB
-
 enum singleton_type {
     ST_MIN = 0,
 
@@ -392,93 +387,6 @@ struct stack {
     }
 };
 
-struct mem_chunk {
-    int magic;          // for memory overflow verification
-    int free_head;      // free head index
-    int free_count;     // free block count
-    int total_count;    // total block count
-    size_t block_size;  // block size
-    char data[0];
-
-    /**
-     * @brief init
-     * @param chunk_size: see the graph below
-     * @param block_size: see the graph below
-     * @return 0 if successfully inited
-     *
-     * NOTE: a chunk may contain many blocks, at lease 1 block
-     *
-     *    +-----------+   ---
-     *    | mem_chunk |    |      block_size
-     *    +-----------+    |         ---
-     *    |  block 0  |    |          |
-     *    +-----------+ chunk_size   ---
-     *    |    ...    |    |
-     *    +-----------+    |
-     *    |  block N  |    |
-     *    +-----------+   ---
-     */
-    int init(size_t chunk_size, size_t block_size) {
-        assert_retval(chunk_size >= sizeof(mem_chunk) + block_size, -EINVAL);
-        assert_retval(block_size % ALIGN_SIZE == 0, -EINVAL);
-        assert_retval(block_size >= sizeof(int), -EINVAL);
-
-        magic = MAGIC;
-        free_head = 0;
-        free_count = (chunk_size - sizeof(mem_chunk)) / block_size;
-        total_count = free_count;
-        this->block_size = block_size;
-
-        // link the free blocks
-        int *n = NULL;
-        for (int i = 0; i < free_count; ++i) {
-            n = static_cast<int *>(static_cast<void *>(data + i * block_size));
-            *n = i + 1;
-        }
-        *n = IDX_NULL; // the last block
-
-        return 0;
-    }
-
-    bool full() const {
-        assert_retval(magic == MAGIC, true); // mark the block as full if overflowed
-
-        return free_count <= 0;
-    }
-
-    bool empty() const {
-        assert_retval(magic == MAGIC, false);
-
-        return free_count >= total_count;
-    }
-
-    void *malloc() {
-        if (full())
-            return NULL;
-
-        void *tmp = static_cast<void *>(data + free_head * block_size);
-        free_head = *(static_cast<int *>(tmp));
-        --free_count;
-
-        return tmp;
-    }
-
-    /*
-     * NOTE: the offset here is measured from field data
-     */
-    void free(size_t offset) {
-        assert_retnone(magic == MAGIC);
-        assert_retnone(offset <= block_size * (total_count - 1));
-        assert_retnone(offset % block_size == 0);
-
-        int idx = offset / block_size;
-
-        *(static_cast<int *>(static_cast<void *>(data + offset))) = free_head;
-        free_head = idx;
-        ++free_count;
-    }
-};
-
 struct buddy {
     int shmid;
     u32 size;
@@ -643,6 +551,8 @@ struct buddy {
         }
     }
 };
+
+struct mem_chunk;
 
 } // namespace detail
 
