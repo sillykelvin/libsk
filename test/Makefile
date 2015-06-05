@@ -21,3 +21,5 @@ $(APP_BIN): $(DEP) $(OBJ) $(LIBS)
 
 clean:
 	$(RM) $(OBJ) $(DEP) $(APP_BIN)
+
+-include $(DEP)

@@ -21,3 +21,5 @@ $(OUT_LIB): $(DEP) $(OBJ)
 
 clean:
 	$(RM) $(OBJ) $(DEP) $(OUT_LIB)
+
+-include $(DEP)
