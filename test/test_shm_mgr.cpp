@@ -2,6 +2,7 @@
 #include "sk_inc.h"
 #include "detail/buddy.h"
 #include "detail/mem_chunk.h"
+#include "detail/stack.h"
 
 #define HASH_SHM_KEY        (0x77)
 #define BLK_CNT             (20)

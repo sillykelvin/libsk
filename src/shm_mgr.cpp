@@ -1,6 +1,7 @@
 #include "sk_inc.h"
 #include "detail/buddy.h"
 #include "detail/mem_chunk.h"
+#include "detail/stack.h"
 
 struct singleton_info {
     int id;
