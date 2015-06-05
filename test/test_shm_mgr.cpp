@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "sk_inc.h"
+#include "detail/mem_chunk.h"
 
 #define HASH_SHM_KEY        (0x77)
 #define BLK_CNT             (20)
@@ -309,12 +310,6 @@ TEST(shm_mgr, shm_mgr) {
         ASSERT_TRUE(s1000_blocks[i] != SHM_NULL && tmp != NULL);
     }
 
-    void_ptr = NULL;
-    size24 *invalid = NULL;
-    shm_ptr pinvalid = mgr->malloc(sizeof(*invalid), void_ptr);
-    invalid = static_cast<size24 *>(void_ptr);
-    ASSERT_TRUE(pinvalid == SHM_NULL && invalid == NULL);
-
     mgr->free(s1000_blocks[0]);
 
     shm_ptr s24_blocks[50] = {0};
@@ -325,11 +320,6 @@ TEST(shm_mgr, shm_mgr) {
         tmp = static_cast<size24 *>(void_ptr);
         ASSERT_TRUE(s24_blocks[i] != SHM_NULL && tmp != NULL);
     }
-
-    void_ptr = NULL;
-    pinvalid = mgr->malloc(sizeof(*invalid), void_ptr);
-    invalid = static_cast<size24 *>(void_ptr);
-    ASSERT_TRUE(pinvalid == SHM_NULL && invalid == NULL);
 
     shm_ptr s1024_blocks[8];
     for (int i = 0; i < 8; ++i) {
