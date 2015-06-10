@@ -50,29 +50,32 @@ struct mem_chunk {
         return free_count >= total_count;
     }
 
-    void *malloc() {
+    /**
+     * @brief malloc will allocate a block from this chunk
+     * @return block index if succeeded, negative value if not
+     */
+    int malloc() {
         if (full())
-            return NULL;
+            return -ENOMEM;
 
-        void *tmp = static_cast<void *>(data + free_head * block_size);
-        free_head = *(static_cast<int *>(tmp));
+        int block_index = free_head;
+        free_head = *(static_cast<int *>(static_cast<void *>(data + free_head * block_size)));
         --free_count;
 
-        return tmp;
+        return block_index;
     }
 
-    /*
-     * NOTE: the offset here is measured from field data
+    /**
+     * @brief free will deallocate a block in this chunk
+     * @param block_index is the block index in the chunk
      */
-    void free(size_t offset) {
+    void free(int block_index) {
         assert_retnone(magic == MAGIC);
-        assert_retnone(offset <= block_size * (total_count - 1));
-        assert_retnone(offset % block_size == 0);
+        assert_retnone(!empty());
+        assert_retnone(block_index >= 0 && block_index < total_count);
 
-        int idx = offset / block_size;
-
-        *(static_cast<int *>(static_cast<void *>(data + offset))) = free_head;
-        free_head = idx;
+        *(static_cast<int *>(static_cast<void *>(data + block_size * block_index))) = free_head;
+        free_head = block_index;
         ++free_count;
     }
 };
