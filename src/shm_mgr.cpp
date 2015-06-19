@@ -161,8 +161,8 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2,
             assert_retval(singleton_base == self->pool, NULL);
         }
 
-        self->pool_head_ptr = self->pool - base_addr;
-        self->pool_end_ptr  = shm_size;
+        self->pool_head_offset = self->pool - base_addr;
+        self->pool_end_offset  = shm_size;
 
         self->chunk_end = 0;
         self->heap_head = chunk_size * chunk_count;
@@ -226,7 +226,7 @@ shm_ptr sk::shm_mgr::ptr2ptr(void *ptr) {
 inline sk::shm_mgr::mem_chunk *sk::shm_mgr::__ptr2chunk(shm_ptr ptr) {
     void *p = ptr2ptr(ptr);
     assert_retval(p, NULL);
-    assert_retval((ptr - pool_head_ptr) % chunk_size == 0, NULL);
+    assert_retval((ptr - pool_head_offset) % chunk_size == 0, NULL);
 
     return static_cast<mem_chunk *>(p);
 }
@@ -411,9 +411,9 @@ void sk::shm_mgr::free(shm_ptr ptr) {
     /*
      * NOTE: the condition between ptr and pool_end_ptr is <, not <=
      */
-    assert_retnone(ptr >= pool_head_ptr && ptr < pool_end_ptr);
+    assert_retnone(ptr >= pool_head_offset && ptr < pool_end_offset);
 
-    size_t offset = ptr - pool_head_ptr;
+    size_t offset = ptr - pool_head_offset;
     if (offset < chunk_end)
         return __free_from_chunk_pool(offset);
 

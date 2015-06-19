@@ -87,17 +87,17 @@ struct shm_mgr {
      * pool is the base address of entire mem pool
      * also, it is the head of chunk pool
      *
-     * pool_head_ptr is the head ptr of pool:
+     * pool_head_offset is the head offset of pool:
      *     [pool head] = [pool addr] - [addr of this]
      *
-     * pool_end_ptr is the end ptr of pool:
+     * pool_end_offset is the end offset of pool:
      *     [pool end] = [actual total shm size]
      *
-     * NOTE: pool_end_ptr is NOT in the pool!!!
+     * NOTE: pool_end_offset is NOT in the pool!!!
      */
     char *pool;
-    shm_ptr pool_head_ptr;
-    shm_ptr pool_end_ptr;
+    shm_ptr pool_head_offset;
+    shm_ptr pool_end_offset;
 
     /*
      * the pool will be divided into two parts:
