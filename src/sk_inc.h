@@ -18,5 +18,6 @@
 #include "types.h"
 #include "shm_seg.h"
 #include "shm_mgr.h"
+#include "shm_ptr.h"
 
 #endif // SK_INC_H
