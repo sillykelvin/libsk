@@ -1,0 +1,7 @@
+#+TITLE:     TODO
+#+AUTHOR:    Kelvin Hu
+#+EMAIL:     ini.kelvin@gmail.com
+#+DATE:      2015-06-19
+
+
+1. make =INVALID_OFFSET= a member of =shm_mgr=, like =npos= in =std::string=.
