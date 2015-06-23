@@ -165,9 +165,9 @@ struct shm_mgr {
 
     int __malloc_from_heap(size_t mem_size, int& unit_index);
 
-    void __free_from_chunk_pool(size_t offset);
+    void __free_from_chunk_pool(int chunk_index, int block_index);
 
-    void __free_from_heap(size_t offset);
+    void __free_from_heap(int unit_index);
 
     void *get_singleton(int id);
 

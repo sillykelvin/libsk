@@ -346,33 +346,30 @@ int sk::shm_mgr::__malloc_from_heap(size_t mem_size, int &unit_index) {
     return 0;
 }
 
-void sk::shm_mgr::__free_from_chunk_pool(size_t offset) {
-    size_t chunk_offset = (offset / chunk_size) * chunk_size;
-    assert_retnone(offset >= chunk_offset + sizeof(mem_chunk));
+void sk::shm_mgr::__free_from_chunk_pool(int chunk_index, int block_index) {
+    assert_retnone(chunk_index >= 0 && block_index >= 0);
+    size_t chunk_offset = chunk_size * chunk_index;
+    assert_retnone(chunk_offset + chunk_size <= chunk_end);
 
-    size_t offset_in_chunk = offset - chunk_offset - sizeof(mem_chunk);
-
-    mem_chunk *chunk = static_cast<mem_chunk *>(static_cast<void *>(pool + chunk_offset));
+    mem_chunk *chunk = cast_ptr(mem_chunk, pool + chunk_offset);
 
     bool full_before_free = chunk->full();
 
-    chunk->free(offset_in_chunk);
+    chunk->free(block_index);
 
     bool empty_after_free = chunk->empty();
 
-    shm_ptr chunk_ptr = __chunk2ptr(chunk);
-
     if (full_before_free && empty_after_free) {
-        int ret = empty_chunk_stack->push(chunk_ptr);
+        int ret = empty_chunk_stack->push(chunk_index);
         assert_retnone(ret == 0);
     } else if (full_before_free) {
-        int ret = free_chunk_hash->insert(chunk->block_size, chunk_ptr);
+        int ret = free_chunk_hash->insert(chunk->block_size, chunk_index);
         assert_retnone(ret == 0);
     } else if (empty_after_free) {
-        int ret = free_chunk_hash->erase(chunk->block_size, chunk_ptr);
+        int ret = free_chunk_hash->erase(chunk->block_size, chunk_index);
         assert_retnone(ret == 0);
 
-        ret = empty_chunk_stack->push(chunk_ptr);
+        ret = empty_chunk_stack->push(chunk_index);
         assert_retnone(ret == 0);
     } else {
         // not full before free, also not empty after free, it
@@ -380,14 +377,10 @@ void sk::shm_mgr::__free_from_chunk_pool(size_t offset) {
     }
 }
 
-void sk::shm_mgr::__free_from_heap(size_t offset) {
-    assert_retnone(offset >= heap_head);
+void sk::shm_mgr::__free_from_heap(int unit_index) {
+    assert_retnone(unit_index >= 0);
 
-    size_t heap_offset = offset - heap_head;
-    assert_retnone(heap_offset % heap_unit_size == 0);
-
-    int heap_unit_offset = heap_offset / heap_unit_size;
-    heap->free(heap_unit_offset);
+    heap->free(unit_index);
 }
 
 void *sk::shm_mgr::get_singleton(int id) {
