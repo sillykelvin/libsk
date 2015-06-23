@@ -35,6 +35,8 @@ struct buddy;
 
 } // namespace detail
 
+template<typename T>
+struct shm_ptr;
 
 
 /**
@@ -47,13 +49,15 @@ struct buddy;
  *     +---------+-----------+-------+------+
  *                           ^       ^      ^
  *                           |       |      |
- *                 pool -----+       |      +----- pool_end_ptr
+ *                 pool -----+       |      +----- pool_end_offset
  *                           |   heap_head
- *        pool_head_ptr -----+
+ *     pool_head_offset -----+
  */
 struct shm_mgr {
-    typedef detail::hash<size_t, shm_ptr, true, detail::hashcode> size_ptr_hash;
-    typedef detail::stack<shm_ptr> stack;
+    typedef size_t offset_t;
+    typedef int index_t;
+    typedef detail::hash<size_t, index_t, true, detail::hashcode> size_index_hash;
+    typedef detail::stack<index_t> stack;
     typedef detail::mem_chunk mem_chunk;
     typedef detail::buddy heap_allocator;
 
@@ -81,7 +85,7 @@ struct shm_mgr {
     /*
      * the offsets to singleton objects
      */
-    shm_ptr singletons[ST_MAX];
+    offset_t singletons[ST_MAX];
 
     /*
      * pool is the base address of entire mem pool
@@ -96,8 +100,8 @@ struct shm_mgr {
      * NOTE: pool_end_offset is NOT in the pool!!!
      */
     char *pool;
-    shm_ptr pool_head_offset;
-    shm_ptr pool_end_offset;
+    offset_t pool_head_offset;
+    offset_t pool_end_offset;
 
     /*
      * the pool will be divided into two parts:
@@ -107,11 +111,11 @@ struct shm_mgr {
      * chunk_end is the "realtime" end of chunk pool
      * heap_head is the fixed head of heap
      *
-     * chunk_end can grow or shrink, if it meets heap_head,
-     * then there is no more available chunk, but, it does
+     * chunk_end can grow, if it meets heap_head, then
+     * there is no more available chunk, but, it does
      * NOT mean there is no more space on heap
      *
-     * NOTE: a variable with type shm_ptr means an offset
+     * NOTE: a variable with type offset_t means an offset
      * measured from address of this ptr, however, the two
      * variables below are measured from pool ptr
      */
@@ -120,15 +124,15 @@ struct shm_mgr {
 
     /*
      * free_chunk_hash stores the mapping from block size
-     * to chunk location (a.k.a shm_ptr), it only stores
-     * those chunks can allocate at leaset one block, full
-     * chunks will be erased from the hash
+     * to chunk index, it only stores those chunks can
+     * allocate at leaset one block, full chunks will be
+     * erased from the hash
      *
      * empty_chunk_stack stores those empty chunks, so that
      * we can reuse those chunks to store blocks with
      * different sizes
      */
-    size_ptr_hash *free_chunk_hash;
+    size_index_hash *free_chunk_hash;
     stack *empty_chunk_stack;
 
     /*
@@ -147,13 +151,13 @@ struct shm_mgr {
 
     static shm_mgr *get();
 
-    void *ptr2ptr(shm_ptr ptr);
+    void *offset2ptr(offset_t offset);
 
-    shm_ptr ptr2ptr(void *ptr);
+    offset_t ptr2offset(void *ptr);
 
-    mem_chunk *__ptr2chunk(shm_ptr ptr);
+    mem_chunk *__offset2chunk(offset_t offset);
 
-    shm_ptr __chunk2ptr(mem_chunk *chunk);
+    offset_t __chunk2offset(mem_chunk *chunk);
 
     shm_ptr __malloc_from_chunk_pool(size_t mem_size, void *&ptr);
 
