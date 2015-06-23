@@ -159,9 +159,11 @@ struct shm_mgr {
 
     offset_t __chunk2offset(mem_chunk *chunk);
 
-    shm_ptr __malloc_from_chunk_pool(size_t mem_size, void *&ptr);
+    mem_chunk *__index2chunk(index_t idx);
 
-    shm_ptr __malloc_from_heap(size_t mem_size, void *&ptr);
+    int __malloc_from_chunk_pool(size_t mem_size, int& chunk_index, int& block_index);
+
+    int __malloc_from_heap(size_t mem_size, int& unit_index);
 
     void __free_from_chunk_pool(size_t offset);
 

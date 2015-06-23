@@ -237,44 +237,62 @@ inline sk::shm_mgr::offset_t sk::shm_mgr::__chunk2offset(sk::shm_mgr::mem_chunk 
     return ptr2offset(static_cast<void *>(chunk));
 }
 
-shm_ptr sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, void *&ptr) {
+sk::shm_mgr::mem_chunk *sk::shm_mgr::__index2chunk(sk::shm_mgr::index_t idx) {
+    assert_retval(idx >= 0, NULL);
+
+    size_t offset = idx * chunk_size;
+    assert_retval(offset + chunk_size <= chunk_end, NULL);
+
+    return cast_ptr(mem_chunk, pool + offset);
+}
+
+int sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, int &chunk_index, int &block_index) {
     mem_chunk *chunk = NULL;
+    index_t index = -1;
 
     do {
-        shm_ptr *chunk_ptr = free_chunk_hash->find(mem_size);
+        index_t *idx = free_chunk_hash->find(mem_size);
 
         // 1. there exists free chunk with same size
-        if (chunk_ptr) {
-            chunk = __ptr2chunk(*chunk_ptr);
+        if (idx) {
+            chunk = __index2chunk(*idx);
+            index = *idx;
             break;
         }
 
         // 2. no free chunk exists, but there is empty chunk
         if (!empty_chunk_stack->empty()) {
-            chunk_ptr = empty_chunk_stack->pop();
-            assert_retval(chunk_ptr, SHM_NULL);
+            idx = empty_chunk_stack->pop();
+            assert_retval(idx, -EFAULT);
 
-            chunk = __ptr2chunk(*chunk_ptr);
+            // TODO: check if chunk is null here, and also
+            // verify the return value of chun->init(...)
+            // also check item 3
+            chunk = __index2chunk(*idx);
             chunk->init(chunk_size, mem_size);
+            index = *idx;
+            break;
 
             // TODO: here if the chunk has only one block,
             // then there is no need to insert it into the
             // hash, as we will remove it from the hash later
             // this condition also applies to item 3
-            int ret = free_chunk_hash->insert(mem_size, *chunk_ptr);
-            assert_retval(ret == 0, SHM_NULL);
+            int ret = free_chunk_hash->insert(mem_size, *idx);
+            assert_retval(ret == 0, -EFAULT);
 
             break;
         }
 
         // 3. there is available chunk in pool
         if (chunk_end + chunk_size <= heap_head) {
-            void *addr = static_cast<void *>(pool + chunk_end);
-            chunk = static_cast<mem_chunk *>(addr);
+            assert_retval(chunk_end % chunk_size == 0, -EFAULT);
+
+            chunk = cast_ptr(mem_chunk, pool + chunk_end);
             chunk->init(chunk_size, mem_size);
 
-            int ret = free_chunk_hash->insert(mem_size, ptr2ptr(addr));
-            assert_retval(ret == 0, SHM_NULL);
+            index = chunk_end / chunk_size;
+            int ret = free_chunk_hash->insert(mem_size, index);
+            assert_retval(ret == 0, -EFAULT);
 
             chunk_end += chunk_size;
             break;
@@ -283,11 +301,11 @@ shm_ptr sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, void *&ptr) {
         // 4. no empty chunk, and also chunk pool has used up
         //    we hope it will never get here :(
         ERR("chunk pool has been used up!!!");
-        return SHM_NULL;
+        return -ENOMEM;
 
     } while (0);
 
-    assert_retval(chunk, SHM_NULL);
+    assert_retval(chunk, -EFAULT);
 
     // actually, it should never get here
     if (chunk->full()) {
@@ -296,34 +314,36 @@ shm_ptr sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, void *&ptr) {
         // however, if it gets here, we still can handle:
         // remove the full chunk, and call this function recursively
         free_chunk_hash->erase(mem_size);
-        return __malloc_from_chunk_pool(mem_size, ptr);
+        return __malloc_from_chunk_pool(mem_size, chunk_index, block_index);
     }
 
-    ptr = chunk->malloc();
-    assert_retval(ptr, SHM_NULL);
+    block_index = chunk->malloc();
+    assert_retval(block_index >= 0, -EFAULT);
+
+    chunk_index = index;
 
     if (chunk->full())
         free_chunk_hash->erase(mem_size);
 
-    return ptr2ptr(ptr);
+    return 0;
 }
 
-shm_ptr sk::shm_mgr::__malloc_from_heap(size_t mem_size, void *&ptr) {
+int sk::shm_mgr::__malloc_from_heap(size_t mem_size, int &unit_index) {
     u32 unit_count = mem_size / heap_unit_size;
     if (mem_size % heap_unit_size != 0)
         unit_count += 1;
 
-    int offset = heap->malloc(unit_count);
+    int idx = heap->malloc(unit_count);
 
     // there is no more memory
     // we hope it will never get here :(
-    if (offset < 0) {
+    if (idx < 0) {
         ERR("no more space on heap!!!");
-        return SHM_NULL;
+        return -ENOMEM;
     }
 
-    ptr = static_cast<void *>(pool + heap_head + heap_unit_size * offset);
-    return ptr2ptr(ptr);
+    unit_index = idx;
+    return 0;
 }
 
 void sk::shm_mgr::__free_from_chunk_pool(size_t offset) {
