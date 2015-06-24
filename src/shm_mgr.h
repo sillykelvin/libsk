@@ -250,9 +250,40 @@ struct shm_mgr {
         return shm_ptr<T>(ptr);
     }
 
-    void free(shm_ptr ptr);
+    template<typename T>
+    void free(shm_ptr<T> ptr) {
+        if (!ptr)
+            return;
 
-    void free(void *ptr);
+        u32 ptr_type = ptr.mid & detail::PTR_TYPE_MASK;
+        switch (ptr_type) {
+        case detail::PTR_TYPE_SINGLETON: {
+            detail::singleton_ptr *sptr = cast_ptr(detail::singleton_ptr, &ptr.mid);
+            assert_retnone(sptr->ptr_type == detail::PTR_TYPE_SINGLETON);
+
+            assert_noeffect(0);
+            return;
+        }
+        case detail::PTR_TYPE_CHUNK: {
+            detail::chunk_ptr *cptr = cast_ptr(detail::chunk_ptr, &ptr.mid);
+            assert_retnone(cptr->ptr_type == detail::PTR_TYPE_CHUNK);
+            assert_retnone(cptr->chunk_index >= 0 && cptr->block_index >= 0);
+
+            __free_from_chunk_pool(cptr->chunk_index, cptr->block_index);
+            return;
+        }
+        case detail::PTR_TYPE_HEAP: {
+            detail::heap_ptr *hptr = cast_ptr(detail::heap_ptr, &ptr.mid);
+            assert_retnone(hptr->ptr_type == detail::PTR_TYPE_HEAP);
+            assert_retnone(hptr->unit_index >= 0);
+
+            __free_from_heap(hptr->unit_index);
+            return;
+        }
+        default:
+            assert_retnone(0);
+        }
+    }
 };
 
 
