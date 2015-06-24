@@ -392,54 +392,6 @@ void *sk::shm_mgr::get_singleton(int id) {
     return ptr2ptr(ptr);
 }
 
-shm_ptr sk::shm_mgr::malloc(size_t size, void *&raw_ptr) {
-    size_t mem_size = __align_size(size);
-    bool use_chunk = mem_size <= max_block_size;
-
-    shm_ptr ptr = SHM_NULL;
-
-    if (use_chunk) {
-        ptr = __malloc_from_chunk_pool(mem_size, raw_ptr);
-
-        // if chunk pool is used up, we allocate it from heap
-        if (ptr == SHM_NULL)
-            ptr = __malloc_from_heap(mem_size, raw_ptr);
-
-        if (ptr == SHM_NULL)
-            return SHM_NULL;
-
-        assert_noeffect(raw_ptr);
-        return ptr;
-    }
-
-    ptr = __malloc_from_heap(mem_size, raw_ptr);
-    if (ptr == SHM_NULL) // no more memory :(
-        return SHM_NULL;
-
-    assert_noeffect(raw_ptr);
-    return ptr;
-}
-
-void sk::shm_mgr::free(shm_ptr ptr) {
-    /*
-     * NOTE: the condition between ptr and pool_end_ptr is <, not <=
-     */
-    assert_retnone(ptr >= pool_head_offset && ptr < pool_end_offset);
-
-    size_t offset = ptr - pool_head_offset;
-    if (offset < chunk_end)
-        return __free_from_chunk_pool(offset);
-
-    return __free_from_heap(offset);
-}
-
-void sk::shm_mgr::free(void *ptr) {
-    if (!ptr)
-        return;
-
-    free(ptr2ptr(ptr));
-}
-
 
 shm_ptr sk::ptr2ptr(void *ptr) {
     shm_mgr *mgr = shm_mgr::get();
