@@ -248,7 +248,7 @@ sk::shm_mgr::mem_chunk *sk::shm_mgr::__index2chunk(sk::shm_mgr::index_t idx) {
 
 int sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, int &chunk_index, int &block_index) {
     mem_chunk *chunk = NULL;
-    index_t index = -1;
+    index_t index = IDX_NULL;
 
     do {
         index_t *idx = free_chunk_hash->find(mem_size);
