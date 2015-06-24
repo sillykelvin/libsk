@@ -393,13 +393,6 @@ void *sk::shm_mgr::get_singleton(int id) {
 }
 
 
-shm_ptr sk::ptr2ptr(void *ptr) {
-    shm_mgr *mgr = shm_mgr::get();
-    assert_retval(mgr, SHM_NULL);
-
-    return mgr->ptr2ptr(ptr);
-}
-
 void *sk::shm_malloc(size_t size, shm_ptr &ptr) {
     void *raw_ptr = NULL;
     shm_mgr *mgr = shm_mgr::get();

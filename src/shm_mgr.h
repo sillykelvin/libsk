@@ -289,21 +289,6 @@ struct shm_mgr {
 
 
 /*
- * the two functions below are used to convert offset pointer and raw pointers
- */
-shm_ptr ptr2ptr(void *ptr);
-
-template<typename T>
-T *ptr2ptr(shm_ptr ptr) {
-    shm_mgr *mgr = shm_mgr::get();
-    assert_retnone(mgr);
-
-    void *raw_ptr = mgr->ptr2ptr(ptr);
-    return static_cast<T *>(raw_ptr);
-}
-
-
-/*
  * the group of functions below is used to manipulate shared memory allocation/deallocation.
  *
  * shm_malloc/shm_free is like malloc/free in C, only memories are allocated/deallocated,
