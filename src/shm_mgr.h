@@ -35,6 +35,39 @@ struct buddy;
 
 } // namespace detail
 
+namespace detail {
+
+// we should not use 0 here, we will leave
+// 0 to the invalid pointer type
+enum detail_ptr_type {
+    PTR_TYPE_SINGLETON = 1,
+    PTR_TYPE_CHUNK     = 2,
+    PTR_TYPE_HEAP      = 3
+};
+
+static const int PTR_TYPE_MASK = 0x3;
+
+struct singleton_ptr {
+    int singleton_id: 32;
+    int      padding: 30; // is only used to padding the struct to 64 bit
+    u32     ptr_type: 2;
+};
+
+struct chunk_ptr {
+    int chunk_index: 32;
+    int block_index: 30;
+    u32    ptr_type: 2;
+};
+
+struct heap_ptr {
+    int unit_index: 32;
+    int    padding: 30;
+    u32   ptr_type: 2;
+};
+
+} // namespace detail
+
+
 template<typename T>
 struct shm_ptr;
 
@@ -171,7 +204,51 @@ struct shm_mgr {
 
     void *get_singleton(int id);
 
-    shm_ptr malloc(size_t size, void *&raw_ptr);
+    template<typename T>
+    shm_ptr<T> malloc() {
+        size_t mem_size = __align_size(sizeof(T));
+
+        do {
+            if (mem_size > max_block_size)
+                break;
+
+            int chunk_index = IDX_NULL;
+            int block_index = IDX_NULL;
+            int ret = __malloc_from_chunk_pool(mem_size, chunk_index, block_index);
+
+            // 1. the allocation succeeds
+            if (ret == 0) {
+                detail::chunk_ptr ptr = {0};
+                ptr.ptr_type = detail::PTR_TYPE_CHUNK;
+                ptr.chunk_index = chunk_index;
+                ptr.block_index = block_index;
+
+                return shm_ptr<T>(ptr);
+            }
+
+            // 2. fatal errors other than "no more memory", we return NULL
+            if (ret != -ENOMEM)
+                return shm_ptr<T>();
+
+            // 3. the error is because chunk pool is used up, then we will
+            //    allocate it from heap
+            break;
+
+        } while (0);
+
+        // if the block should be allocated on heap, or the allocation fails in chunk pool
+        // because it is used up, then we do the allocation on heap
+        int unit_index = IDX_NULL;
+        int ret = __malloc_from_heap(mem_size, unit_index);
+        if (ret != 0)
+            return shm_ptr<T>();
+
+        detail::heap_ptr ptr = {0};
+        ptr.ptr_type = detail::PTR_TYPE_HEAP;
+        ptr.unit_index = unit_index;
+
+        return shm_ptr<T>(ptr);
+    }
 
     void free(shm_ptr ptr);
 
