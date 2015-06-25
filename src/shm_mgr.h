@@ -226,34 +226,24 @@ void *shm_singleton(int id);
 
 
 template<typename T>
-T *shm_new(shm_ptr& ptr) {
-    void *raw_ptr = shm_malloc(sizeof(T), ptr);
+shm_ptr<T> shm_new() {
+    shm_ptr<T> ptr = shm_malloc(sizeof(T));
+    if (!ptr)
+        return ptr;
 
-    if (raw_ptr == NULL)
-        return NULL;
+    T *t = ptr.get();
+    new (T)(t);
 
-    new (T)(raw_ptr);
-
-    return static_cast<T *>(raw_ptr);
+    return ptr;
 }
 
 template<typename T>
-void shm_del(shm_ptr ptr) {
-    T *t = ptr2ptr<T>(ptr);
-    if (!t)
-        return;
-
-    t->~T();
-
-    shm_free(ptr);
-}
-
-template<typename T>
-void shm_del(T *ptr) {
+void shm_del(shm_ptr<T> ptr) {
     if (!ptr)
         return;
 
-    ptr->~T();
+    T *t = ptr.get();
+    t->~T();
 
     shm_free(ptr);
 }
