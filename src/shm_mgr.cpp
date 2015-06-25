@@ -172,7 +172,7 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2,
     {
         int node_count = chunk_count;
         int hash_size  = chunk_size - sizeof(mem_chunk); // max block size
-        self->free_chunk_hash = size_ptr_hash::create(aux_key1, resume, node_count, hash_size);
+        self->free_chunk_hash = size_index_hash::create(aux_key1, resume, node_count, hash_size);
         if (!self->free_chunk_hash) {
             ERR("cannot create free chunk hash.");
             seg.free();
