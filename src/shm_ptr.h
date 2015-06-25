@@ -6,7 +6,6 @@ namespace sk {
 template<typename T>
 struct shm_ptr {
     typedef T* pointer;
-    typedef T& reference;
 
     u64 mid;
 
