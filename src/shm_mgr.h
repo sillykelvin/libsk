@@ -221,8 +221,7 @@ struct shm_mgr {
  * when allocating/deallocating memories
  */
 shm_ptr<void> shm_malloc(size_t size);
-void shm_free(shm_ptr ptr);
-void shm_free(void *ptr);
+void shm_free(shm_ptr<void> ptr);
 void *shm_singleton(int id);
 
 

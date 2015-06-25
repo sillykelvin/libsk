@@ -479,7 +479,7 @@ sk::shm_ptr<void> sk::shm_malloc(size_t size) {
     return mgr->malloc(size);
 }
 
-void sk::shm_free(shm_ptr ptr) {
+void sk::shm_free(shm_ptr<void> ptr) {
     shm_mgr *mgr = shm_mgr::get();
     assert_retnone(mgr);
 
