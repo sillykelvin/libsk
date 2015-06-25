@@ -202,6 +202,8 @@ struct shm_mgr {
 
     void __free_from_heap(int unit_index);
 
+    void *mid2ptr(u64 mid);
+
     void *get_singleton(int id);
 
     shm_ptr<void> malloc(size_t size);

@@ -383,6 +383,43 @@ void sk::shm_mgr::__free_from_heap(int unit_index) {
     heap->free(unit_index);
 }
 
+// TODO: refine this function, it has almost the same logic with free(...)
+void *sk::shm_mgr::mid2ptr(u64 mid) {
+    if (!mid)
+        return NULL;
+
+    int ptr_type = mid & detail::PTR_TYPE_MASK;
+    switch (ptr_type) {
+    case detail::PTR_TYPE_SINGLETON: {
+        detail::singleton_ptr *sptr = cast_ptr(detail::singleton_ptr, &mid);
+        assert_retval(sptr->ptr_type == detail::PTR_TYPE_SINGLETON, NULL);
+
+        return get_singleton(sptr->singleton_id);
+    }
+    case detail::PTR_TYPE_CHUNK: {
+        detail::chunk_ptr *cptr = cast_ptr(detail::chunk_ptr, &mid);
+        assert_retval(cptr->ptr_type == detail::PTR_TYPE_CHUNK, NULL);
+        assert_retval(cptr->chunk_index >= 0 && cptr->block_index >= 0, NULL);
+
+        // TODO: extract the logic below into a method of mem_chunk
+        mem_chunk *chunk = cast_ptr(mem_chunk, pool + cptr->chunk_index * chunk_size);
+        assert_retval(chunk->magic == MAGIC, NULL);
+
+        return void_ptr(chunk->data + cptr->block_index * chunk->block_size);
+    }
+    case detail::PTR_TYPE_HEAP: {
+        detail::heap_ptr *hptr = cast_ptr(detail::heap_ptr, &mid);
+        assert_retval(hptr->ptr_type == detail::PTR_TYPE_HEAP, NULL);
+        assert_retval(hptr->unit_index >= 0, NULL);
+
+        // TODO: define another field: "char *heap_pool", seperate "chunk_pool" and "heap_pool"
+        return void_ptr(pool + heap_head + hptr->unit_index * heap_unit_size);
+    }
+    default:
+        assert_retval(0, NULL);
+    }
+}
+
 void *sk::shm_mgr::get_singleton(int id) {
     assert_retval(id >= ST_MIN && id < ST_MAX, NULL);
 
