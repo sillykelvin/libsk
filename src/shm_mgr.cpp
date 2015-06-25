@@ -396,10 +396,10 @@ void *sk::shm_mgr::mid2ptr(u64 mid) {
 void *sk::shm_mgr::get_singleton(int id) {
     assert_retval(id >= ST_MIN && id < ST_MAX, NULL);
 
-    shm_ptr ptr = singletons[id];
-    assert_retval(ptr != SHM_NULL, NULL);
+    offset_t offset = singletons[id];
+    assert_retval(offset >= sizeof(*this), NULL);
 
-    return ptr2ptr(ptr);
+    return void_ptr(char_ptr(this) + offset);
 }
 
 sk::shm_ptr<void> sk::shm_mgr::malloc(size_t size) {
@@ -415,7 +415,7 @@ sk::shm_ptr<void> sk::shm_mgr::malloc(size_t size) {
 
         // 1. the allocation succeeds
         if (ret == 0) {
-            detail::chunk_ptr ptr = {0};
+            detail::chunk_ptr ptr;
             ptr.ptr_type = detail::PTR_TYPE_CHUNK;
             ptr.chunk_index = chunk_index;
             ptr.block_index = block_index;
@@ -440,7 +440,7 @@ sk::shm_ptr<void> sk::shm_mgr::malloc(size_t size) {
     if (ret != 0)
         return shm_ptr<void>();
 
-    detail::heap_ptr ptr = {0};
+    detail::heap_ptr ptr;
     ptr.ptr_type = detail::PTR_TYPE_HEAP;
     ptr.unit_index = unit_index;
 
