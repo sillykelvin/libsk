@@ -486,13 +486,6 @@ void sk::shm_free(shm_ptr<void> ptr) {
     mgr->free(ptr);
 }
 
-void sk::shm_free(void *ptr) {
-    shm_mgr *mgr = shm_mgr::get();
-    assert_retnone(mgr);
-
-    mgr->free(ptr);
-}
-
 void *sk::shm_singleton(int id) {
     shm_mgr *mgr = shm_mgr::get();
     assert_retval(mgr, NULL);
