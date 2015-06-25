@@ -220,7 +220,7 @@ struct shm_mgr {
  * shm_new/shm_del are like new/delete in C++, they will call constructors/destructors
  * when allocating/deallocating memories
  */
-void *shm_malloc(size_t size, shm_ptr& ptr);
+shm_ptr<void> shm_malloc(size_t size);
 void shm_free(shm_ptr ptr);
 void shm_free(void *ptr);
 void *shm_singleton(int id);

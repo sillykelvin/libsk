@@ -472,16 +472,11 @@ void sk::shm_mgr::free(shm_ptr<void> ptr) {
 }
 
 
-void *sk::shm_malloc(size_t size, shm_ptr &ptr) {
-    void *raw_ptr = NULL;
+sk::shm_ptr<void> sk::shm_malloc(size_t size) {
     shm_mgr *mgr = shm_mgr::get();
-    assert_retval(mgr, NULL);
+    assert_retval(mgr, shm_ptr<void>());
 
-    ptr = mgr->malloc(size, raw_ptr);
-    // the two pointers must either be null or not null simultaneously
-    assert_retval((ptr == SHM_NULL && raw_ptr == NULL) || (ptr != SHM_NULL && raw_ptr != NULL), NULL);
-
-    return raw_ptr;
+    return mgr->malloc(size);
 }
 
 void sk::shm_free(shm_ptr ptr) {
