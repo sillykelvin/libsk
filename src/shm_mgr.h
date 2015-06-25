@@ -184,14 +184,6 @@ struct shm_mgr {
 
     static shm_mgr *get();
 
-    void *offset2ptr(offset_t offset);
-
-    offset_t ptr2offset(void *ptr);
-
-    mem_chunk *__offset2chunk(offset_t offset);
-
-    offset_t __chunk2offset(mem_chunk *chunk);
-
     mem_chunk *__index2chunk(index_t idx);
 
     int __malloc_from_chunk_pool(size_t mem_size, int& chunk_index, int& block_index);

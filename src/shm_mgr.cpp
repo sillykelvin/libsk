@@ -210,33 +210,6 @@ sk::shm_mgr *sk::shm_mgr::get() {
     return mgr;
 }
 
-void *sk::shm_mgr::offset2ptr(offset_t offset) {
-    assert_retval(offset >= sizeof(*this), NULL);
-
-    return static_cast<void *>(static_cast<char *>(static_cast<void *>(this)) + offset);
-}
-
-sk::shm_mgr::offset_t sk::shm_mgr::ptr2offset(void *ptr) {
-    ptrdiff_t offset = static_cast<char *>(ptr) - static_cast<char *>(static_cast<void *>(this));
-    assert_retval(offset >= sizeof(*this), INVALID_OFFSET);
-
-    return offset;
-}
-
-inline sk::shm_mgr::mem_chunk *sk::shm_mgr::__offset2chunk(offset_t offset) {
-    void *p = offset2ptr(offset);
-    assert_retval(p, NULL);
-    assert_retval((ptr - pool_head_offset) % chunk_size == 0, NULL);
-
-    return static_cast<mem_chunk *>(p);
-}
-
-inline sk::shm_mgr::offset_t sk::shm_mgr::__chunk2offset(sk::shm_mgr::mem_chunk *chunk) {
-    assert_retval(chunk, INVALID_OFFSET);
-
-    return ptr2offset(static_cast<void *>(chunk));
-}
-
 sk::shm_mgr::mem_chunk *sk::shm_mgr::__index2chunk(sk::shm_mgr::index_t idx) {
     assert_retval(idx >= 0, NULL);
 
