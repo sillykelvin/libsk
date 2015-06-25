@@ -25,6 +25,11 @@ struct shm_ptr {
     pointer get() {
         return cast_ptr(pointer, __ptr());
     }
+
+    typedef void (shm_ptr::*unspecified_bool_type)() const;
+    void unspecified_bool_true() const;
+
+    operator unspecified_bool_type() const { return mid ? &shm_ptr::unspecified_bool_true : 0; }
 };
 
 } // namespace sk
