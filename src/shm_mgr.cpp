@@ -392,6 +392,85 @@ void *sk::shm_mgr::get_singleton(int id) {
     return ptr2ptr(ptr);
 }
 
+sk::shm_ptr<void> sk::shm_mgr::malloc(size_t size) {
+    size_t mem_size = __align_size(size);
+
+    do {
+        if (mem_size > max_block_size)
+            break;
+
+        int chunk_index = IDX_NULL;
+        int block_index = IDX_NULL;
+        int ret = __malloc_from_chunk_pool(mem_size, chunk_index, block_index);
+
+        // 1. the allocation succeeds
+        if (ret == 0) {
+            detail::chunk_ptr ptr = {0};
+            ptr.ptr_type = detail::PTR_TYPE_CHUNK;
+            ptr.chunk_index = chunk_index;
+            ptr.block_index = block_index;
+
+            return shm_ptr<void>(ptr);
+        }
+
+        // 2. fatal errors other than "no more memory", we return NULL
+        if (ret != -ENOMEM)
+            return shm_ptr<void>();
+
+        // 3. the error is because chunk pool is used up, then we will
+        //    allocate it from heap
+        break;
+
+    } while (0);
+
+    // if the block should be allocated on heap, or the allocation fails in chunk pool
+    // because it is used up, then we do the allocation on heap
+    int unit_index = IDX_NULL;
+    int ret = __malloc_from_heap(mem_size, unit_index);
+    if (ret != 0)
+        return shm_ptr<void>();
+
+    detail::heap_ptr ptr = {0};
+    ptr.ptr_type = detail::PTR_TYPE_HEAP;
+    ptr.unit_index = unit_index;
+
+    return shm_ptr<void>(ptr);
+}
+
+void sk::shm_mgr::free(shm_ptr<void> ptr) {
+    if (!ptr)
+        return;
+
+    u32 ptr_type = ptr.mid & detail::PTR_TYPE_MASK;
+    switch (ptr_type) {
+    case detail::PTR_TYPE_SINGLETON: {
+        detail::singleton_ptr *sptr = cast_ptr(detail::singleton_ptr, &ptr.mid);
+        assert_retnone(sptr->ptr_type == detail::PTR_TYPE_SINGLETON);
+
+        assert_noeffect(0);
+        return;
+    }
+    case detail::PTR_TYPE_CHUNK: {
+        detail::chunk_ptr *cptr = cast_ptr(detail::chunk_ptr, &ptr.mid);
+        assert_retnone(cptr->ptr_type == detail::PTR_TYPE_CHUNK);
+        assert_retnone(cptr->chunk_index >= 0 && cptr->block_index >= 0);
+
+        __free_from_chunk_pool(cptr->chunk_index, cptr->block_index);
+        return;
+    }
+    case detail::PTR_TYPE_HEAP: {
+        detail::heap_ptr *hptr = cast_ptr(detail::heap_ptr, &ptr.mid);
+        assert_retnone(hptr->ptr_type == detail::PTR_TYPE_HEAP);
+        assert_retnone(hptr->unit_index >= 0);
+
+        __free_from_heap(hptr->unit_index);
+        return;
+    }
+    default:
+        assert_retnone(0);
+    }
+}
+
 
 void *sk::shm_malloc(size_t size, shm_ptr &ptr) {
     void *raw_ptr = NULL;
