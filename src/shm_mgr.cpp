@@ -402,8 +402,8 @@ void *sk::shm_mgr::mid2ptr(u64 mid) {
         assert_retval(cptr->chunk_index >= 0 && cptr->block_index >= 0, NULL);
 
         // TODO: extract the logic below into a method of mem_chunk
-        mem_chunk *chunk = cast_ptr(mem_chunk, pool + cptr->chunk_index * chunk_size);
-        assert_retval(chunk->magic == MAGIC, NULL);
+        mem_chunk *chunk = __index2chunk(cptr->chunk_index);
+        assert_retval(chunk && chunk->magic == MAGIC, NULL);
 
         return void_ptr(chunk->data + cptr->block_index * chunk->block_size);
     }
