@@ -361,32 +361,31 @@ void *sk::shm_mgr::mid2ptr(u64 mid) {
     if (!mid)
         return NULL;
 
-    int ptr_type = mid & detail::PTR_TYPE_MASK;
-    switch (ptr_type) {
+    detail::detail_ptr *ptr = cast_ptr(detail::detail_ptr, &mid);
+    switch (ptr->type) {
     case detail::PTR_TYPE_SINGLETON: {
-        detail::singleton_ptr *sptr = cast_ptr(detail::singleton_ptr, &mid);
-        assert_retval(sptr->ptr_type == detail::PTR_TYPE_SINGLETON, NULL);
+        int singleton_id = ptr->idx1;
+        assert_retval(singleton_id >= ST_MIN && singleton_id < ST_MAX, NULL);
 
-        return get_singleton(sptr->singleton_id);
+        return get_singleton(singleton_id);
     }
     case detail::PTR_TYPE_CHUNK: {
-        detail::chunk_ptr *cptr = cast_ptr(detail::chunk_ptr, &mid);
-        assert_retval(cptr->ptr_type == detail::PTR_TYPE_CHUNK, NULL);
-        assert_retval(cptr->chunk_index >= 0 && cptr->block_index >= 0, NULL);
+        int chunk_index = ptr->idx1;
+        int block_index = ptr->idx2;
+        assert_retval(chunk_index >= 0 && block_index >= 0, NULL);
 
         // TODO: extract the logic below into a method of mem_chunk
-        mem_chunk *chunk = __index2chunk(cptr->chunk_index);
+        mem_chunk *chunk = __index2chunk(chunk_index);
         assert_retval(chunk && chunk->magic == MAGIC, NULL);
 
-        return void_ptr(chunk->data + cptr->block_index * chunk->block_size);
+        return void_ptr(chunk->data + block_index * chunk->block_size);
     }
     case detail::PTR_TYPE_HEAP: {
-        detail::heap_ptr *hptr = cast_ptr(detail::heap_ptr, &mid);
-        assert_retval(hptr->ptr_type == detail::PTR_TYPE_HEAP, NULL);
-        assert_retval(hptr->unit_index >= 0, NULL);
+        int unit_index = ptr->idx1;
+        assert_retval(unit_index >= 0, NULL);
 
         // TODO: define another field: "char *heap_pool", seperate "chunk_pool" and "heap_pool"
-        return void_ptr(pool + heap_head + hptr->unit_index * heap_unit_size);
+        return void_ptr(pool + heap_head + unit_index * heap_unit_size);
     }
     default:
         assert_retval(0, NULL);
@@ -415,10 +414,10 @@ sk::shm_ptr<void> sk::shm_mgr::malloc(size_t size) {
 
         // 1. the allocation succeeds
         if (ret == 0) {
-            detail::chunk_ptr ptr;
-            ptr.ptr_type = detail::PTR_TYPE_CHUNK;
-            ptr.chunk_index = chunk_index;
-            ptr.block_index = block_index;
+            detail::detail_ptr ptr;
+            ptr.type = detail::PTR_TYPE_CHUNK;
+            ptr.idx1 = chunk_index;
+            ptr.idx2 = block_index;
 
             return shm_ptr<void>(ptr);
         }
@@ -440,9 +439,10 @@ sk::shm_ptr<void> sk::shm_mgr::malloc(size_t size) {
     if (ret != 0)
         return shm_ptr<void>();
 
-    detail::heap_ptr ptr;
-    ptr.ptr_type = detail::PTR_TYPE_HEAP;
-    ptr.unit_index = unit_index;
+    detail::detail_ptr ptr;
+    ptr.type = detail::PTR_TYPE_HEAP;
+    ptr.idx1 = unit_index;
+    ptr.idx2 = 0;
 
     return shm_ptr<void>(ptr);
 }
@@ -451,29 +451,28 @@ void sk::shm_mgr::free(shm_ptr<void> ptr) {
     if (!ptr)
         return;
 
-    u32 ptr_type = ptr.mid & detail::PTR_TYPE_MASK;
-    switch (ptr_type) {
+    detail::detail_ptr *raw_ptr = cast_ptr(detail::detail_ptr, &ptr.mid);
+    switch (raw_ptr->type) {
     case detail::PTR_TYPE_SINGLETON: {
-        detail::singleton_ptr *sptr = cast_ptr(detail::singleton_ptr, &ptr.mid);
-        assert_retnone(sptr->ptr_type == detail::PTR_TYPE_SINGLETON);
+        int singleton_id = raw_ptr->idx1;
+        assert_retnone(singleton_id >= ST_MIN && singleton_id < ST_MAX);
 
         assert_noeffect(0);
         return;
     }
     case detail::PTR_TYPE_CHUNK: {
-        detail::chunk_ptr *cptr = cast_ptr(detail::chunk_ptr, &ptr.mid);
-        assert_retnone(cptr->ptr_type == detail::PTR_TYPE_CHUNK);
-        assert_retnone(cptr->chunk_index >= 0 && cptr->block_index >= 0);
+        int chunk_index = raw_ptr->idx1;
+        int block_index = raw_ptr->idx2;
+        assert_retnone(chunk_index >= 0 && block_index >= 0);
 
-        __free_from_chunk_pool(cptr->chunk_index, cptr->block_index);
+        __free_from_chunk_pool(chunk_index, block_index);
         return;
     }
     case detail::PTR_TYPE_HEAP: {
-        detail::heap_ptr *hptr = cast_ptr(detail::heap_ptr, &ptr.mid);
-        assert_retnone(hptr->ptr_type == detail::PTR_TYPE_HEAP);
-        assert_retnone(hptr->unit_index >= 0);
+        int unit_index = raw_ptr->idx1;
+        assert_retnone(unit_index >= 0);
 
-        __free_from_heap(hptr->unit_index);
+        __free_from_heap(unit_index);
         return;
     }
     default:

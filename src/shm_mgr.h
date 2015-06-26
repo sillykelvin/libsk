@@ -45,24 +45,21 @@ enum detail_ptr_type {
     PTR_TYPE_HEAP      = 3
 };
 
-static const int PTR_TYPE_MASK = 0x3;
-
-struct singleton_ptr {
-    int singleton_id: 32;
-    int      padding: 30; // is only used to padding the struct to 64 bit
-    u32     ptr_type: 2;
-};
-
-struct chunk_ptr {
-    int chunk_index: 32;
-    int block_index: 30;
-    u32    ptr_type: 2;
-};
-
-struct heap_ptr {
-    int unit_index: 32;
-    int    padding: 30;
-    u32   ptr_type: 2;
+/*
+ * 1. if the ptr points to a singleton object:
+ *    idx1: singleton id
+ *    idx2: unused
+ * 2. if the ptr points to a chunk block:
+ *    idx1: chunk index
+ *    idx2: block index
+ * 3. if the ptr points to heap:
+ *    idx1: unit index
+ *    idx2: unused
+ */
+struct detail_ptr {
+    int idx1: 32;
+    int idx2: 30;
+    u32 type: 2;
 };
 
 } // namespace detail
