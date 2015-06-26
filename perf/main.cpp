@@ -45,12 +45,12 @@ size_t fixed_size() {
     return sizes[rand_range(0, FIXED_SIZE_COUNT - 1)];
 }
 
-char *shm_new(size_t size, shm_ptr& ptr) {
-    void *addr = sk::shm_malloc(size, ptr);
-    return char_ptr(addr);
+char *shm_new(size_t size, sk::shm_ptr<void>& ptr) {
+    ptr = sk::shm_malloc(size);
+    return char_ptr(ptr.get());
 }
 
-void shm_del(shm_ptr ptr) {
+void shm_del(sk::shm_ptr<void> ptr) {
     sk::shm_free(ptr);
 }
 
@@ -168,7 +168,7 @@ int main(int argc, char **argv) {
     // 3. shm mgr, random size
     {
         gettimeofday(&begin_time, NULL);
-        test_allocation_deallocation<shm_ptr, random_size, shm_new, shm_del>();
+        test_allocation_deallocation<sk::shm_ptr<void>, random_size, shm_new, shm_del>();
         gettimeofday(&end_time, NULL);
 
         print_time_cost("shm_mgr,    random size", begin_time, end_time);
@@ -177,7 +177,7 @@ int main(int argc, char **argv) {
     // 4. shm mgr, fixed size
     {
         gettimeofday(&begin_time, NULL);
-        test_allocation_deallocation<shm_ptr, fixed_size, shm_new, shm_del>();
+        test_allocation_deallocation<sk::shm_ptr<void>, fixed_size, shm_new, shm_del>();
         gettimeofday(&end_time, NULL);
 
         print_time_cost("shm_mgr,     fixed size", begin_time, end_time);
