@@ -286,65 +286,59 @@ TEST(shm_mgr, shm_mgr) {
                                    SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
     ASSERT_TRUE(mgr != NULL);
 
-    void *void_ptr = NULL;
-
     size24 *s24_1 = NULL;
-    shm_ptr ps24_1 = mgr->malloc(sizeof(*s24_1), void_ptr);
-    s24_1 = static_cast<size24 *>(void_ptr);
-    ASSERT_TRUE(ps24_1 != SHM_NULL && s24_1 != NULL);
-    ASSERT_TRUE(char_ptr(s24_1) - char_ptr(mgr) == (ptrdiff_t) ps24_1);
+    shm_ptr<void> ps24_1 = mgr->malloc(sizeof(*s24_1));
+    s24_1 = static_cast<size24 *>(mgr->mid2ptr(ps24_1.mid));
+    ASSERT_TRUE(ps24_1 && s24_1);
 
     size24 *s24_2 = NULL;
-    shm_ptr ps24_2 = mgr->malloc(sizeof(*s24_2), void_ptr);
-    s24_2 = static_cast<size24 *>(void_ptr);
-    ASSERT_TRUE(ps24_2 != SHM_NULL && s24_2 != NULL);
-    ASSERT_TRUE(char_ptr(s24_2) - char_ptr(mgr) == (ptrdiff_t) ps24_2);
-    ASSERT_TRUE(ps24_2 - ps24_1 == sizeof(size24));
+    shm_ptr<void> ps24_2 = mgr->malloc(sizeof(*s24_2));
+    s24_2 = static_cast<size24 *>(mgr->mid2ptr(ps24_2.mid));
+    ASSERT_TRUE(ps24_2 && s24_2);
 
-    mgr->free(s24_1);
+    mgr->free(ps24_1);
     mgr->free(ps24_2);
 
     ASSERT_TRUE(sizeof(size1000) == mgr->max_block_size);
-    shm_ptr s1000_blocks[SHM_MGR_CHUNK_COUNT] = {0};
+    shm_ptr<void> s1000_blocks[SHM_MGR_CHUNK_COUNT] = {0};
     for (int i = 0; i < SHM_MGR_CHUNK_COUNT; ++i) {
         size1000 *tmp = NULL;
-        s1000_blocks[i] = mgr->malloc(sizeof(*tmp), void_ptr);
-        tmp = static_cast<size1000 *>(void_ptr);
-        ASSERT_TRUE(s1000_blocks[i] != SHM_NULL && tmp != NULL);
+        s1000_blocks[i] = mgr->malloc(sizeof(*tmp));
+        tmp = static_cast<size1000 *>(mgr->mid2ptr(s1000_blocks[i].mid));
+        ASSERT_TRUE(s1000_blocks[i] && tmp);
     }
 
     mgr->free(s1000_blocks[0]);
 
-    shm_ptr s24_blocks[50] = {0};
+    shm_ptr<void> s24_blocks[50] = {0};
     int avail_count = mgr->max_block_size / sizeof(size24);
     for (int i = 0; i < avail_count; ++i) {
         size24 *tmp = NULL;
-        s24_blocks[i] = mgr->malloc(sizeof(*tmp), void_ptr);
-        tmp = static_cast<size24 *>(void_ptr);
-        ASSERT_TRUE(s24_blocks[i] != SHM_NULL && tmp != NULL);
+        s24_blocks[i] = mgr->malloc(sizeof(*tmp));
+        tmp = static_cast<size24 *>(mgr->mid2ptr(s24_blocks[i].mid));
+        ASSERT_TRUE(s24_blocks[i] && tmp);
     }
 
-    shm_ptr s1024_blocks[8];
+    shm_ptr<void> s1024_blocks[8];
     for (int i = 0; i < 8; ++i) {
         size1024 *tmp = NULL;
-        s1024_blocks[i] = mgr->malloc(sizeof(*tmp), void_ptr);
-        tmp = static_cast<size1024 *>(void_ptr);
-        ASSERT_TRUE(s1024_blocks[i] != SHM_NULL && tmp != NULL);
+        s1024_blocks[i] = mgr->malloc(sizeof(*tmp));
+        tmp = static_cast<size1024 *>(mgr->mid2ptr(s1024_blocks[i].mid));
+        ASSERT_TRUE(s1024_blocks[i] && tmp);
     }
 
-    void_ptr = NULL;
     size1024 *s1024_inval = NULL;
-    shm_ptr ps1024_inval = mgr->malloc(sizeof(*s1024_inval), void_ptr);
-    s1024_inval = static_cast<size1024 *>(void_ptr);
-    ASSERT_TRUE(ps1024_inval == SHM_NULL && s1024_inval == NULL);
+    shm_ptr<void> ps1024_inval = mgr->malloc(sizeof(*s1024_inval));
+    s1024_inval = static_cast<size1024 *>(mgr->mid2ptr(ps1024_inval.mid));
+    ASSERT_TRUE(!ps1024_inval && !s1024_inval);
 
     mgr->free(s1024_blocks[0]);
     mgr->free(s1024_blocks[1]);
 
     size2064 *s2064 = NULL;
-    shm_ptr ps2064 = mgr->malloc(sizeof(*s2064), void_ptr);
-    s2064 = static_cast<size2064 *>(void_ptr);
-    ASSERT_TRUE(ps2064 != SHM_NULL && s2064 != NULL);
+    shm_ptr<void> ps2064 = mgr->malloc(sizeof(*s2064));
+    s2064 = static_cast<size2064 *>(mgr->mid2ptr(ps2064.mid));
+    ASSERT_TRUE(ps2064 && s2064);
 
 
     s2064->a = 10;
@@ -353,12 +347,12 @@ TEST(shm_mgr, shm_mgr) {
     snprintf(s2064->str1, sizeof(s2064->str1), "%s", "Talk is cheap.");
     snprintf(s2064->str2, sizeof(s2064->str2), "%s", "Show me the code.");
 
-    size24 *s24 = cast_ptr(size24, mgr->ptr2ptr(s24_blocks[10]));
+    size24 *s24 = cast_ptr(size24, mgr->mid2ptr(s24_blocks[10].mid));
     s24->a = 1;
     s24->b = 2;
     s24->c = 3;
 
-    size1000 *s1000 = cast_ptr(size1000, mgr->ptr2ptr(s1000_blocks[20]));
+    size1000 *s1000 = cast_ptr(size1000, mgr->mid2ptr(s1000_blocks[20].mid));
     snprintf(s1000->str, sizeof(s1000->str), "%s", "silly kelvin");
 
     size1032 *single_1032 = cast_ptr(size1032, mgr->get_singleton(ST_MIN));
@@ -372,7 +366,7 @@ TEST(shm_mgr, shm_mgr) {
                                     true, SHM_MGR_CHUNK_SIZE,
                                     SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
 
-    s2064 = cast_ptr(size2064, mgr2->ptr2ptr(ps2064));
+    s2064 = cast_ptr(size2064, mgr2->mid2ptr(ps2064.mid));
     ASSERT_TRUE(s2064 != NULL);
     ASSERT_TRUE(s2064->a == 10);
     ASSERT_TRUE(s2064->b == 20);
@@ -380,13 +374,13 @@ TEST(shm_mgr, shm_mgr) {
     ASSERT_STREQ(s2064->str1, "Talk is cheap.");
     ASSERT_STREQ(s2064->str2, "Show me the code.");
 
-    s24 = cast_ptr(size24, mgr2->ptr2ptr(s24_blocks[10]));
+    s24 = cast_ptr(size24, mgr2->mid2ptr(s24_blocks[10].mid));
     ASSERT_TRUE(s24 != NULL);
     ASSERT_TRUE(s24->a == 1);
     ASSERT_TRUE(s24->b == 2);
     ASSERT_TRUE(s24->c == 3);
 
-    s1000 = cast_ptr(size1000, mgr2->ptr2ptr(s1000_blocks[20]));
+    s1000 = cast_ptr(size1000, mgr2->mid2ptr(s1000_blocks[20].mid));
     ASSERT_TRUE(s1000 != NULL);
     ASSERT_STREQ(s1000->str, "silly kelvin");
 
