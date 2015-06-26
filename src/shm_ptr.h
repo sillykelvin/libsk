@@ -27,7 +27,7 @@ struct shm_ptr {
     }
 
     typedef void (shm_ptr::*unspecified_bool_type)() const;
-    void unspecified_bool_true() const;
+    void unspecified_bool_true() const {}
 
     operator unspecified_bool_type() const { return mid ? &shm_ptr::unspecified_bool_true : 0; }
 };
