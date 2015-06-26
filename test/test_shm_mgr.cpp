@@ -108,9 +108,10 @@ TEST(shm_mgr, mem_chunk) {
     std::vector<long *> container;
 
     for (int i = 0; i < BLK_CNT; ++i) {
-        long *l = (long *) chunk->malloc();
-        ASSERT_EQ(l != NULL, true);
+        int idx = chunk->malloc();
+        ASSERT_TRUE(idx >= 0);
 
+        long *l = cast_ptr(long, chunk->data + idx * chunk->block_size);
         *l = i;
         container.push_back(l);
     }
@@ -118,15 +119,17 @@ TEST(shm_mgr, mem_chunk) {
     ASSERT_EQ(chunk->full(), true);
 
     for (int i = 0; i < 10; ++i) {
-        size_t offset = static_cast<char *>(static_cast<void *>(container[i])) - chunk->data;
-        chunk->free(offset);
+        size_t offset = (char_ptr(container[i]) - chunk->data);
+        ASSERT_TRUE(offset % chunk->block_size == 0);
+        chunk->free(offset / chunk->block_size);
         container.erase(container.begin() + i);
     }
 
     for (int i = 100; i < 110; ++i) {
-        long *l = (long *) chunk->malloc();
-        ASSERT_EQ(l != NULL, true);
+        int idx = chunk->malloc();
+        ASSERT_TRUE(idx >= 0);
 
+        long *l = cast_ptr(long, chunk->data + idx * chunk->block_size);
         *l = i;
         container.push_back(l);
     }
@@ -137,8 +140,9 @@ TEST(shm_mgr, mem_chunk) {
          it != container.end(); ++it) {
         cout << *(*it) << endl;
 
-        size_t offset = static_cast<char *>(static_cast<void *>(*it)) - chunk->data;
-        chunk->free(offset);
+        size_t offset = (char_ptr(*it) - chunk->data);
+        ASSERT_TRUE(offset % chunk->block_size == 0);
+        chunk->free(offset / chunk->block_size);
     }
 
     free(chunk);
