@@ -11,8 +11,8 @@ struct shm_ptr {
 
     shm_ptr() : mid(0) {}
 
-    template<typename U>
-    shm_ptr(U ptr) : mid(*cast_ptr(u64, &ptr)) { assert_noeffect(sizeof(ptr) == sizeof(u64)); }
+    explicit shm_ptr(detail::detail_ptr ptr)
+        : mid(*cast_ptr(u64, &ptr)) { assert_noeffect(sizeof(ptr) == sizeof(u64)); }
 
     void *__ptr() {
         if (!mid)

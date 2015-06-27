@@ -304,7 +304,7 @@ TEST(shm_mgr, shm_mgr) {
     mgr->free(ps24_2);
 
     ASSERT_TRUE(sizeof(size1000) == mgr->max_block_size);
-    shm_ptr<void> s1000_blocks[SHM_MGR_CHUNK_COUNT] = {0};
+    shm_ptr<void> s1000_blocks[SHM_MGR_CHUNK_COUNT];
     for (int i = 0; i < SHM_MGR_CHUNK_COUNT; ++i) {
         size1000 *tmp = NULL;
         s1000_blocks[i] = mgr->malloc(sizeof(*tmp));
@@ -314,7 +314,7 @@ TEST(shm_mgr, shm_mgr) {
 
     mgr->free(s1000_blocks[0]);
 
-    shm_ptr<void> s24_blocks[50] = {0};
+    shm_ptr<void> s24_blocks[50];
     int avail_count = mgr->max_block_size / sizeof(size24);
     for (int i = 0; i < avail_count; ++i) {
         size24 *tmp = NULL;
