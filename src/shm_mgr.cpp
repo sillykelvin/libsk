@@ -244,7 +244,6 @@ int sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, int &chunk_index, int
             chunk = __index2chunk(*idx);
             chunk->init(chunk_size, mem_size);
             index = *idx;
-            break;
 
             // TODO: here if the chunk has only one block,
             // then there is no need to insert it into the
