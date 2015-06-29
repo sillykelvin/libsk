@@ -38,7 +38,7 @@ struct shm_ptr {
     }
 
     pointer get() {
-        return cast_ptr(pointer, __ptr());
+        return cast_ptr(T, __ptr());
     }
 
     pointer operator->() const {
