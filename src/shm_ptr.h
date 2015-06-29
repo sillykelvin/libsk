@@ -3,9 +3,24 @@
 
 namespace sk {
 
+namespace detail {
+
+template<typename T>
+struct dereference {
+    typedef T& type;
+};
+
+template<>
+struct dereference<void> {
+    typedef void type;
+};
+
+} // namespace detail
+
 template<typename T>
 struct shm_ptr {
     typedef T* pointer;
+    typedef typename detail::dereference<T>::type reference;
 
     u64 mid;
 
@@ -24,6 +39,20 @@ struct shm_ptr {
 
     pointer get() {
         return cast_ptr(pointer, __ptr());
+    }
+
+    pointer operator->() const {
+        pointer ptr = get();
+        assert_noeffect(ptr);
+
+        return ptr;
+    }
+
+    reference operator*() const {
+        pointer ptr = get();
+        assert_noeffect(ptr);
+
+        return *ptr;
     }
 
     typedef void (shm_ptr::*unspecified_bool_type)() const;
