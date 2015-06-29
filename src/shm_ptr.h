@@ -41,14 +41,14 @@ struct shm_ptr {
         return cast_ptr(T, __ptr());
     }
 
-    pointer operator->() const {
+    pointer operator->() {
         pointer ptr = get();
         assert_noeffect(ptr);
 
         return ptr;
     }
 
-    reference operator*() const {
+    reference operator*() {
         pointer ptr = get();
         assert_noeffect(ptr);
 
