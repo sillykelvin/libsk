@@ -223,7 +223,7 @@ shm_ptr<T> shm_new() {
         return ptr;
 
     T *t = ptr.get();
-    new (T)(t);
+    new (t) T();
 
     return ptr;
 }
