@@ -29,6 +29,15 @@ struct shm_ptr {
     explicit shm_ptr(detail::detail_ptr ptr)
         : mid(*cast_ptr(u64, &ptr)) { assert_noeffect(sizeof(ptr) == sizeof(u64)); }
 
+    template<typename U>
+    shm_ptr(shm_ptr<U> ptr) : mid(ptr.mid) {}
+
+    template<typename U>
+    shm_ptr& operator=(const shm_ptr<U>& ptr) {
+        this->mid = ptr.mid;
+        return *this;
+    }
+
     void *__ptr() {
         if (!mid)
             return NULL;
