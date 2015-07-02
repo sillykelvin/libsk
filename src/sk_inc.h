@@ -27,5 +27,6 @@
 #include "shm_seg.h"
 #include "shm_mgr.h"
 #include "shm_ptr.h"
+#include "stack.h"
 
 #endif // SK_INC_H
