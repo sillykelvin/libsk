@@ -1,62 +1,88 @@
 #include <gtest/gtest.h>
+#include <iostream>
 #include "sk_inc.h"
 
 #define MAX_SIZE 10
 
+using namespace std;
 using namespace sk;
+
+struct array_test {
+    int i;
+
+    array_test() : i(0) { cout << "ctor called" << endl; }
+    ~array_test() { cout << "dtor called, i: " << i << endl; }
+
+    array_test& operator=(const array_test& t) {
+        cout << "op= called, this: " << this->i << ", that: " << t.i << endl;
+        this->i = t.i;
+        return *this;
+    }
+
+    array_test(int i) : i(i) {}
+
+    bool operator==(const array_test& t) {
+        return this->i == t.i;
+    }
+};
 
 struct finder {
     int i;
 
     finder(int i) : i(i) {}
 
-    bool operator()(const int& val) {
-        return val + 1 == i;
+    bool operator()(const array_test& val) {
+        return val.i + 1 == i;
     }
 };
 
-typedef fixed_array<int, MAX_SIZE> array;
+typedef fixed_array<array_test, MAX_SIZE> array;
 
 TEST(fixed_array, normal) {
-    array ia;
+    array ta;
 
-    ASSERT_TRUE(ia.empty());
-    ASSERT_TRUE(ia.size() == 0);
-    ASSERT_TRUE(ia.capacity() == MAX_SIZE);
+    ASSERT_TRUE(ta.empty());
+    ASSERT_TRUE(ta.size() == 0);
+    ASSERT_TRUE(ta.capacity() == MAX_SIZE);
 
-    for (size_t i = 0; i < ia.capacity(); ++i) {
-        int *a = ia.emplace();
-        ASSERT_TRUE(a);
+    for (size_t i = 0; i < ta.capacity(); ++i) {
+        array_test *t = ta.emplace();
+        ASSERT_TRUE(t);
 
-        *a = i;
+        t->i = i;
     }
 
-    ASSERT_TRUE(ia.full());
+    ASSERT_TRUE(ta.full());
     // ASSERT_DEATH(ia.emplace(), "");
 
-    int& tmp = ia[7];
-    ASSERT_TRUE(tmp == 7);
+    array_test& tmp = ta[7];
+    ASSERT_TRUE(tmp.i == 7);
 
-    int *a = ia.find(5);
-    ASSERT_TRUE(a);
-    ASSERT_TRUE(*a == 5);
+    array_test value(5);
+    array_test *t = ta.find(value);
+    ASSERT_TRUE(t);
+    ASSERT_TRUE(t->i == 5);
 
-    a = ia.find_if(finder(6));
-    ASSERT_TRUE(a);
-    ASSERT_TRUE(*a == 5);
+    t = ta.find_if(finder(6));
+    ASSERT_TRUE(t);
+    ASSERT_TRUE(t->i == 5);
 
-    ia.erase(5);
-    ASSERT_TRUE(ia.find(5) == NULL);
+    ta.erase(value);
+    ASSERT_TRUE(ta.find(value) == NULL);
 
-    ia.erase_if(finder(7));
-    ASSERT_TRUE(ia.find(6) == NULL);
+    ta.erase_if(finder(7));
+    ASSERT_TRUE(ta.find(array_test(6)) == NULL);
 
-    for (array::iterator it = ia.begin(); it != ia.end(); ++it)
-        printf("%d\n", *it);
+    for (array::iterator it = ta.begin(); it != ta.end(); ++it)
+        cout << it->i << endl;
 
-    ia.clear();
-    ASSERT_TRUE(ia.empty());
+    t = ta.find_if(finder(10));
+    ASSERT_TRUE(t);
+    ta.erase(t);
 
-    a = ia.find(5);
-    ASSERT_TRUE(!a);
+    ta.clear();
+    ASSERT_TRUE(ta.empty());
+
+    t = ta.find(value);
+    ASSERT_TRUE(!t);
 }

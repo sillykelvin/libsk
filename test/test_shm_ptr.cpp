@@ -14,11 +14,11 @@ using namespace std;
 using namespace sk;
 using namespace sk::detail;
 
-struct test {
+struct ptr_test {
     int a;
     char str[28];
 
-    test() {
+    ptr_test() {
         cout << "test constructor" << endl;
         a = 7;
         snprintf(str, sizeof(str), "%s", "hello world");
@@ -32,10 +32,10 @@ TEST(shm_ptr, shm_ptr) {
                            SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
     ASSERT_TRUE(ret == 0);
 
-    shm_ptr<test> ptr;
+    shm_ptr<ptr_test> ptr;
     ASSERT_TRUE(!ptr);
 
-    ptr = shm_new<test>();
+    ptr = shm_new<ptr_test>();
     ASSERT_TRUE(ptr);
     ASSERT_TRUE(ptr.mid != 0);
 
