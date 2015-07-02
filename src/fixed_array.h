@@ -14,7 +14,11 @@ struct fixed_array {
     typedef T* iterator;
 
     size_t elem_count;
-    T elems[N];
+    /*
+     * do NOT use T elems[N] here, this will call constructor of T,
+     * however, we should call constructor when we add new instance
+     */
+    char elems[sizeof(T) * N];
 
     fixed_array() : elem_count(0) {}
 
@@ -25,73 +29,87 @@ struct fixed_array {
     bool empty() const { return elem_count <= 0; }
 
     void clear() {
-        // TODO: should we call all the destructors here?
+        for (iterator it = begin(); it != end(); ++it)
+            it->~T();
+
         elem_count = 0;
+    }
+
+    iterator at(size_t index) {
+        assert_retval(index < elem_count, NULL);
+
+        return begin() + index;
     }
 
     void erase_at(size_t index) {
         assert_retnone(index < elem_count);
 
-        if (index == elem_count - 1) {
-            --elem_count;
-            return;
-        }
+        if (at(index) + 1 != end())
+            std::copy(at(index) + 1, end(), at(index));
 
-        memmove(elems + index, elems + index + 1, (elem_count - index - 1) * sizeof(T));
+        at(elem_count - 1)->~T();
         --elem_count;
     }
 
+    void erase(iterator it) {
+        assert_retnone(it);
+
+        size_t index = it - begin();
+        erase_at(index);
+    }
+
     void erase(const T& value) {
-        T *t = find(value);
-        if (!t)
+        iterator it = find(value);
+        if (!it)
             return;
 
-        size_t index = t - elems;
-        erase_at(index);
+        erase(it);
     }
 
     template<typename Pred>
     void erase_if(Pred p) {
-        T *t = find_if(p);
-        if (!t)
+        iterator it = find_if(p);
+        if (!it)
             return;
 
-        size_t index = t - elems;
-        erase_at(index);
+        erase(it);
     }
 
     T *emplace() {
-        assert_retval(elem_count < N, NULL);
-        return &elems[elem_count++];
+        if (full())
+            return NULL;
+
+        T *t = at(elem_count++);
+        new (t) T();
+
+        return t;
     }
 
     T& operator[](size_t index) {
-        assert_retval(index < elem_count, *((T*)(0)));
-
-        return elems[index];
+        return *at(index);
     }
 
-    T *find(const T& value) {
-        for (size_t i = 0; i < elem_count; ++i) {
-            if (elems[i] == value)
-                return &elems[i];
+    iterator find(const T& value) {
+        for (iterator it = begin(); it != end(); ++it) {
+            if (*it == value)
+                return it;
         }
 
         return NULL;
     }
 
     template<typename Pred>
-    T *find_if(Pred p) {
-        for (size_t i = 0; i < elem_count; ++i) {
-            if (p(elems[i]))
-                return &elems[i];
+    iterator find_if(Pred p) {
+        for (iterator it = begin(); it != end(); ++it) {
+            if (p(*it))
+                return it;
         }
 
         return NULL;
     }
 
-    iterator begin() { return elems; }
-    iterator end()   { return elems + elem_count; }
+    iterator begin() { return cast_ptr(T, elems); }
+    iterator end()   { return cast_ptr(T, elems) + elem_count; }
 };
 
 } // namespace sk
