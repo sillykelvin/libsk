@@ -12,6 +12,7 @@ namespace sk {
 template<typename T, size_t N>
 struct fixed_array {
     typedef T* iterator;
+    typedef const T* const_iterator;
 
     size_t elem_count;
     /*
@@ -21,6 +22,25 @@ struct fixed_array {
     char elems[sizeof(T) * N];
 
     fixed_array() : elem_count(0) {}
+    ~fixed_array() { clear(); }
+
+    fixed_array(const fixed_array& array) : elem_count(0) {
+        if (this == &array)
+            return;
+
+        fill(array.size(), T());
+        std::copy(array.begin(), array.end(), begin());
+    }
+
+    fixed_array& operator=(const fixed_array& array) {
+        if (this == &array)
+            return *this;
+
+        fill(array.size(), T());
+        std::copy(array.begin(), array.end(), begin());
+
+        return *this;
+    }
 
     size_t size()     const { return elem_count; }
     size_t capacity() const { return N; }
@@ -33,6 +53,25 @@ struct fixed_array {
             it->~T();
 
         elem_count = 0;
+    }
+
+    void fill(size_t n, const T& value) {
+        assert_retnone(n <= capacity());
+
+        if (n >= size()) {
+            std::fill(begin(), end(), value);
+            size_t left = n - size();
+            while (left-- > 0) {
+                T *t = emplace();
+                *t = value;
+            }
+
+            return;
+        }
+
+        std::fill(begin(), at(n), value);
+        for (size_t i = elem_count - 1; i >= n; --i)
+            erase_at(i);
     }
 
     iterator at(size_t index) {
@@ -110,6 +149,8 @@ struct fixed_array {
 
     iterator begin() { return cast_ptr(T, elems); }
     iterator end()   { return cast_ptr(T, elems) + elem_count; }
+    const_iterator begin() const { return reinterpret_cast<const T*>(elems); }
+    const_iterator end()   const { return reinterpret_cast<const T*>(elems) + elem_count; }
 };
 
 } // namespace sk
