@@ -53,10 +53,8 @@ TEST(fixed_array, normal) {
     }
 
     ASSERT_TRUE(ta.full());
-    // ASSERT_DEATH(ia.emplace(), "");
 
-    array_test& tmp = ta[7];
-    ASSERT_TRUE(tmp.i == 7);
+    ASSERT_TRUE(ta[7].i == 7);
 
     array_test value(5);
     array_test *t = ta.find(value);
@@ -85,4 +83,31 @@ TEST(fixed_array, normal) {
 
     t = ta.find(value);
     ASSERT_TRUE(!t);
+
+    ta.fill(7, array_test(7));
+    ASSERT_TRUE(ta.size() == 7);
+    ASSERT_TRUE(ta[0].i == 7);
+    ASSERT_TRUE(ta[3].i == 7);
+    ASSERT_TRUE(ta[6].i == 7);
+
+    ta.fill(3, array_test(3));
+    ASSERT_TRUE(ta.size() == 3);
+    ASSERT_TRUE(ta[0].i == 3);
+    ASSERT_TRUE(ta[1].i == 3);
+    ASSERT_TRUE(ta[2].i == 3);
+
+    ta.fill(ta.capacity(), array_test(10));
+    ASSERT_TRUE(ta.size() == ta.capacity());
+    ASSERT_TRUE(ta.full());
+
+    array ta2(ta);
+    ASSERT_TRUE(ta2.full());
+    ASSERT_TRUE(ta2[0].i == 10);
+    ASSERT_TRUE(ta2[9].i == 10);
+
+    array ta3;
+    ta3 = ta;
+    ASSERT_TRUE(ta3.full());
+    ASSERT_TRUE(ta3[0].i == 10);
+    ASSERT_TRUE(ta3[9].i == 10);
 }
