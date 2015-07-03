@@ -49,20 +49,24 @@ TEST(referable_array, normal) {
     ASSERT_TRUE(ta.at(3) == NULL);
     ASSERT_TRUE(ta.at(2) == NULL);
 
-    t = ta.emplace();
+    size_t index;
+    t = ta.emplace(&index);
     t->i = 6;
-    ASSERT_TRUE(ta.at(2)->i == 6);
+    ASSERT_TRUE(index == 2);
+    ASSERT_TRUE(ta.at(index)->i == 6);
     t->i = 7;
-    ASSERT_TRUE(ta.at(2)->i == 7);
-    t = ta.emplace();
+    ASSERT_TRUE(ta.at(index)->i == 7);
+    t = ta.emplace(&index);
     t->i = 8;
-    ASSERT_TRUE(ta.at(3)->i == 8);
+    ASSERT_TRUE(index == 3);
+    ASSERT_TRUE(ta.at(index)->i == 8);
     ASSERT_TRUE(ta.full());
 
     ta.erase(1);
     ta.clear();
     ASSERT_TRUE(ta.empty());
-    ta.emplace()->i = 9;
-    ASSERT_TRUE(ta.at(4));
-    ASSERT_TRUE(ta.at(4)->i == 9);
+    ta.emplace(&index)->i = 9;
+    ASSERT_TRUE(index == 4);
+    ASSERT_TRUE(ta.at(index));
+    ASSERT_TRUE(ta.at(index)->i == 9);
 }

@@ -115,13 +115,15 @@ struct referable_array {
         __add_free(index);
     }
 
-    T *emplace() {
+    T *emplace(size_t *index = NULL) {
         if (full())
             return NULL;
 
         assert_retval(free_head != npos, NULL);
 
         node *n = __at(free_head);
+        if (index)
+            *index = free_head;
         __add_used(free_head);
         free_head = *cast_ptr(size_t, n->data);
 
