@@ -10,13 +10,11 @@ struct fixed_stack {
 
     impl_type nodes;
 
-    bool empty() const {
-        return nodes.empty();
-    }
+    size_t size()     const { return nodes.size(); }
+    size_t capacity() const { return nodes.capacity(); }
 
-    bool full() const {
-        return nodes.full();
-    }
+    bool full() const { return nodes.full(); }
+    bool empty() const { return nodes.empty(); }
 
     T *emplace() {
         return nodes.emplace();
