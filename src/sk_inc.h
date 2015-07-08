@@ -29,5 +29,6 @@
 #include "shm_mgr.h"
 #include "shm_ptr.h"
 #include "stack.h"
+#include "rbtree.h"
 
 #endif // SK_INC_H
