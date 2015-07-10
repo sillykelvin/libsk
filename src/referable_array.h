@@ -132,6 +132,18 @@ struct referable_array {
 
         return t;
     }
+
+    size_t index(T *t) {
+        assert_retval(t, npos);
+
+        node *n = cast_ptr(node, char_ptr(t) - offsetof(node, data));
+        assert_noeffect(n->used);
+
+        size_t offset = char_ptr(n) - memory;
+        assert_noeffect(offset % sizeof(node) == 0);
+
+        return offset / sizeof(node);
+    }
 };
 
 } // namespace sk

@@ -25,8 +25,10 @@ TEST(referable_array, normal) {
     ASSERT_TRUE(ta.capacity() == MAX_SIZE);
 
     for (size_t i = 0; i < ta.capacity(); ++i) {
-        rarray_test *t = ta.emplace();
+        size_t index = array::npos;
+        rarray_test *t = ta.emplace(&index);
         ASSERT_TRUE(t);
+        ASSERT_TRUE(ta.index(t) == index);
 
         t->i = i;
     }
