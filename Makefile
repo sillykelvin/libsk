@@ -9,6 +9,14 @@ include ./inc.mk
 .PHONY: all clean test
 
 all:
+	CFLAGS += -DDEBUG
+	@date;
+	@cd $(LIBSK_SRC); make -j8 all;
+	@cd $(LIBSK_PERF); make -j8 all;
+	@cd $(LIBSK_TEST); make -j8 all;
+	@date;
+
+release:
 	@date;
 	@cd $(LIBSK_SRC); make -j8 all;
 	@cd $(LIBSK_PERF); make -j8 all;
