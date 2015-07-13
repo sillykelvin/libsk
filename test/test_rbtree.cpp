@@ -29,7 +29,6 @@ typedef fixed_rbtree<rbtree_test, rbtree_test, rbtree_key_extractor, MAX_SIZE> t
 
 #define INDENT_STEP 4
 void print_tree_aux(tree *t, tree::node *n, int indent) {
-    int i;
     if (!n) {
         printf("<empty tree>");
         return;
@@ -50,8 +49,8 @@ void print_tree_aux(tree *t, tree::node *n, int indent) {
         print_tree_aux(t, t->__left(n), indent + INDENT_STEP);
 }
 
-print_tree(tree *t) {
-    print_tree_helper(t, t->__node(t->root), 0);
+void print_tree(tree *t) {
+    print_tree_aux(t, t->__node(t->root), 0);
     printf("\n");
 }
 
@@ -74,6 +73,8 @@ TEST(fixed_rbtree, normal) {
         ASSERT_TRUE(ta.__check());
     }
 
+    print_tree(&ta);
+
     ASSERT_TRUE(ta.full());
     ASSERT_TRUE(ta.find(rbtree_test(7)));
     ta.erase(rbtree_test(7));
@@ -81,10 +82,13 @@ TEST(fixed_rbtree, normal) {
     ASSERT_TRUE(!ta.full());
     ASSERT_TRUE(ta.__check());
 
+    print_tree(&ta);
+
     int values[] = { 2, 9, 5, 18, 6, 10, 11, 3 };
     for (size_t i = 0; i < sizeof(values) / sizeof(int); ++i) {
         ASSERT_TRUE(ta.find(rbtree_test(values[i])));
         ta.erase(rbtree_test(values[i]));
+        print_tree(&ta);
         ASSERT_TRUE(!ta.find(rbtree_test(values[i])));
         ASSERT_TRUE(!ta.full());
         ASSERT_TRUE(ta.__check());
@@ -93,6 +97,7 @@ TEST(fixed_rbtree, normal) {
     for (size_t i = 0; i < sizeof(values) / sizeof(int); ++i) {
         ASSERT_TRUE(!ta.find(rbtree_test(i)));
         int ret = ta.insert(rbtree_test(values[i]));
+        print_tree(&ta);
         ASSERT_TRUE(ret == 0);
         ASSERT_TRUE(ta.find(rbtree_test(i)));
         ASSERT_TRUE(!ta.full());
