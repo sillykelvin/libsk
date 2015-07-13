@@ -19,8 +19,8 @@
 
 // common headers
 #include "assert_helper.h"
-#include "log.h"
 #include "types.h"
+#include "log.h"
 
 // concrete headers
 #include "fixed_array.h"
