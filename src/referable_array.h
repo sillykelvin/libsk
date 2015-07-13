@@ -10,7 +10,10 @@ struct array_node {
     bool used;
     char data[sizeof(T)];
 
-    array_node(size_t next) : used(false) { *cast_ptr(size_t, data) = next; }
+    // make array_node a POD type by disable constructor, otherwise, GCC will complaint:
+    //     error: (perhaps the 'offsetof' macro was used incorrectly)
+    // in function index(...)
+    // array_node(size_t next) : used(false) { *cast_ptr(size_t, data) = next; }
 };
 
 } // namespace detail
@@ -30,7 +33,10 @@ struct referable_array {
         // link the free slots
         for (size_t i = 0; i < N; ++i) {
             node *n = __at(i);
-            new (n) node((i == N - 1) ? npos : i + 1);
+            new (n) node();
+            n->used = false;
+            *cast_ptr(size_t, n->data) = (i == N - 1) ? npos : i + 1;
+            // new (n) node((i == N - 1) ? npos : i + 1);
         }
     }
 
