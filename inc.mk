@@ -26,7 +26,7 @@ LIBS      += -lgtest -lpthread
 #
 CXX        = g++
 RM         = /bin/rm -rvf
-CXXFLAGS   = -g -fPIC -Wall -Werror -Wextra -rdynamic
+CXXFLAGS   = -g -std=c++0x -fPIC -Wall -Werror -Wextra -rdynamic
 CXXFLAGS  += -pipe -D_GNU_SOURCE -DREENTRANT
 CXXFLAGS  += $(CXXINC)
 
