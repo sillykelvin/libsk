@@ -51,7 +51,7 @@ void print_tree_aux(tree *t, tree::node *n, int indent) {
 
 void print_tree(tree *t) {
     print_tree_aux(t, t->__node(t->root), 0);
-    printf("\n");
+    printf("=========================================\n");
 }
 
 
@@ -82,12 +82,14 @@ TEST(fixed_rbtree, normal) {
     ASSERT_TRUE(!ta.full());
     ASSERT_TRUE(ta.__check());
 
+    printf("erase 7:\n");
     print_tree(&ta);
 
     int values[] = { 2, 9, 5, 18, 6, 10, 11, 3 };
     for (size_t i = 0; i < sizeof(values) / sizeof(int); ++i) {
         ASSERT_TRUE(ta.find(rbtree_test(values[i])));
         ta.erase(rbtree_test(values[i]));
+        printf("erase %d:\n", values[i]);
         print_tree(&ta);
         ASSERT_TRUE(!ta.find(rbtree_test(values[i])));
         ASSERT_TRUE(!ta.full());
@@ -95,11 +97,12 @@ TEST(fixed_rbtree, normal) {
     }
 
     for (size_t i = 0; i < sizeof(values) / sizeof(int); ++i) {
-        ASSERT_TRUE(!ta.find(rbtree_test(i)));
+        ASSERT_TRUE(!ta.find(rbtree_test(values[i])));
         int ret = ta.insert(rbtree_test(values[i]));
+        printf("insert %d:\n", values[i]);
         print_tree(&ta);
         ASSERT_TRUE(ret == 0);
-        ASSERT_TRUE(ta.find(rbtree_test(i)));
+        ASSERT_TRUE(ta.find(rbtree_test(values[i])));
         ASSERT_TRUE(!ta.full());
         ASSERT_TRUE(ta.__check());
     }
