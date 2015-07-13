@@ -4,17 +4,16 @@
 
 #define MAX_SIZE 10
 
-using namespace std;
 using namespace sk;
 
 struct array_test {
     int i;
 
-    array_test() : i(0) { cout << "ctor called" << endl; }
-    ~array_test() { cout << "dtor called, i: " << i << endl; }
+    array_test() : i(0) { std::cout << "ctor called" << std::endl; }
+    ~array_test() { std::cout << "dtor called, i: " << i << std::endl; }
 
     array_test& operator=(const array_test& t) {
-        cout << "op= called, this: " << this->i << ", that: " << t.i << endl;
+        std::cout << "op= called, this: " << this->i << ", that: " << t.i << std::endl;
         this->i = t.i;
         return *this;
     }
@@ -72,7 +71,7 @@ TEST(fixed_array, normal) {
     ASSERT_TRUE(ta.find(array_test(6)) == NULL);
 
     for (array::iterator it = ta.begin(); it != ta.end(); ++it)
-        cout << it->i << endl;
+        std::cout << it->i << std::endl;
 
     t = ta.find_if(finder(10));
     ASSERT_TRUE(t);

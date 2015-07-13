@@ -16,7 +16,6 @@
 #define SHM_MGR_CHUNK_COUNT (1024)
 #define SHM_MGR_HEAP_SIZE   (10240)
 
-using namespace std;
 using namespace sk;
 using namespace sk::detail;
 
@@ -138,7 +137,7 @@ TEST(shm_mgr, mem_chunk) {
 
     for (std::vector<long *>::iterator it = container.begin();
          it != container.end(); ++it) {
-        cout << *(*it) << endl;
+        std::cout << *(*it) << std::endl;
 
         size_t offset = (char_ptr(*it) - chunk->data);
         ASSERT_TRUE(offset % chunk->block_size == 0);

@@ -4,15 +4,14 @@
 
 #define MAX_SIZE 5
 
-using namespace std;
 using namespace sk;
 
 struct rarray_test {
     int i;
     size_t waste;
 
-    rarray_test() : i(0) { cout << "ctor called" << endl; }
-    ~rarray_test() { cout << "dtor called, i: " << i << endl; }
+    rarray_test() : i(0) { std::cout << "ctor called" << std::endl; }
+    ~rarray_test() { std::cout << "dtor called, i: " << i << std::endl; }
 };
 
 typedef referable_array<rarray_test, MAX_SIZE> array;
