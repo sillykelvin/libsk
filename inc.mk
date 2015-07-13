@@ -30,6 +30,11 @@ CXXFLAGS   = -g -std=c++0x -fPIC -Wall -Werror -Wextra -rdynamic
 CXXFLAGS  += -pipe -D_GNU_SOURCE -DREENTRANT
 CXXFLAGS  += $(CXXINC)
 
+debug = true
+ifeq ($(debug), true)
+CXXFLAGS  += -DDEBUG
+endif
+
 
 %.d: %.cpp
 	$(CXX) -MM $(CXXFLAGS) $< -o $@
