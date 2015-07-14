@@ -1,5 +1,5 @@
-#ifndef STACK_H
-#define STACK_H
+#ifndef FIXED_STACK_H
+#define FIXED_STACK_H
 
 namespace sk {
 
@@ -40,4 +40,4 @@ struct fixed_stack {
 
 } // namespace sk
 
-#endif // STACK_H
+#endif // FIXED_STACK_H
