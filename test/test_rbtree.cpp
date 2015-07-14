@@ -63,6 +63,7 @@ TEST(fixed_rbtree, normal) {
     ASSERT_TRUE(ta.capacity() == MAX_SIZE);
     ASSERT_TRUE(ta.__check());
     ASSERT_TRUE(!ta.find(rbtree_test(1)));
+    ASSERT_TRUE(ta.begin() == ta.end());
 
     for (size_t i = 1; i <= ta.capacity(); ++i) {
         int ret = ta.insert(rbtree_test(i));
@@ -74,6 +75,28 @@ TEST(fixed_rbtree, normal) {
     }
 
     print_tree(&ta);
+
+    tree::iterator it = ta.begin();
+    ASSERT_TRUE(it != ta.end());
+    ASSERT_TRUE(it->i == 1);
+    ++it;
+    ASSERT_TRUE(it->i == 2);
+    tree::iterator it2 = it++;
+    ASSERT_TRUE(it2->i == 2);
+    ASSERT_TRUE(it->i == 3);
+    --it;
+    ASSERT_TRUE(it->i == 2);
+    it2 = it--;
+    ASSERT_TRUE(it2->i == 2);
+    ASSERT_TRUE(it->i == 1);
+    tree::iterator it3 = ta.begin();
+    ASSERT_TRUE(it == it3);
+    ++it3;
+    ASSERT_TRUE(it != it3);
+    ++it;
+    ASSERT_TRUE(it == it3);
+    for (struct {int i; tree::iterator it;} s = {1, ta.begin()}; s.it != ta.end(); ++s.it, ++s.i)
+        ASSERT_TRUE(s.it->i == s.i);
 
     ASSERT_TRUE(ta.insert(rbtree_test(999)) != 0);
     ASSERT_TRUE(ta.full());
