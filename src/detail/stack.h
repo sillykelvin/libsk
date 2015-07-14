@@ -1,5 +1,5 @@
-#ifndef DETAIL_STACK_H
-#define DETAIL_STACK_H
+#ifndef STACK_H
+#define STACK_H
 
 namespace sk {
 namespace detail {
@@ -85,4 +85,4 @@ struct stack {
 } // namespace detail
 } // namespace sk
 
-#endif // DETAIL_STACK_H
+#endif // STACK_H
