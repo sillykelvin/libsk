@@ -75,6 +75,7 @@ TEST(fixed_rbtree, normal) {
 
     print_tree(&ta);
 
+    ASSERT_TRUE(ta.insert(rbtree_test(999)) != 0);
     ASSERT_TRUE(ta.full());
     ASSERT_TRUE(ta.find(rbtree_test(7)));
     ta.erase(rbtree_test(7));
@@ -85,7 +86,7 @@ TEST(fixed_rbtree, normal) {
     printf("erase 7:\n");
     print_tree(&ta);
 
-    int values[] = { 2, 9, 5, 18, 6, 10, 11, 3 };
+    int values[] = { 2, 6, 8, 3, 14, 10, 19, 5, 17, 9, 15 };
     for (size_t i = 0; i < sizeof(values) / sizeof(int); ++i) {
         ASSERT_TRUE(ta.find(rbtree_test(values[i])));
         ta.erase(rbtree_test(values[i]));
