@@ -19,6 +19,47 @@ struct rbtree_node {
     rbtree_node() : color(red), left(npos), right(npos), parent(npos) {}
 };
 
+/*
+ * Note: T should be a fixed_rbtree type here
+ */
+template<typename T>
+struct rbtree_iterator {
+    typedef T                       tree;
+    typedef typename T::value_type  value_type;
+    typedef value_type*             pointer;
+    typedef value_type&             reference;
+    typedef rbtree_node<value_type> node;
+    typedef rbtree_iterator<T>      self;
+
+    tree *t;
+    node *n;
+
+    explicit rbtree_iterator(tree *t) : t(t), n(NULL) {}
+    rbtree_iterator(tree *t, node *n) : t(t), n(n) {}
+    rbtree_iterator(const self& s) : t(s.t), n(s.n) {}
+
+    self& operator=(const self& s) {
+        if (this == &s)
+            return *this;
+
+        t = s.t;
+        n = s.n;
+
+        return *this;
+    }
+
+    reference operator*() const { return n->value; }
+    pointer operator->() const { return &n->value; }
+
+    self& operator++()   { n = t->__next(n); return *this; }
+    self operator++(int) { self tmp(*this); n = t->__next(n); return tmp; }
+    self& operator--()   { n = t->__prev(n); return *this; }
+    self operator--(int) { self tmp(*this); n = t->__prev(n); return tmp; }
+
+    bool operator==(const self& x) const { return n == x.n && t == x.t; }
+    bool operator!=(const self& x) const { return n != x.n || t != x.t; }
+};
+
 } // namespace detail
 
 /*
@@ -29,8 +70,12 @@ struct rbtree_node {
  */
 template<typename K, typename V, typename F, size_t N>
 struct fixed_rbtree {
-    typedef detail::rbtree_node<V> node;
-    typedef referable_array<node, N> impl_type;
+    typedef K                             key_type;
+    typedef V                             value_type;
+    typedef detail::rbtree_node<V>        node;
+    typedef fixed_rbtree<K, V, F, N>      self;
+    typedef referable_array<node, N>      impl_type;
+    typedef detail::rbtree_iterator<self> iterator;
 
     static const size_t npos = node::npos;
     static const char black  = node::black;
@@ -200,6 +245,14 @@ struct fixed_rbtree {
             return NULL;
 
         return &n->value;
+    }
+
+    iterator begin() {
+        return iterator(this, __node(__min(root)));
+    }
+
+    iterator end() {
+        return iterator(this);
     }
 
     int insert(const V& value) {
@@ -525,6 +578,49 @@ struct fixed_rbtree {
             return index;
 
         return __max(n->right);
+    }
+
+    node *__next(node *n) {
+        if (!n)
+            return NULL;
+
+        if (n->right != npos)
+            return __node(__min(n->right));
+
+        while (1) {
+            node *p = __parent(n);
+
+            // 1. n is root and has no right child, so it is the last one
+            if (!p)
+                return NULL;
+
+            // 2. n has no right child, and it is the left child of its parent
+            if (n == __left(p))
+                return p;
+
+            // 3. n has no right child, and it is the right child of its parent
+            n = p;
+        }
+    }
+
+    node *__prev(node *n) {
+        if (!n)
+            return NULL;
+
+        if (n->left != npos)
+            return __node(__max(n->left));
+
+        while (1) {
+            node *p = __parent(n);
+
+            if (!p)
+                return NULL;
+
+            if (n == __right(p))
+                return p;
+
+            n = p;
+        }
     }
 
     bool __check() {
