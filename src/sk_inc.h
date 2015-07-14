@@ -23,6 +23,7 @@
 #include "log.h"
 
 // concrete headers
+#include "utility.h"
 #include "fixed_array.h"
 #include "referable_array.h"
 #include "shm_seg.h"
