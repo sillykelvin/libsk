@@ -41,10 +41,67 @@ struct fixed_rbtree {
 
     fixed_rbtree() : root(npos) { __check(); }
 
+    /**
+     * @brief __lt stands for "less than"
+     * @param lhs
+     * @param rhs
+     * @return true if lhs is less than rhs
+     */
+    static bool __lt(const K& lhs, const K& rhs) {
+        return lhs < rhs;
+    }
+
+    /**
+     * @brief __gt stands for "greater than"
+     * @param lhs
+     * @param rhs
+     * @return true if lhs is greater than rhs
+     */
+    static bool __gt(const K& lhs, const K& rhs) {
+        return rhs < lhs;
+    }
+
+    /**
+     * @brief __eq stands for "equal"
+     * @param lhs
+     * @param rhs
+     * @return true if lhs equals to rhs
+     */
+    static bool __eq(const K& lhs, const K& rhs) {
+        return !__lt(lhs, rhs) && !__lt(rhs, lhs);
+    }
+
     node *__node(size_t index) {
         if (index == npos)
             return NULL;
         return nodes.at(index);
+    }
+
+    size_t __index(node *n) {
+        if (!n)
+            return npos;
+
+        return nodes.index(n);
+    }
+
+    node *__root() {
+        return __node(root);
+    }
+
+    node *__construct(const V& value, size_t& index) {
+        node *n = nodes.emplace(&index);
+        if (!n)
+            return NULL;
+
+        n->value = value;
+        return n;
+    }
+
+    void __destroy(size_t index) {
+        if (index == npos)
+            return;
+
+        nodes.erase(index);
     }
 
     node *__left(node *n) {
@@ -115,12 +172,12 @@ struct fixed_rbtree {
             return NULL;
 
         F f;
-        node *n = __node(root);
+        node *n = __root();
         while (n) {
-            if (!(key < f(n->value)) && !(f(n->value) < key))
+            if (__eq(key, f(n->value)))
                 return &n->value;
 
-            if (key < f(n->value))
+            if (__lt(key, f(n->value)))
                 n = __left(n);
             else
                 n = __right(n);
@@ -151,19 +208,18 @@ struct fixed_rbtree {
 
         F f;
 
-        node *x = __node(root);
+        node *x = __root();
         node *p = NULL;
         while (x) {
             p = x;
-            // TODO: consider using std::less here
-            if (!(f(x->value) < f(value)) && !(f(value) < f(x->value))) {
+            if (__eq(f(value), f(x->value))) {
                 x->value = value;
                 return 0;
             }
 
-            if (f(value) < f(x->value)) {
+            if (__lt(f(value), f(x->value))) {
                 // check if the comparison function is sane
-                assert_noeffect(!(f(x->value) < f(value)));
+                assert_noeffect(__gt(f(x->value), f(value)));
                 x = __left(x);
             } else
                 x = __right(x);
@@ -182,12 +238,12 @@ struct fixed_rbtree {
         size_t index = root;
         while (index != npos) {
             node *n = __node(index);
-            if (!(f(value) < f(n->value)) && !(f(n->value) < f(value))) {
+            if (__eq(f(value), f(n->value))) {
                 __erase(index);
                 break;
             }
 
-            if (f(value) < f(n->value))
+            if (__lt(f(value), f(n->value)))
                 index = n->left;
             else
                 index = n->right;
@@ -198,9 +254,8 @@ struct fixed_rbtree {
 
     int __insert(node *parent, const V& value) {
         size_t idx = npos;
-        node *n = nodes.emplace(&idx);
+        node *n = __construct(value, idx);
         assert_retval(n, -EFAULT);
-        n->value = value;
 
         // if parent is null, the tree must be an empty tree
         if (!parent) {
@@ -210,10 +265,10 @@ struct fixed_rbtree {
             return 0;
         }
 
-        n->parent = nodes.index(parent);
+        n->parent = __index(parent);
 
         F f;
-        if (f(value) < f(parent->value))
+        if (__lt(f(value), f(parent->value)))
             parent->left = idx;
         else
             parent->right = idx;
@@ -257,7 +312,7 @@ struct fixed_rbtree {
             }
         }
 
-        nodes.at(root)->color = black;
+        __root()->color = black;
         return 0;
     }
 
@@ -299,7 +354,7 @@ struct fixed_rbtree {
 
         if (is_black) {
             // note: x might be null here, so xp must be initialized before, not in this loop
-            while (x != __node(root) && !__red(x)) {
+            while (x != __root() && !__red(x)) {
                 // we can still do this even x is null, x is not root, so xp must be non-null
                 if (x == __left(xp)) {
                     // the original relationship is xp -> y -> x, then we use x to replace y,
@@ -332,7 +387,7 @@ struct fixed_rbtree {
                         if (w->right != npos)
                             __right(w)->color = black;
                         __rotate_left(xp);
-                        x = __node(root);
+                        x = __root();
                         xp = NULL;
                     }
                 } else {
@@ -359,7 +414,7 @@ struct fixed_rbtree {
                         if (w->left != npos)
                             __left(w)->color = black;
                         __rotate_right(xp);
-                        x = __node(root);
+                        x = __root();
                         xp = NULL;
                     }
                 }
@@ -368,7 +423,7 @@ struct fixed_rbtree {
                 x->color = black;
         }
 
-        nodes.erase(index);
+        __destroy(index);
     }
 
     void __rotate_left(node *n) {
@@ -376,8 +431,8 @@ struct fixed_rbtree {
         node *r = __right(n);
         assert_retnone(r);
 
-        size_t op = nodes.index(n); // old parent
-        size_t np = n->right;       // new parent
+        size_t op = __index(n); // old parent
+        size_t np = n->right;   // new parent
 
         n->right = r->left;
 
@@ -405,8 +460,8 @@ struct fixed_rbtree {
         node *l = __left(n);
         assert_retnone(l);
 
-        size_t op = nodes.index(n);
-        size_t np = n->left;
+        size_t op = __index(n); // old parent
+        size_t np = n->left;    // new parent
 
         n->left = l->right;
 
@@ -414,7 +469,7 @@ struct fixed_rbtree {
         if (lr)
             lr->parent = op;
 
-        node *gp = __parent(n);
+        node *gp = __parent(n); // grand parent
         l->parent = n->parent;
         if (!gp)
             root = np;
@@ -504,7 +559,7 @@ struct fixed_rbtree {
 
     // property 2: root node must be black
     bool __check_prop2() {
-        return !__red(__node(root));
+        return !__red(__root());
     }
 
     // property 3: all leaves (null node) are black
