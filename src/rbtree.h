@@ -60,6 +60,47 @@ struct rbtree_iterator {
     bool operator!=(const self& x) const { return n != x.n || t != x.t; }
 };
 
+/*
+ * Note: T should be a fixed_rbtree type here
+ */
+template<typename T>
+struct rbtree_const_iterator {
+    typedef T                        tree;
+    typedef typename T::value_type   value_type;
+    typedef const value_type*        pointer;
+    typedef const value_type&        reference;
+    typedef typename T::node         node;
+    typedef rbtree_const_iterator<T> self;
+
+    const tree *t;
+    const node *n;
+
+    explicit rbtree_const_iterator(const tree *t) : t(t), n(NULL) {}
+    rbtree_const_iterator(const tree *t, const node *n) : t(t), n(n) {}
+    rbtree_const_iterator(const self& s) : t(s.t), n(s.n) {}
+
+    self& operator=(const self& s) {
+        if (this == &s)
+            return *this;
+
+        t = s.t;
+        n = s.n;
+
+        return *this;
+    }
+
+    reference operator*() const { return n->value; }
+    pointer operator->() const { return &n->value; }
+
+    self& operator++()   { n = t->__next(n); return *this; }
+    self operator++(int) { self tmp(*this); n = t->__next(n); return tmp; }
+    self& operator--()   { n = t->__prev(n); return *this; }
+    self operator--(int) { self tmp(*this); n = t->__prev(n); return tmp; }
+
+    bool operator==(const self& x) const { return n == x.n && t == x.t; }
+    bool operator!=(const self& x) const { return n != x.n || t != x.t; }
+};
+
 } // namespace detail
 
 /*
@@ -70,12 +111,13 @@ struct rbtree_iterator {
  */
 template<typename K, typename V, typename F, size_t N>
 struct fixed_rbtree {
-    typedef K                             key_type;
-    typedef V                             value_type;
-    typedef detail::rbtree_node<V>        node;
-    typedef fixed_rbtree<K, V, F, N>      self;
-    typedef referable_array<node, N>      impl_type;
-    typedef detail::rbtree_iterator<self> iterator;
+    typedef K                                   key_type;
+    typedef V                                   value_type;
+    typedef detail::rbtree_node<V>              node;
+    typedef fixed_rbtree<K, V, F, N>            self;
+    typedef referable_array<node, N>            impl_type;
+    typedef detail::rbtree_iterator<self>       iterator;
+    typedef detail::rbtree_const_iterator<self> const_iterator;
 
     static const size_t npos = node::npos;
     static const char black  = node::black;
