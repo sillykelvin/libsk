@@ -20,64 +20,27 @@ struct rbtree_node {
 };
 
 /*
- * Note: T should be a fixed_rbtree type here
+ * Note:
+ *   1. T should be a fixed_rbtree type here
+ *   2. C stands for constness, true makes this iterator a const iterator
  */
-template<typename T>
+template<typename T, bool C>
 struct rbtree_iterator {
-    typedef T                       tree;
-    typedef typename T::value_type  value_type;
-    typedef value_type*             pointer;
-    typedef value_type&             reference;
-    typedef rbtree_node<value_type> node;
-    typedef rbtree_iterator<T>      self;
+    typedef T                                                     tree_type;
+    typedef typename T::node                                      node_type;
+    typedef typename T::value_type                                value_type;
+    typedef rbtree_iterator<T, C>                                 self;
+    typedef typename if_<C, const tree_type*, tree_type*>::type   tree_pointer;
+    typedef typename if_<C, const node_type*, node_type*>::type   node_pointer;
+    typedef typename if_<C, const value_type*, value_type*>::type pointer;
+    typedef typename if_<C, const value_type&, value_type&>::type reference;
 
-    tree *t;
-    node *n;
+    tree_pointer t;
+    node_pointer n;
 
-    explicit rbtree_iterator(tree *t) : t(t), n(NULL) {}
-    rbtree_iterator(tree *t, node *n) : t(t), n(n) {}
-    rbtree_iterator(const self& s) : t(s.t), n(s.n) {}
-
-    self& operator=(const self& s) {
-        if (this == &s)
-            return *this;
-
-        t = s.t;
-        n = s.n;
-
-        return *this;
-    }
-
-    reference operator*() const { return n->value; }
-    pointer operator->() const { return &n->value; }
-
-    self& operator++()   { n = t->__next(n); return *this; }
-    self operator++(int) { self tmp(*this); n = t->__next(n); return tmp; }
-    self& operator--()   { n = t->__prev(n); return *this; }
-    self operator--(int) { self tmp(*this); n = t->__prev(n); return tmp; }
-
-    bool operator==(const self& x) const { return n == x.n && t == x.t; }
-    bool operator!=(const self& x) const { return n != x.n || t != x.t; }
-};
-
-/*
- * Note: T should be a fixed_rbtree type here
- */
-template<typename T>
-struct rbtree_const_iterator {
-    typedef T                        tree;
-    typedef typename T::value_type   value_type;
-    typedef const value_type*        pointer;
-    typedef const value_type&        reference;
-    typedef typename T::node         node;
-    typedef rbtree_const_iterator<T> self;
-
-    const tree *t;
-    const node *n;
-
-    explicit rbtree_const_iterator(const tree *t) : t(t), n(NULL) {}
-    rbtree_const_iterator(const tree *t, const node *n) : t(t), n(n) {}
-    rbtree_const_iterator(const self& s) : t(s.t), n(s.n) {}
+    explicit rbtree_iterator(tree_pointer t) : t(t), n(NULL) {}
+    rbtree_iterator(tree_pointer t, node_pointer n) : t(t), n(n) {}
+    rbtree_iterator(const self &s) : t(s.t), n(s.n) {}
 
     self& operator=(const self& s) {
         if (this == &s)
@@ -98,7 +61,10 @@ struct rbtree_const_iterator {
     self operator--(int) { self tmp(*this); n = t->__prev(n); return tmp; }
 
     bool operator==(const self& x) const { return n == x.n && t == x.t; }
-    bool operator!=(const self& x) const { return n != x.n || t != x.t; }
+    bool operator!=(const self& x) const { return !(*this == x); }
+
+    bool operator==(const rbtree_iterator<T, !C>& x) const { return n == x.n && t == x.t; }
+    bool operator!=(const rbtree_iterator<T, !C>& x) const { return !(*this == x); }
 };
 
 } // namespace detail
@@ -111,13 +77,13 @@ struct rbtree_const_iterator {
  */
 template<typename K, typename V, typename F, size_t N>
 struct fixed_rbtree {
-    typedef K                                   key_type;
-    typedef V                                   value_type;
-    typedef detail::rbtree_node<V>              node;
-    typedef fixed_rbtree<K, V, F, N>            self;
-    typedef referable_array<node, N>            impl_type;
-    typedef detail::rbtree_iterator<self>       iterator;
-    typedef detail::rbtree_const_iterator<self> const_iterator;
+    typedef K                                    key_type;
+    typedef V                                    value_type;
+    typedef detail::rbtree_node<V>               node;
+    typedef fixed_rbtree<K, V, F, N>             self;
+    typedef referable_array<node, N>             impl_type;
+    typedef detail::rbtree_iterator<self, false> iterator;
+    typedef detail::rbtree_iterator<self, true>  const_iterator;
 
     static const size_t npos = node::npos;
     static const char black  = node::black;
@@ -164,7 +130,13 @@ struct fixed_rbtree {
         return nodes.at(index);
     }
 
-    size_t __index(node *n) {
+    const node *__node(size_t index) const {
+        if (index == npos)
+            return NULL;
+        return nodes.at(index);
+    }
+
+    size_t __index(node *n) const {
         if (!n)
             return npos;
 
@@ -198,6 +170,13 @@ struct fixed_rbtree {
         return NULL;
     }
 
+    const node *__left(const node *n) const {
+        if (n && n->left != npos)
+            return nodes.at(n->left);
+
+        return NULL;
+    }
+
     node *__right(node *n) {
         if (n && n->right != npos)
             return nodes.at(n->right);
@@ -205,7 +184,21 @@ struct fixed_rbtree {
         return NULL;
     }
 
+    const node *__right(const node *n) const {
+        if (n && n->right != npos)
+            return nodes.at(n->right);
+
+        return NULL;
+    }
+
     node *__parent(node *n) {
+        if (n && n->parent != npos)
+            return nodes.at(n->parent);
+
+        return NULL;
+    }
+
+    const node *__parent(const node *n) const {
         if (n && n->parent != npos)
             return nodes.at(n->parent);
 
@@ -293,8 +286,24 @@ struct fixed_rbtree {
         return iterator(this, __node(__min(root)));
     }
 
+    const_iterator begin() const {
+        return const_iterator(this, __node(__min(root)));
+    }
+
+    const_iterator cbegin() const {
+        return const_iterator(this, __node(__min(root)));
+    }
+
     iterator end() {
         return iterator(this);
+    }
+
+    const_iterator end() const {
+        return const_iterator(this);
+    }
+
+    const_iterator cend() const {
+        return const_iterator(this);
     }
 
     int insert(const V& value) {
@@ -596,11 +605,11 @@ struct fixed_rbtree {
             x->parent = o->parent;
     }
 
-    size_t __min(size_t index) {
+    size_t __min(size_t index) const {
         if (index == npos)
             return npos;
 
-        node *n = __node(index);
+        const node *n = __node(index);
         assert_retval(n, npos);
 
         if (n->left == npos)
@@ -609,11 +618,11 @@ struct fixed_rbtree {
         return __min(n->left);
     }
 
-    size_t __max(size_t index) {
+    size_t __max(size_t index) const {
         if (index == npos)
             return npos;
 
-        node *n = __node(index);
+        const node *n = __node(index);
         assert_retval(n, npos);
 
         if (n->right == npos)
@@ -645,6 +654,29 @@ struct fixed_rbtree {
         }
     }
 
+    const node *__next(const node *n) const {
+        if (!n)
+            return NULL;
+
+        if (n->right != npos)
+            return __node(__min(n->right));
+
+        while (1) {
+            const node *p = __parent(n);
+
+            // 1. n is root and has no right child, so it is the last one
+            if (!p)
+                return NULL;
+
+            // 2. n has no right child, and it is the left child of its parent
+            if (n == __left(p))
+                return p;
+
+            // 3. n has no right child, and it is the right child of its parent
+            n = p;
+        }
+    }
+
     node *__prev(node *n) {
         if (!n)
             return NULL;
@@ -654,6 +686,26 @@ struct fixed_rbtree {
 
         while (1) {
             node *p = __parent(n);
+
+            if (!p)
+                return NULL;
+
+            if (n == __right(p))
+                return p;
+
+            n = p;
+        }
+    }
+
+    const node *__prev(const node *n) const {
+        if (!n)
+            return NULL;
+
+        if (n->left != npos)
+            return __node(__max(n->left));
+
+        while (1) {
+            const node *p = __parent(n);
 
             if (!p)
                 return NULL;
