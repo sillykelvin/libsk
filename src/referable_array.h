@@ -32,11 +32,10 @@ struct referable_array {
     referable_array() : used_count(0), free_head(0) { __init(); }
     ~referable_array() { clear(); }
 
-    // TODO: test this constructor carefully!!!
     /*
      * Note: we cannot just put the nodes in array into this container, as this
      * is a referable container, the data type T may contains index reference,
-     * so we MUST keep the index unchanged. so does operator=(...)
+     * so we MUST keep the index unchanged. so does the assignment operator
      */
     referable_array(const referable_array& array) {
         if (this == &array)
@@ -45,7 +44,6 @@ struct referable_array {
         __copy(array);
     }
 
-    // TODO: test this constructor carefully!!!
     referable_array& operator=(const referable_array& array) {
         if (this == &array)
             return *this;
