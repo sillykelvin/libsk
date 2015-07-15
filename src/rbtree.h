@@ -136,7 +136,7 @@ struct fixed_rbtree {
         return nodes.at(index);
     }
 
-    size_t __index(node *n) const {
+    size_t __index(const node *n) const {
         if (!n)
             return npos;
 
@@ -144,6 +144,10 @@ struct fixed_rbtree {
     }
 
     node *__root() {
+        return __node(root);
+    }
+
+    const node *__root() const {
         return __node(root);
     }
 
@@ -247,15 +251,20 @@ struct fixed_rbtree {
 
     bool full()  const { return nodes.full(); }
 
-    V *find(const K& key) {
+    void clear() {
+        root = npos;
+        nodes.clear();
+    }
+
+    iterator find(const K& key) {
         if (empty())
-            return NULL;
+            return end();
 
         F f;
         node *n = __root();
         while (n) {
             if (__eq(key, f(n->value)))
-                return &n->value;
+                return iterator(this, n);
 
             if (__lt(key, f(n->value)))
                 n = __left(n);
@@ -263,35 +272,54 @@ struct fixed_rbtree {
                 n = __right(n);
         }
 
-        return NULL;
+        return end();
     }
 
-    V *min() {
-        node *n = __node(__min(root));
-        if (!n)
-            return NULL;
+    const_iterator find(const K& key) const {
+        if (empty())
+            return end();
 
-        return &n->value;
+        F f;
+        const node *n = __root();
+        while (n) {
+            if (__eq(key, f(n->value)))
+                return const_iterator(this, n);
+
+            if (__lt(key, f(n->value)))
+                n = __left(n);
+            else
+                n = __right(n);
+        }
+
+        return end();
     }
 
-    V *max() {
-        node *n = __node(__max(root));
-        if (!n)
-            return NULL;
+    node *min() {
+        return __node(__min(root));
+    }
 
-        return &n->value;
+    const node *min() const {
+        return __node(__min(root));
+    }
+
+    node *max() {
+        return __node(__max(root));
+    }
+
+    const node *max() const {
+        return __node(__max(root));
     }
 
     iterator begin() {
-        return iterator(this, __node(__min(root)));
+        return iterator(this, min());
     }
 
     const_iterator begin() const {
-        return const_iterator(this, __node(__min(root)));
+        return const_iterator(this, min());
     }
 
     const_iterator cbegin() const {
-        return const_iterator(this, __node(__min(root)));
+        return const_iterator(this, min());
     }
 
     iterator end() {
