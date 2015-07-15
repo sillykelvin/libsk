@@ -62,14 +62,14 @@ TEST(fixed_rbtree, normal) {
     ASSERT_TRUE(ta.size() == 0);
     ASSERT_TRUE(ta.capacity() == MAX_SIZE);
     ASSERT_TRUE(ta.__check());
-    ASSERT_TRUE(!ta.find(rbtree_test(1)));
+    ASSERT_TRUE(ta.find(rbtree_test(1)) == ta.end());
     ASSERT_TRUE(ta.begin() == ta.end());
     ASSERT_TRUE(ta.cbegin() == ta.cend());
 
     for (size_t i = 1; i <= ta.capacity(); ++i) {
         int ret = ta.insert(rbtree_test(i));
         ASSERT_TRUE(ret == 0);
-        ASSERT_TRUE(ta.find(rbtree_test(i)));
+        ASSERT_TRUE(ta.find(rbtree_test(i)) != ta.end());
         ASSERT_TRUE(ta.find(rbtree_test(i))->i == static_cast<int>(i));
         ASSERT_TRUE(ta.size() == i);
         ASSERT_TRUE(ta.__check());
@@ -122,9 +122,9 @@ TEST(fixed_rbtree, normal) {
 
     ASSERT_TRUE(ta.insert(rbtree_test(999)) != 0);
     ASSERT_TRUE(ta.full());
-    ASSERT_TRUE(ta.find(rbtree_test(7)));
+    ASSERT_TRUE(ta.find(rbtree_test(7)) != ta.end());
     ta.erase(rbtree_test(7));
-    ASSERT_TRUE(!ta.find(rbtree_test(7)));
+    ASSERT_TRUE(ta.find(rbtree_test(7)) == ta.end());
     ASSERT_TRUE(!ta.full());
     ASSERT_TRUE(ta.__check());
 
@@ -133,30 +133,30 @@ TEST(fixed_rbtree, normal) {
 
     int values[] = { 2, 6, 8, 3, 14, 10, 19, 5, 17, 9, 15 };
     for (size_t i = 0; i < sizeof(values) / sizeof(int); ++i) {
-        ASSERT_TRUE(ta.find(rbtree_test(values[i])));
+        ASSERT_TRUE(ta.find(rbtree_test(values[i])) != ta.end());
         ta.erase(rbtree_test(values[i]));
         printf("erase %d:\n", values[i]);
         print_tree(&ta);
-        ASSERT_TRUE(!ta.find(rbtree_test(values[i])));
+        ASSERT_TRUE(ta.find(rbtree_test(values[i])) == ta.end());
         ASSERT_TRUE(!ta.full());
         ASSERT_TRUE(ta.__check());
     }
 
     for (size_t i = 0; i < sizeof(values) / sizeof(int); ++i) {
-        ASSERT_TRUE(!ta.find(rbtree_test(values[i])));
+        ASSERT_TRUE(ta.find(rbtree_test(values[i])) == ta.end());
         int ret = ta.insert(rbtree_test(values[i]));
         printf("insert %d:\n", values[i]);
         print_tree(&ta);
         ASSERT_TRUE(ret == 0);
-        ASSERT_TRUE(ta.find(rbtree_test(values[i])));
+        ASSERT_TRUE(ta.find(rbtree_test(values[i])) != ta.end());
         ASSERT_TRUE(!ta.full());
         ASSERT_TRUE(ta.__check());
     }
 
-    rbtree_test *min = ta.min();
-    ASSERT_TRUE(min && min->i == 1);
-    rbtree_test *max = ta.max();
-    ASSERT_TRUE(max && max->i == MAX_SIZE);
+    tree::node *min = ta.min();
+    ASSERT_TRUE(min && min->value.i == 1);
+    tree::node *max = ta.max();
+    ASSERT_TRUE(max && max->value.i == MAX_SIZE);
 
     ASSERT_TRUE(ta.__check());
 }
