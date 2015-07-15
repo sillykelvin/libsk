@@ -64,6 +64,7 @@ TEST(fixed_rbtree, normal) {
     ASSERT_TRUE(ta.__check());
     ASSERT_TRUE(!ta.find(rbtree_test(1)));
     ASSERT_TRUE(ta.begin() == ta.end());
+    ASSERT_TRUE(ta.cbegin() == ta.cend());
 
     for (size_t i = 1; i <= ta.capacity(); ++i) {
         int ret = ta.insert(rbtree_test(i));
@@ -97,6 +98,27 @@ TEST(fixed_rbtree, normal) {
     ASSERT_TRUE(it == it3);
     for (struct {int i; tree::iterator it;} s = {1, ta.begin()}; s.it != ta.end(); ++s.it, ++s.i)
         ASSERT_TRUE(s.it->i == s.i);
+
+    it = ta.begin();
+    ASSERT_TRUE(it->i == 1);
+    it->i = 999; // we should NEVER do this!!
+    it->i = 1;
+
+    tree::const_iterator cit = ta.cbegin();
+    tree::const_iterator ced = ta.cend();
+    ASSERT_TRUE(cit != ced);
+    ASSERT_TRUE(cit == it);
+    // cit->i = 999;   // this should cannot compile
+    // (*cit).i = 999; // this should cannot compile
+    tree::const_iterator cit2 = cit++;
+    ASSERT_TRUE(cit2 != cit);
+    ASSERT_TRUE(cit2 == it);
+    tree::const_iterator cit3 = --cit;
+    ASSERT_TRUE(cit3 == cit && cit2 == cit && it == cit);
+    ASSERT_TRUE(cit->i == 1);
+    const tree& cta = ta;
+    for (struct {int i; tree::const_iterator cit;} s = {1, cta.begin()}; s.cit != cta.end(); ++s.cit, ++s.i)
+        ASSERT_TRUE(s.cit->i == s.i);
 
     ASSERT_TRUE(ta.insert(rbtree_test(999)) != 0);
     ASSERT_TRUE(ta.full());
