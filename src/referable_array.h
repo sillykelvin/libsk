@@ -29,18 +29,63 @@ struct referable_array {
     size_t free_head;
     char memory[sizeof(node) * N];
 
-    referable_array() : used_count(0), free_head(0) {
+    referable_array() : used_count(0), free_head(0) { __init(); }
+    ~referable_array() { clear(); }
+
+    // TODO: test this constructor carefully!!!
+    /*
+     * Note: we cannot just put the nodes in array into this container, as this
+     * is a referable container, the data type T may contains index reference,
+     * so we MUST keep the index unchanged. so does operator=(...)
+     */
+    referable_array(const referable_array& array) {
+        if (this == &array)
+            return;
+
+        __copy(array);
+    }
+
+    // TODO: test this constructor carefully!!!
+    referable_array& operator=(const referable_array& array) {
+        if (this == &array)
+            return *this;
+
+        clear();
+        __copy(array);
+        return *this;
+    }
+
+    void __init() {
         // link the free slots
         for (size_t i = 0; i < N; ++i) {
             node *n = __at(i);
             new (n) node();
             n->used = false;
-            *cast_ptr(size_t, n->data) = (i == N - 1) ? npos : i + 1;
-            // new (n) node((i == N - 1) ? npos : i + 1);
+            *cast_ptr(size_t, n->data) = (i == N - 1) ? npos : i + i;
         }
     }
 
-    ~referable_array() { clear(); }
+    void __copy(const referable_array& array) {
+        for (size_t i = 0; i < array.capacity(); ++i) {
+            node *on = array.__at(i); // old node
+            node *nn = __at(i);       // new node
+
+            if (on->used) {
+                nn->used = true;
+                T* ot = cast_ptr(T, on->data); // old T
+                T* nt = cast_ptr(T, nn->data); // new T
+                new (nt) T(*ot);
+            } else {
+                nn->used = false;
+                size_t* oi = cast_ptr(size_t, on->data); // old index
+                size_t* ni = cast_ptr(size_t, nn->data); // new index
+                *ni = *oi;
+            }
+        }
+
+        used_count = array.used_count;
+        free_head = array.free_head;
+    }
 
     node *__at(size_t index) {
         return cast_ptr(node, memory) + index;
