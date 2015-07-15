@@ -46,6 +46,10 @@ struct referable_array {
         return cast_ptr(node, memory) + index;
     }
 
+    const node *__at(size_t index) const {
+        return cast_ptr(node, const_cast<char *>(memory)) + index;
+    }
+
     /*
      * Note: this function does NOT check whether the element's
      * destructor has been called, the caller should do the job
@@ -109,6 +113,16 @@ struct referable_array {
         return NULL;
     }
 
+    const T *at(size_t index) const {
+        assert_retval(index < N, NULL);
+
+        const node *n = __at(index);
+        if (n->used)
+            return cast_ptr(T, const_cast<char*>(n->data));
+
+        return NULL;
+    }
+
     void erase(size_t index) {
         assert_retnone(index < N);
 
@@ -139,7 +153,7 @@ struct referable_array {
         return t;
     }
 
-    size_t index(T *t) {
+    size_t index(T *t) const {
         assert_retval(t, npos);
 
         node *n = cast_ptr(node, char_ptr(t) - offsetof(node, data));
