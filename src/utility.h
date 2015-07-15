@@ -50,6 +50,22 @@ struct select2nd {
     const result_type& operator()(const P& p) const { return p.second; }
 };
 
+/*
+ * type selector according to a bool value
+ */
+template<bool B, typename T, typename F>
+struct if_;
+
+template<typename T, typename F>
+struct if_<true, T, F> {
+    typedef T type;
+};
+
+template<typename T, typename F>
+struct if_<false, T, F> {
+    typedef F type;
+};
+
 } // namespace sk
 
 #endif // UTILITY_H
