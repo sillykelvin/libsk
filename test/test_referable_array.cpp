@@ -35,6 +35,11 @@ TEST(referable_array, normal) {
     ASSERT_TRUE(ta.full());
     ASSERT_TRUE(ta.emplace() == NULL);
 
+    const array& cta = ta;
+    const rarray_test *ct = cta.at(3);
+    ASSERT_TRUE(ct);
+    ASSERT_TRUE(ct->i == 3);
+
     rarray_test *t = ta.at(3);
     ASSERT_TRUE(t);
     ASSERT_TRUE(t->i == 3);
