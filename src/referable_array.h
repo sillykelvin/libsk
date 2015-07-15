@@ -67,18 +67,18 @@ struct referable_array {
 
     void __copy(const referable_array& array) {
         for (size_t i = 0; i < array.capacity(); ++i) {
-            node *on = array.__at(i); // old node
-            node *nn = __at(i);       // new node
+            const node *on = array.__at(i); // old node
+            node *nn = __at(i);             // new node
 
             if (on->used) {
                 nn->used = true;
-                T* ot = cast_ptr(T, on->data); // old T
-                T* nt = cast_ptr(T, nn->data); // new T
+                const T* ot = cast_ptr(T, const_cast<char*>(on->data)); // old T
+                T* nt = cast_ptr(T, nn->data);                          // new T
                 new (nt) T(*ot);
             } else {
                 nn->used = false;
-                size_t* oi = cast_ptr(size_t, on->data); // old index
-                size_t* ni = cast_ptr(size_t, nn->data); // new index
+                const size_t* oi = cast_ptr(size_t, const_cast<char*>(on->data)); // old index
+                size_t* ni = cast_ptr(size_t, nn->data);                          // new index
                 *ni = *oi;
             }
         }
