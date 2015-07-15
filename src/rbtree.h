@@ -94,6 +94,17 @@ struct fixed_rbtree {
 
     fixed_rbtree() : root(npos) { __check(); }
 
+    fixed_rbtree(const fixed_rbtree& tree) : nodes(tree.nodes), root(tree.root) {}
+
+    fixed_rbtree& operator=(const fixed_rbtree& tree) {
+        if (this == &tree)
+            return *this;
+
+        nodes = tree.nodes;
+        root = tree.root;
+        return *this;
+    }
+
     /**
      * @brief __lt stands for "less than"
      * @param lhs
