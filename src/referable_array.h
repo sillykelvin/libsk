@@ -61,7 +61,7 @@ struct referable_array {
             node *n = __at(i);
             new (n) node();
             n->used = false;
-            *cast_ptr(size_t, n->data) = (i == N - 1) ? npos : i + i;
+            *cast_ptr(size_t, n->data) = (i == N - 1) ? npos : i + 1;
         }
     }
 
