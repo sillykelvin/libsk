@@ -156,7 +156,7 @@ struct referable_array {
     size_t index(const T *t) const {
         assert_retval(t, npos);
 
-        node *n = cast_ptr(node, char_ptr(t) - offsetof(node, data));
+        node *n = cast_ptr(node, char_ptr(const_cast<T*>(t)) - offsetof(node, data));
         assert_noeffect(n->used);
 
         size_t offset = char_ptr(n) - memory;
