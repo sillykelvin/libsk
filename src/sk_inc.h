@@ -32,5 +32,6 @@
 #include "fixed_stack.h"
 #include "rbtree.h"
 #include "fixed_set.h"
+#include "fixed_map.h"
 
 #endif // SK_INC_H
