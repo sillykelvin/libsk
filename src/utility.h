@@ -13,6 +13,9 @@ struct pair {
 
     T1 first;
     T2 second;
+
+    pair() : first(), second() {}
+    pair(const T1& first, const T2& second) : first(first), second(second) {}
 };
 
 
