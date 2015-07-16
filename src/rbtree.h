@@ -40,7 +40,13 @@ struct rbtree_iterator {
 
     explicit rbtree_iterator(tree_pointer t) : t(t), n(NULL) {}
     rbtree_iterator(tree_pointer t, node_pointer n) : t(t), n(n) {}
-    rbtree_iterator(const self &s) : t(s.t), n(s.n) {}
+
+    /*
+     * make a templated copy constructor here to support construction of
+     * const iterator from mutable iterator
+     */
+    template<bool B>
+    rbtree_iterator(const rbtree_iterator<T, B>& s) : t(s.t), n(s.n) {}
 
     self& operator=(const self& s) {
         if (this == &s)
