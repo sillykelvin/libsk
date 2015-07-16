@@ -4,4 +4,9 @@
 #+DATE:      2015-06-19
 
 
-1. make =INVALID_OFFSET= a member of =shm_mgr=, like =npos= in =std::string=.
+1. Make =INVALID_OFFSET= a member of =shm_mgr=, like =npos= in =std::string=.
+
+2. Some containers only have =emplace()= function, add a =push(const V& v)=,
+   otherwise, a default constructor must be provided. Or, add a variadic
+   version function =emplace(Args&& args...)= to call the constructor which
+   needs some parameters.
