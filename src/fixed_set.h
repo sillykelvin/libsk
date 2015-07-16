@@ -8,8 +8,8 @@ namespace sk {
 template<typename T, size_t N>
 struct fixed_set {
     typedef fixed_rbtree<T, T, identity<T>, N> impl_type;
-    typedef impl_type::const_iterator iterator;
-    typedef impl_type::const_iterator const_iterator;
+    typedef typename impl_type::const_iterator iterator;
+    typedef typename impl_type::const_iterator const_iterator;
 
     impl_type tree;
 

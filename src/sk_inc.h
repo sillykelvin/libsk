@@ -31,5 +31,6 @@
 #include "shm_ptr.h"
 #include "fixed_stack.h"
 #include "rbtree.h"
+#include "fixed_set.h"
 
 #endif // SK_INC_H
