@@ -379,7 +379,7 @@ struct fixed_rbtree {
         return ret;
     }
 
-    void erase(const V& value) {
+    void erase(const K& key) {
         if (empty())
             return;
 
@@ -387,12 +387,12 @@ struct fixed_rbtree {
         size_t index = root;
         while (index != npos) {
             node *n = __node(index);
-            if (__eq(f(value), f(n->value))) {
+            if (__eq(key, f(n->value))) {
                 __erase(index);
                 break;
             }
 
-            if (__lt(f(value), f(n->value)))
+            if (__lt(key, f(n->value)))
                 index = n->left;
             else
                 index = n->right;
