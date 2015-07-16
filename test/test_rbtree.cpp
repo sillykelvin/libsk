@@ -160,3 +160,40 @@ TEST(fixed_rbtree, normal) {
 
     ASSERT_TRUE(ta.__check());
 }
+
+TEST(fixed_rbtree, copy) {
+    tree ta;
+
+    for (size_t i = 1; i <= ta.capacity(); ++i) {
+        int ret = ta.insert(rbtree_test(i));
+        ASSERT_TRUE(ret == 0);
+        ASSERT_TRUE(ta.find(rbtree_test(i)) != ta.end());
+        ASSERT_TRUE(ta.find(rbtree_test(i))->i == static_cast<int>(i));
+        ASSERT_TRUE(ta.size() == i);
+        ASSERT_TRUE(ta.__check());
+    }
+
+    tree ta2(ta);
+    ASSERT_TRUE(ta2.__check());
+
+    for (struct {int i; tree::iterator it;} s = {1, ta2.begin()}; s.it != ta2.end(); ++s.it, ++s.i)
+        ASSERT_TRUE(s.it->i == s.i);
+
+    tree ta3;
+    ta3.insert(rbtree_test(77));
+    ta3.insert(rbtree_test(88));
+    ta3.insert(rbtree_test(99));
+    ASSERT_TRUE(ta3.find(rbtree_test(77)) != ta3.end());
+    ASSERT_TRUE(ta3.find(rbtree_test(88)) != ta3.end());
+    ASSERT_TRUE(ta3.find(rbtree_test(99)) != ta3.end());
+    ASSERT_TRUE(ta3.__check());
+
+    ta3 = ta;
+    ASSERT_TRUE(ta3.find(rbtree_test(77)) == ta3.end());
+    ASSERT_TRUE(ta3.find(rbtree_test(88)) == ta3.end());
+    ASSERT_TRUE(ta3.find(rbtree_test(99)) == ta3.end());
+    ASSERT_TRUE(ta3.__check());
+
+    for (struct {int i; tree::iterator it;} s = {1, ta3.begin()}; s.it != ta3.end(); ++s.it, ++s.i)
+        ASSERT_TRUE(s.it->i == s.i);
+}
