@@ -1,8 +1,6 @@
 #ifndef FIXED_SET_H
 #define FIXED_SET_H
 
-#include "rbtree.h"
-
 namespace sk {
 
 template<typename T, size_t N>
