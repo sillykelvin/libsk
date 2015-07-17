@@ -16,8 +16,9 @@ struct fixed_stack {
     bool full() const { return nodes.full(); }
     bool empty() const { return nodes.empty(); }
 
-    T *emplace() {
-        return nodes.emplace();
+    template<typename... Args>
+    T *emplace(Args&&... args) {
+        return nodes.emplace(std::forward<Args>(args)...);
     }
 
     T *top() {
