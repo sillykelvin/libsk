@@ -174,22 +174,25 @@ struct referable_array {
     }
 
     template<typename... Args>
-    T *emplace(size_t *index, Args&&... args) {
-        if (full())
-            return NULL;
+    pair<T*, size_t> emplace(Args&&... args) {
+        size_t _npos = npos;
+        pair<T*, size_t> p(NULL, _npos);
 
-        assert_retval(free_head != npos, NULL);
+        if (full())
+            return p;
+
+        assert_retval(free_head != npos, p);
 
         node *n = __at(free_head);
-        if (index)
-            *index = free_head;
+        p.second = free_head;
         __add_used(free_head);
         free_head = *cast_ptr(size_t, n->data);
 
         T *t = cast_ptr(T, n->data);
         new (t) T(std::forward<Args>(args)...);
+        p.first = t;
 
-        return t;
+        return p;
     }
 
     size_t index(const T *t) const {
