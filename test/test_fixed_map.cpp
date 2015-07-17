@@ -38,16 +38,18 @@ TEST(fixed_map, normal) {
 
     map::iterator it = m.find('a');
     ASSERT_TRUE(it != m.end());
-    ASSERT_TRUE(it->first == 'a' && it->second.c == 'a' && it->second.i == static_cast<int>('a'));
+    ASSERT_TRUE(it->first == 'a' && it->second.c == 'a' && it->second.i == 'a');
 
     m.erase(it);
     ASSERT_TRUE(m.find('a') == m.end());
 
     ret = m.insert('a', map_test('a', 'a'));
     ASSERT_TRUE(ret == 0);
-    ret = m.insert('a', map_test('h', 'h'));
-    ASSERT_TRUE(ret == 0);
+    it = m.find('a');
+    it->second.c = 'h';
+    it->second.i = 'h';
     ASSERT_TRUE(m.find('a')->second.c == 'h');
+    ASSERT_TRUE(m.find('a')->second.i == 'h');
 
     it = m.begin();
     ++it;
@@ -57,6 +59,9 @@ TEST(fixed_map, normal) {
     it->second.c = 'j';
     it->second.i = 'j';
 
-    for (struct {char c; map::iterator it;} i = {'a', m.begin()}; i.it != m.end(); ++i.it, ++i.c)
-        ASSERT_TRUE(i.it->first == i.c && i.it->second.c == i.c && i.it->second.i == i.c + 'h' - 'a');
+    for (struct {char c; map::iterator it;} i = {'a', m.begin()}; i.it != m.end(); ++i.it, ++i.c) {
+        ASSERT_TRUE(i.it->first == i.c);
+        ASSERT_TRUE(i.it->second.c == i.c + 'h' - 'a');
+        ASSERT_TRUE(i.it->second.i == i.c + 'h' - 'a');
+    }
 }
