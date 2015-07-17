@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <iostream>
-#include "sk_inc.h"
+#include "libsk.h"
 
 #define MAX_SIZE 5
 

@@ -1,4 +1,4 @@
-#include "sk_inc.h"
+#include "libsk.h"
 #include "mem_chunk.h"
 
 int sk::detail::mem_chunk::init(size_t chunk_size, size_t block_size) {

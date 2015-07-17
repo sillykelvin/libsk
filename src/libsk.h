@@ -1,5 +1,5 @@
-#ifndef SK_INC_H
-#define SK_INC_H
+#ifndef LIBSK_H
+#define LIBSK_H
 
 // C headers
 #include <assert.h>
@@ -34,4 +34,4 @@
 #include "fixed_set.h"
 #include "fixed_map.h"
 
-#endif // SK_INC_H
+#endif // LIBSK_H

@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <iostream>
-#include "sk_inc.h"
+#include "libsk.h"
 
 #define SHM_MGR_KEY         (0x77777)
 #define HASH_SHM_KEY        (0x77)

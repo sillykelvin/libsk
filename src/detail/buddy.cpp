@@ -1,4 +1,4 @@
-#include "sk_inc.h"
+#include "libsk.h"
 #include "buddy.h"
 
 sk::detail::buddy *sk::detail::buddy::create(key_t key, bool resume, u32 size) {

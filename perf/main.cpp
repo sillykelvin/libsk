@@ -1,6 +1,6 @@
 #include <vector>
 #include <unistd.h>
-#include "sk_inc.h"
+#include "libsk.h"
 
 // NOTE: LOOP_COUNT must be 100 * N
 #define LOOP_COUNT 10000 // 1000000

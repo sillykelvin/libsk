@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "sk_inc.h"
+#include "libsk.h"
 
 #define SHM_KEY (0x77)
 

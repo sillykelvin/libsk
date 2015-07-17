@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "sk_inc.h"
+#include "libsk.h"
 #include "detail/buddy.h"
 #include "detail/hash.h"
 #include "detail/mem_chunk.h"
