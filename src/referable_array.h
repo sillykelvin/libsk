@@ -174,7 +174,7 @@ struct referable_array {
     }
 
     template<typename... Args>
-    T *emplace(size_t *index, Args... args) {
+    T *emplace(size_t *index, Args&&... args) {
         if (full())
             return NULL;
 
