@@ -10,7 +10,7 @@ using namespace sk;
 struct stack_test {
     int i;
 
-    stack_test() : i(0) { cout << "ctor called" << endl; }
+    stack_test(int i) : i(i) { cout << "ctor called, i: " << i << endl; }
     ~stack_test() { cout << "dtor called, i: " << i << endl; }
 };
 
@@ -24,7 +24,7 @@ TEST(fixed_stack, normal) {
     ASSERT_TRUE(ta.capacity() == MAX_SIZE);
 
     for (size_t i = 0; i < ta.capacity(); ++i) {
-        stack_test *t = ta.emplace();
+        stack_test *t = ta.emplace(static_cast<int>(i));
         ASSERT_TRUE(t);
 
         t->i = i;
