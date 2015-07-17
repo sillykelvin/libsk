@@ -16,7 +16,7 @@ struct rbtree_node {
     size_t parent;
     V      value;
 
-    rbtree_node() : color(red), left(npos), right(npos), parent(npos) {}
+    rbtree_node(const V& v) : color(red), left(npos), right(npos), parent(npos), value(v) {}
 };
 
 /*
@@ -169,12 +169,7 @@ struct fixed_rbtree {
     }
 
     node *__construct(const V& value, size_t& index) {
-        node *n = nodes.emplace(&index);
-        if (!n)
-            return NULL;
-
-        n->value = value;
-        return n;
+        return nodes.emplace(&index, value);
     }
 
     void __destroy(size_t index) {
@@ -361,10 +356,8 @@ struct fixed_rbtree {
         node *p = NULL;
         while (x) {
             p = x;
-            if (__eq(f(value), f(x->value))) {
-                x->value = value;
+            if (__eq(f(value), f(x->value)))
                 return 0;
-            }
 
             if (__lt(f(value), f(x->value))) {
                 // check if the comparison function is sane
