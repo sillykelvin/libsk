@@ -23,15 +23,15 @@ TEST(referable_array, normal) {
     ASSERT_TRUE(ta.size() == 0);
     ASSERT_TRUE(ta.capacity() == MAX_SIZE);
 
+    pair<rarray_test*, size_t> p;
     for (size_t i = 0; i < ta.capacity(); ++i) {
-        size_t index = array::npos;
-        rarray_test *t = ta.emplace(&index, static_cast<int>(i));
-        ASSERT_TRUE(t);
-        ASSERT_TRUE(ta.index(t) == index);
+        p = ta.emplace(static_cast<int>(i));
+        ASSERT_TRUE(p.first);
+        ASSERT_TRUE(ta.index(p.first) == p.second);
     }
 
     ASSERT_TRUE(ta.full());
-    ASSERT_TRUE(ta.emplace(NULL, 1) == NULL);
+    ASSERT_TRUE(ta.emplace(1).first == NULL);
 
     const array& cta = ta;
     const rarray_test *ct = cta.at(3);
@@ -53,24 +53,23 @@ TEST(referable_array, normal) {
     ASSERT_TRUE(ta.at(3) == NULL);
     ASSERT_TRUE(ta.at(2) == NULL);
 
-    size_t index;
-    t = ta.emplace(&index, 6);
-    ASSERT_TRUE(index == 2);
-    ASSERT_TRUE(ta.at(index)->i == 6);
-    t->i = 7;
-    ASSERT_TRUE(ta.at(index)->i == 7);
-    t = ta.emplace(&index, 8);
-    ASSERT_TRUE(index == 3);
-    ASSERT_TRUE(ta.at(index)->i == 8);
+    p = ta.emplace(6);
+    ASSERT_TRUE(p.second == 2);
+    ASSERT_TRUE(ta.at(p.second)->i == 6);
+    p.first->i = 7;
+    ASSERT_TRUE(ta.at(p.second)->i == 7);
+    p = ta.emplace(8);
+    ASSERT_TRUE(p.second == 3);
+    ASSERT_TRUE(ta.at(p.second)->i == 8);
     ASSERT_TRUE(ta.full());
 
     ta.erase(1);
     ta.clear();
     ASSERT_TRUE(ta.empty());
-    ta.emplace(&index, 9);
-    ASSERT_TRUE(index == 4);
-    ASSERT_TRUE(ta.at(index));
-    ASSERT_TRUE(ta.at(index)->i == 9);
+    p = ta.emplace(9);
+    ASSERT_TRUE(p.second == 4);
+    ASSERT_TRUE(ta.at(p.second));
+    ASSERT_TRUE(ta.at(p.second)->i == 9);
 }
 
 struct indexed_rarray {
@@ -89,32 +88,32 @@ typedef referable_array<indexed_rarray, MAX_SIZE> array2;
 TEST(referable_array, copy) {
     array2 ta;
 
-    size_t idx1 = array2::npos;
-    indexed_rarray *t1 = ta.emplace(&idx1, 1);
-    ASSERT_TRUE(t1);
+    pair<indexed_rarray*, size_t> p1;
+    p1 = ta.emplace(1);
+    ASSERT_TRUE(p1.first);
 
-    size_t idx2 = array2::npos;
-    indexed_rarray *t2 = ta.emplace(&idx2, 2);
-    ASSERT_TRUE(t2);
+    pair<indexed_rarray*, size_t> p2;
+    p2 = ta.emplace(2);
+    ASSERT_TRUE(p2.first);
 
-    size_t idx3 = array2::npos;
-    indexed_rarray *t3 = ta.emplace(&idx3, 3);
-    ASSERT_TRUE(t3);
+    pair<indexed_rarray*, size_t> p3;
+    p3 = ta.emplace(3);
+    ASSERT_TRUE(p3.first);
 
-    t1->next = idx2;
-    t2->next = idx3;
-    t3->next = idx1;
+    p1.first->next = p2.second;
+    p2.first->next = p3.second;
+    p3.first->next = p1.second;
 
-    t1->prev = idx3;
-    t2->prev = idx1;
-    t3->prev = idx2;
+    p1.first->prev = p3.second;
+    p2.first->prev = p1.second;
+    p3.first->prev = p2.second;
 
     array2 ta2(ta);
     ASSERT_TRUE(ta2.size() == ta.size());
 
-    indexed_rarray *t21 = ta2.at(idx1);
-    indexed_rarray *t22 = ta2.at(idx2);
-    indexed_rarray *t23 = ta2.at(idx3);
+    indexed_rarray *t21 = ta2.at(p1.second);
+    indexed_rarray *t22 = ta2.at(p2.second);
+    indexed_rarray *t23 = ta2.at(p3.second);
     ASSERT_TRUE(t21 && t22 && t23);
     ASSERT_TRUE(t21->i == 1 && t22->i == 2 && t23->i == 3);
     ASSERT_TRUE(t21->next == ta2.index(t22));
@@ -125,13 +124,13 @@ TEST(referable_array, copy) {
     ASSERT_TRUE(t23->prev == ta2.index(t22));
 
     array2 ta3;
-    ta3.emplace(NULL, 999);
+    ta3.emplace(999);
     ta3 = ta;
     ASSERT_TRUE(ta3.size() == ta.size());
 
-    indexed_rarray *t31 = ta3.at(idx1);
-    indexed_rarray *t32 = ta3.at(idx2);
-    indexed_rarray *t33 = ta3.at(idx3);
+    indexed_rarray *t31 = ta3.at(p1.second);
+    indexed_rarray *t32 = ta3.at(p2.second);
+    indexed_rarray *t33 = ta3.at(p3.second);
     ASSERT_TRUE(t31 && t32 && t33);
     ASSERT_TRUE(t31->i == 1 && t32->i == 2 && t33->i == 3);
     ASSERT_TRUE(t31->next == ta3.index(t32));
