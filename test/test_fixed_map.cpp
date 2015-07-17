@@ -10,7 +10,6 @@ struct map_test {
     char c;
     int  i;
 
-    map_test() {}
     map_test(char c, int i) : c(c), i(i) {}
 
     bool operator<(const map_test& that) const { return this->c < that.c; }

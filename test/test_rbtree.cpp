@@ -10,7 +10,6 @@ using namespace sk;
 struct rbtree_test {
     int i;
 
-    rbtree_test() {}
     explicit rbtree_test(int i) : i(i) { /*cout << "ctor called, i: " << i << endl;*/ }
     ~rbtree_test() { /*cout << "dtor called, i: " << i << endl;*/ }
 

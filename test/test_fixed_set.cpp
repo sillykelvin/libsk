@@ -9,7 +9,6 @@ using namespace sk;
 struct set_test {
     int i;
 
-    set_test() {}
     explicit set_test(int i) : i(i) {}
 
     bool operator<(const set_test& that) const { return this->i < that.i; }
