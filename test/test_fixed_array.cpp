@@ -9,7 +9,7 @@ using namespace sk;
 struct array_test {
     int i;
 
-    array_test() : i(0) { std::cout << "ctor called" << std::endl; }
+    array_test(int i) : i(i) { std::cout << "ctor called, i: " << i << std::endl; }
     ~array_test() { std::cout << "dtor called, i: " << i << std::endl; }
 
     array_test& operator=(const array_test& t) {
@@ -17,8 +17,6 @@ struct array_test {
         this->i = t.i;
         return *this;
     }
-
-    array_test(int i) : i(i) {}
 
     bool operator==(const array_test& t) {
         return this->i == t.i;
@@ -45,10 +43,8 @@ TEST(fixed_array, normal) {
     ASSERT_TRUE(ta.capacity() == MAX_SIZE);
 
     for (size_t i = 0; i < ta.capacity(); ++i) {
-        array_test *t = ta.emplace();
+        array_test *t = ta.emplace(static_cast<int>(i));
         ASSERT_TRUE(t);
-
-        t->i = i;
     }
 
     ASSERT_TRUE(ta.full());
