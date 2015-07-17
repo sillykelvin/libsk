@@ -26,8 +26,6 @@ TEST(fixed_stack, normal) {
     for (size_t i = 0; i < ta.capacity(); ++i) {
         stack_test *t = ta.emplace(static_cast<int>(i));
         ASSERT_TRUE(t);
-
-        t->i = i;
     }
 
     ASSERT_TRUE(ta.full());
