@@ -10,7 +10,7 @@ struct rarray_test {
     int i;
     size_t waste;
 
-    rarray_test() : i(0) { std::cout << "ctor called" << std::endl; }
+    rarray_test(int i) : i(i) { std::cout << "ctor called, i: " << i << std::endl; }
     ~rarray_test() { std::cout << "dtor called, i: " << i << std::endl; }
 };
 
@@ -25,15 +25,13 @@ TEST(referable_array, normal) {
 
     for (size_t i = 0; i < ta.capacity(); ++i) {
         size_t index = array::npos;
-        rarray_test *t = ta.emplace(&index);
+        rarray_test *t = ta.emplace(&index, static_cast<int>(i));
         ASSERT_TRUE(t);
         ASSERT_TRUE(ta.index(t) == index);
-
-        t->i = i;
     }
 
     ASSERT_TRUE(ta.full());
-    ASSERT_TRUE(ta.emplace() == NULL);
+    ASSERT_TRUE(ta.emplace(NULL, 1) == NULL);
 
     const array& cta = ta;
     const rarray_test *ct = cta.at(3);
@@ -56,14 +54,12 @@ TEST(referable_array, normal) {
     ASSERT_TRUE(ta.at(2) == NULL);
 
     size_t index;
-    t = ta.emplace(&index);
-    t->i = 6;
+    t = ta.emplace(&index, 6);
     ASSERT_TRUE(index == 2);
     ASSERT_TRUE(ta.at(index)->i == 6);
     t->i = 7;
     ASSERT_TRUE(ta.at(index)->i == 7);
-    t = ta.emplace(&index);
-    t->i = 8;
+    t = ta.emplace(&index, 8);
     ASSERT_TRUE(index == 3);
     ASSERT_TRUE(ta.at(index)->i == 8);
     ASSERT_TRUE(ta.full());
@@ -71,7 +67,7 @@ TEST(referable_array, normal) {
     ta.erase(1);
     ta.clear();
     ASSERT_TRUE(ta.empty());
-    ta.emplace(&index)->i = 9;
+    ta.emplace(&index, 9);
     ASSERT_TRUE(index == 4);
     ASSERT_TRUE(ta.at(index));
     ASSERT_TRUE(ta.at(index)->i == 9);
@@ -82,8 +78,8 @@ struct indexed_rarray {
     size_t next;
     size_t prev;
 
-    indexed_rarray() : i(0), next(static_cast<size_t>(-1)), prev(static_cast<size_t>(-1)) {
-        std::cout << "indexed_rarray ctor called" << std::endl;
+    indexed_rarray(int i) : i(i), next(static_cast<size_t>(-1)), prev(static_cast<size_t>(-1)) {
+        std::cout << "indexed_rarray ctor called, i: " << i << std::endl;
     }
     ~indexed_rarray() { std::cout << "indexed_rarray dtor called, i: " << i << std::endl; }
 };
@@ -94,19 +90,16 @@ TEST(referable_array, copy) {
     array2 ta;
 
     size_t idx1 = array2::npos;
-    indexed_rarray *t1 = ta.emplace(&idx1);
+    indexed_rarray *t1 = ta.emplace(&idx1, 1);
     ASSERT_TRUE(t1);
-    t1->i = 1;
 
     size_t idx2 = array2::npos;
-    indexed_rarray *t2 = ta.emplace(&idx2);
+    indexed_rarray *t2 = ta.emplace(&idx2, 2);
     ASSERT_TRUE(t2);
-    t2->i = 2;
 
     size_t idx3 = array2::npos;
-    indexed_rarray *t3 = ta.emplace(&idx3);
+    indexed_rarray *t3 = ta.emplace(&idx3, 3);
     ASSERT_TRUE(t3);
-    t3->i = 3;
 
     t1->next = idx2;
     t2->next = idx3;
@@ -132,7 +125,7 @@ TEST(referable_array, copy) {
     ASSERT_TRUE(t23->prev == ta2.index(t22));
 
     array2 ta3;
-    ta3.emplace()->i = 999;
+    ta3.emplace(NULL, 999);
     ta3 = ta;
     ASSERT_TRUE(ta3.size() == ta.size());
 
