@@ -1,5 +1,5 @@
-#ifndef RBTREE_H
-#define RBTREE_H
+#ifndef FIXED_RBTREE_H
+#define FIXED_RBTREE_H
 
 namespace sk {
 namespace detail {
@@ -845,4 +845,4 @@ struct fixed_rbtree {
 
 } // namespace sk
 
-#endif // RBTREE_H
+#endif // FIXED_RBTREE_H
