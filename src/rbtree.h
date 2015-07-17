@@ -169,7 +169,9 @@ struct fixed_rbtree {
     }
 
     node *__construct(const V& value, size_t& index) {
-        return nodes.emplace(&index, value);
+        pair<node*, size_t> p = nodes.emplace(value);
+        index = p.second;
+        return p.first;
     }
 
     void __destroy(size_t index) {
