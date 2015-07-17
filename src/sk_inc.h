@@ -30,7 +30,7 @@
 #include "shm_mgr.h"
 #include "shm_ptr.h"
 #include "fixed_stack.h"
-#include "rbtree.h"
+#include "fixed_rbtree.h"
 #include "fixed_set.h"
 #include "fixed_map.h"
 
