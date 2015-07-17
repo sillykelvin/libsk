@@ -37,12 +37,7 @@ struct referable_array {
      * is a referable container, the data type T may contains index reference,
      * so we MUST keep the index unchanged. so does the assignment operator
      */
-    referable_array(const referable_array& array) {
-        if (this == &array)
-            return;
-
-        __copy(array);
-    }
+    referable_array(const referable_array& array) { __copy(array); }
 
     referable_array& operator=(const referable_array& array) {
         if (this == &array)
@@ -178,7 +173,8 @@ struct referable_array {
         __add_free(index);
     }
 
-    T *emplace(size_t *index = NULL) {
+    template<typename... Args>
+    T *emplace(size_t *index, Args... args) {
         if (full())
             return NULL;
 
@@ -191,7 +187,7 @@ struct referable_array {
         free_head = *cast_ptr(size_t, n->data);
 
         T *t = cast_ptr(T, n->data);
-        new (t) T();
+        new (t) T(std::forward<Args>(args)...);
 
         return t;
     }
