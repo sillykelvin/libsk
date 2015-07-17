@@ -25,19 +25,20 @@ struct fixed_array {
     ~fixed_array() { clear(); }
 
     fixed_array(const fixed_array& array) : elem_count(0) {
-        if (this == &array)
-            return;
-
-        fill(array.size(), T());
-        std::copy(array.begin(), array.end(), begin());
+        fixed_array::const_iterator it, end;
+        for (it = array.begin(), end = array.end(); it != end; ++it)
+            emplace(*it);
     }
 
     fixed_array& operator=(const fixed_array& array) {
         if (this == &array)
             return *this;
 
-        fill(array.size(), T());
-        std::copy(array.begin(), array.end(), begin());
+        clear();
+
+        fixed_array::const_iterator it, end;
+        for (it = array.begin(), end = array.end(); it != end; ++it)
+            emplace(*it);
 
         return *this;
     }
@@ -61,10 +62,8 @@ struct fixed_array {
         if (n >= size()) {
             std::fill(begin(), end(), value);
             size_t left = n - size();
-            while (left-- > 0) {
-                T *t = emplace();
-                *t = value;
-            }
+            while (left-- > 0)
+                emplace(value);
 
             return;
         }
@@ -114,12 +113,13 @@ struct fixed_array {
         erase(it);
     }
 
-    T *emplace() {
+    template<typename... Args>
+    T* emplace(Args&&... args) {
         if (full())
             return NULL;
 
         T *t = at(elem_count++);
-        new (t) T();
+        new (t) T(std::forward<Args>(args)...);
 
         return t;
     }
