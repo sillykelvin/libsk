@@ -6,7 +6,7 @@ namespace detail {
 
 template<typename T>
 struct list_node {
-    static const size_t npos = referable_array::npos;
+    static const size_t npos = static_cast<size_t>(-1);
 
     size_t next;
     size_t prev;
@@ -86,6 +86,8 @@ struct fixed_list {
     size_t head;
     size_t tail;
 
+    fixed_list() : head(npos), tail(npos) {}
+
     node *__construct(const T& t, size_t& index) {
         pair<node*, size_t> p = list.emplace(t);
         index = p.second;
@@ -144,27 +146,19 @@ struct fixed_list {
     size_t capacity() const { return list.capacity(); }
 
     T *front() {
-        assert_retval(!empty(), NULL);
-
-        return &list.at(head)->data;
+        return empty() ? NULL : &list.at(head)->data;
     }
 
     const T *front() const {
-        assert_retval(!empty(), NULL);
-
-        return &list.at(head)->data;
+        return empty() ? NULL : &list.at(head)->data;
     }
 
     T *back() {
-        assert_retval(!empty(), NULL);
-
-        return &list.at(tail)->data;
+        return empty() ? NULL : &list.at(tail)->data;
     }
 
     const T *back() const {
-        assert_retval(!empty(), NULL);
-
-        return &list.at(tail)->data;
+        return empty() ? NULL : &list.at(tail)->data;
     }
 
     void clear() { list.clear(); }
@@ -241,9 +235,9 @@ struct fixed_list {
         n->prev = tail;
         n->next = npos;
 
-        node *t = __tail();
-        if (t)
-            t->next = idx;
+        node *back = __tail();
+        if (back)
+            back->next = idx;
 
         tail = idx;
 
@@ -269,9 +263,9 @@ struct fixed_list {
         n->prev = npos;
         n->next = head;
 
-        node *h = __head();
-        if (h)
-            h->prev = idx;
+        node *front = __head();
+        if (front)
+            front->prev = idx;
 
         head = idx;
 
@@ -286,9 +280,9 @@ struct fixed_list {
             __erase(__head());
     }
 
-    iterator begin() { return iterator(this, list.at(head)); }
+    iterator begin() { return iterator(this, __head()); }
     iterator end()   { return iterator(this); }
-    const_iterator begin() const { return const_iterator(this, list.at(head)); }
+    const_iterator begin() const { return const_iterator(this, __head()); }
     const_iterator end() const   { return const_iterator(this); }
 };
 
