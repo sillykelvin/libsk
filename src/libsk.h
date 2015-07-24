@@ -33,5 +33,6 @@
 #include "fixed_rbtree.h"
 #include "fixed_set.h"
 #include "fixed_map.h"
+#include "fixed_list.h"
 
 #endif // LIBSK_H
