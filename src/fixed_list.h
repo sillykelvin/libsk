@@ -88,6 +88,18 @@ struct fixed_list {
 
     fixed_list() : head(npos), tail(npos) {}
 
+    fixed_list(const fixed_list& list) : list(list.list), head(list.head), tail(list.tail) {}
+
+    fixed_list& operator=(const fixed_list& list) {
+        if (this == &list)
+            return *this;
+
+        this->list = list.list;
+        head = list.head;
+        tail = list.tail;
+        return *this;
+    }
+
     node *__construct(const T& t, size_t& index) {
         pair<node*, size_t> p = list.emplace(t);
         index = p.second;
