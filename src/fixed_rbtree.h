@@ -348,6 +348,7 @@ struct fixed_rbtree {
         return const_iterator(this);
     }
 
+    // TODO: consider to use emplace(...) style here
     int insert(const V& value) {
         if (full())
             return -ENOMEM;
