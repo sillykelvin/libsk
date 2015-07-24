@@ -10,3 +10,7 @@
    otherwise, a default constructor must be provided. Or, add a variadic
    version function =emplace(Args&& args...)= to call the constructor which
    needs some parameters.
+
+3. =operator++= and =operator--= in iterator of =fixed_rbtree= are not
+   bug-free, if the iterator points to =end()=, through =++= is meaningless,
+   but =--= is meaningful, but currently this operation will not work.
