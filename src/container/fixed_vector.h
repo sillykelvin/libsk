@@ -14,13 +14,13 @@ struct fixed_vector {
     typedef T* iterator;
     typedef const T* const_iterator;
 
-    size_t count;
+    size_t used_count;
     char memory[sizeof(T) * N];
 
-    fixed_vector() : count(0) {}
+    fixed_vector() : used_count(0) {}
     ~fixed_vector() { clear(); }
 
-    fixed_vector(const fixed_vector& vector) : count(0) {
+    fixed_vector(const fixed_vector& vector) : used_count(0) {
         fixed_vector::const_iterator it, end;
         for (it = vector.begin(), end = vector.end(); it != end; ++it)
             emplace(*it);
@@ -39,18 +39,18 @@ struct fixed_vector {
         return *this;
     }
 
-    size_t size()     const { return count; }
+    size_t size()     const { return used_count; }
     size_t capacity() const { return N; }
 
-    bool full()  const { return count >= N; }
-    bool empty() const { return count <= 0; }
+    bool full()  const { return used_count >= N; }
+    bool empty() const { return used_count <= 0; }
 
     void clear() {
         iterator it, end;
         for (it = this->begin(), end = this->end(); it != end; ++it)
             it->~T();
 
-        count = 0;
+        used_count = 0;
     }
 
     void fill(size_t n, const T& value) {
@@ -66,24 +66,24 @@ struct fixed_vector {
         }
 
         std::fill(begin(), at(n), value);
-        for (size_t i = count - 1; i >= n; --i)
+        for (size_t i = used_count - 1; i >= n; --i)
             erase_at(i);
     }
 
     iterator at(size_t index) {
-        assert_retval(index < count, NULL);
+        assert_retval(index < used_count, NULL);
 
         return begin() + index;
     }
 
     void erase_at(size_t index) {
-        assert_retnone(index < count);
+        assert_retnone(index < used_count);
 
         if (at(index) + 1 != end())
             std::copy(at(index) + 1, end(), at(index));
 
-        at(count - 1)->~T();
-        --count;
+        at(used_count - 1)->~T();
+        --used_count;
     }
 
     void erase(iterator it) {
@@ -115,7 +115,7 @@ struct fixed_vector {
         if (full())
             return NULL;
 
-        T *t = at(count++);
+        T *t = at(used_count++);
         new (t) T(std::forward<Args>(args)...);
 
         return t;
@@ -147,9 +147,9 @@ struct fixed_vector {
     }
 
     iterator begin() { return cast_ptr(T, memory); }
-    iterator end()   { return cast_ptr(T, memory) + count; }
+    iterator end()   { return cast_ptr(T, memory) + used_count; }
     const_iterator begin() const { return reinterpret_cast<const T*>(memory); }
-    const_iterator end()   const { return reinterpret_cast<const T*>(memory) + count; }
+    const_iterator end()   const { return reinterpret_cast<const T*>(memory) + used_count; }
 };
 
 } // namespace sk
