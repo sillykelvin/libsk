@@ -26,7 +26,6 @@ sk::detail::buddy *sk::detail::buddy::create(key_t key, bool resume, u32 size) {
 
     if (!self) {
         ERR("memory error.");
-        seg.free();
         return NULL;
     }
 
@@ -42,6 +41,7 @@ sk::detail::buddy *sk::detail::buddy::create(key_t key, bool resume, u32 size) {
         }
     }
 
+    seg.release();
     return self;
 }
 

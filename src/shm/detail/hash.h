@@ -57,7 +57,6 @@ struct hash {
 
         if (!self) {
             ERR("memory error.");
-            seg.free();
             return NULL;
         }
 
@@ -69,14 +68,12 @@ struct hash {
             self->buckets = static_cast<int *>(seg.malloc(sizeof(int) * hash_size));
             if (!self->buckets) {
                 ERR("memory error.");
-                seg.free();
                 return NULL;
             }
 
             self->nodes = static_cast<node *>(seg.malloc(sizeof(node) * max_node_count));
             if (!self->nodes) {
                 ERR("memory error.");
-                seg.free();
                 return NULL;
             }
 
@@ -98,6 +95,7 @@ struct hash {
             self->free_node_head = 0;
         }
 
+        seg.release();
         return self;
     }
 

@@ -29,7 +29,6 @@ struct stack {
 
         if (!self) {
             ERR("memory error.");
-            seg.free();
             return NULL;
         }
 
@@ -40,6 +39,7 @@ struct stack {
             memset(self->data, 0x00, data_size);
         }
 
+        seg.release();
         return self;
     }
 

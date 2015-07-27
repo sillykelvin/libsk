@@ -133,7 +133,6 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2,
 
     if (!self) {
         ERR("memory error.");
-        seg.free();
         return NULL;
     }
 
@@ -175,7 +174,6 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2,
         self->free_chunk_hash = size_index_hash::create(aux_key1, resume, node_count, hash_size);
         if (!self->free_chunk_hash) {
             ERR("cannot create free chunk hash.");
-            seg.free();
             return NULL;
         }
     }
@@ -186,7 +184,6 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2,
         self->empty_chunk_stack = stack::create(aux_key2, resume, node_count);
         if (!self->empty_chunk_stack) {
             ERR("cannot create empty chunk stack.");
-            seg.free();
             return NULL;
         }
     }
@@ -197,11 +194,11 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2,
         self->heap = heap_allocator::create(aux_key3, resume, unit_count);
         if (!self->heap) {
             ERR("cannot create heap.");
-            seg.free();
             return NULL;
         }
     }
 
+    seg.release();
     return self;
 }
 
