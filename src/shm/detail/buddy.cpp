@@ -19,8 +19,8 @@ sk::detail::buddy *sk::detail::buddy::create(key_t key, bool resume, u32 size) {
     }
 
     /*
-         * no matter in resume mode or not, we cast the entire memory block to buddy
-         */
+     * no matter in resume mode or not, we cast the entire memory block to buddy
+     */
     buddy *self = NULL;
     self = static_cast<buddy *>(seg.address());
 
