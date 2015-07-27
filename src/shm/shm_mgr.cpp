@@ -19,8 +19,8 @@ struct singleton_info {
     }
 };
 
-typedef sk::fixed_array<singleton_info, sk::ST_MAX> singleton_array;
-static singleton_array singleton_meta_info;
+typedef sk::fixed_vector<singleton_info, sk::ST_MAX> singleton_vector;
+static singleton_vector singleton_meta_info;
 
 static sk::shm_mgr *mgr = NULL;
 
@@ -109,7 +109,7 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2,
     heap_size  = heap_unit_count * heap_unit_size;
 
     size_t singleton_size = 0;
-    for (singleton_array::iterator it = singleton_meta_info.begin(); it != singleton_meta_info.end(); ++it)
+    for (singleton_vector::iterator it = singleton_meta_info.begin(); it != singleton_meta_info.end(); ++it)
         singleton_size += it->size;
 
     size_t shm_size = 0;
@@ -152,7 +152,7 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, key_t aux_key1, key_t aux_key2,
             char *singleton_base = base_addr + sizeof(*self);
             memset(self->singletons, 0x00, sizeof(self->singletons));
 
-            for (singleton_array::iterator it = singleton_meta_info.begin(); it != singleton_meta_info.end(); ++it) {
+            for (singleton_vector::iterator it = singleton_meta_info.begin(); it != singleton_meta_info.end(); ++it) {
                 assert_retval(it->id >= ST_MIN && it->id < ST_MAX, NULL);
                 self->singletons[it->id] = singleton_base - char_ptr(self);
                 singleton_base += it->size;

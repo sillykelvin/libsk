@@ -5,7 +5,7 @@ namespace sk {
 
 template<typename T, size_t N>
 struct fixed_stack {
-    typedef fixed_array<T, N> impl_type;
+    typedef fixed_vector<T, N> impl_type;
     typedef typename impl_type::iterator iterator;
 
     impl_type nodes;

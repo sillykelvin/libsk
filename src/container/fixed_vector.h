@@ -1,59 +1,56 @@
-#ifndef FIXED_ARRAY_H
-#define FIXED_ARRAY_H
+#ifndef FIXED_VECTOR_H
+#define FIXED_VECTOR_H
 
 namespace sk {
 
 /*
- * fixed_array is an array with fixed size, can be used
+ * fixed_vector is a vector with fixed size, can be used
  * in both normal memory and shared memory.
  *
  * TODO: implement a specialization version for bool
  */
 template<typename T, size_t N>
-struct fixed_array {
+struct fixed_vector {
     typedef T* iterator;
     typedef const T* const_iterator;
 
-    size_t elem_count;
-    /*
-     * do NOT use T elems[N] here, this will call constructor of T,
-     * however, we should call constructor when we add new instance
-     */
-    char elems[sizeof(T) * N];
+    size_t count;
+    char memory[sizeof(T) * N];
 
-    fixed_array() : elem_count(0) {}
-    ~fixed_array() { clear(); }
+    fixed_vector() : count(0) {}
+    ~fixed_vector() { clear(); }
 
-    fixed_array(const fixed_array& array) : elem_count(0) {
-        fixed_array::const_iterator it, end;
-        for (it = array.begin(), end = array.end(); it != end; ++it)
+    fixed_vector(const fixed_vector& vector) : count(0) {
+        fixed_vector::const_iterator it, end;
+        for (it = vector.begin(), end = vector.end(); it != end; ++it)
             emplace(*it);
     }
 
-    fixed_array& operator=(const fixed_array& array) {
-        if (this == &array)
+    fixed_vector& operator=(const fixed_vector& vector) {
+        if (this == &vector)
             return *this;
 
         clear();
 
-        fixed_array::const_iterator it, end;
-        for (it = array.begin(), end = array.end(); it != end; ++it)
+        fixed_vector::const_iterator it, end;
+        for (it = vector.begin(), end = vector.end(); it != end; ++it)
             emplace(*it);
 
         return *this;
     }
 
-    size_t size()     const { return elem_count; }
+    size_t size()     const { return count; }
     size_t capacity() const { return N; }
 
-    bool full()  const { return elem_count >= N; }
-    bool empty() const { return elem_count <= 0; }
+    bool full()  const { return count >= N; }
+    bool empty() const { return count <= 0; }
 
     void clear() {
-        for (iterator it = begin(); it != end(); ++it)
+        iterator it, end;
+        for (it = this->begin(), end = this->end(); it != end; ++it)
             it->~T();
 
-        elem_count = 0;
+        count = 0;
     }
 
     void fill(size_t n, const T& value) {
@@ -69,24 +66,24 @@ struct fixed_array {
         }
 
         std::fill(begin(), at(n), value);
-        for (size_t i = elem_count - 1; i >= n; --i)
+        for (size_t i = count - 1; i >= n; --i)
             erase_at(i);
     }
 
     iterator at(size_t index) {
-        assert_retval(index < elem_count, NULL);
+        assert_retval(index < count, NULL);
 
         return begin() + index;
     }
 
     void erase_at(size_t index) {
-        assert_retnone(index < elem_count);
+        assert_retnone(index < count);
 
         if (at(index) + 1 != end())
             std::copy(at(index) + 1, end(), at(index));
 
-        at(elem_count - 1)->~T();
-        --elem_count;
+        at(count - 1)->~T();
+        --count;
     }
 
     void erase(iterator it) {
@@ -118,7 +115,7 @@ struct fixed_array {
         if (full())
             return NULL;
 
-        T *t = at(elem_count++);
+        T *t = at(count++);
         new (t) T(std::forward<Args>(args)...);
 
         return t;
@@ -129,7 +126,8 @@ struct fixed_array {
     }
 
     iterator find(const T& value) {
-        for (iterator it = begin(); it != end(); ++it) {
+        iterator it, end;
+        for (it = this->begin(), end = this->end(); it != end; ++it) {
             if (*it == value)
                 return it;
         }
@@ -139,7 +137,8 @@ struct fixed_array {
 
     template<typename Pred>
     iterator find_if(Pred p) {
-        for (iterator it = begin(); it != end(); ++it) {
+        iterator it, end;
+        for (it = this->begin(), end = this->end(); it != end; ++it) {
             if (p(*it))
                 return it;
         }
@@ -147,12 +146,12 @@ struct fixed_array {
         return NULL;
     }
 
-    iterator begin() { return cast_ptr(T, elems); }
-    iterator end()   { return cast_ptr(T, elems) + elem_count; }
-    const_iterator begin() const { return reinterpret_cast<const T*>(elems); }
-    const_iterator end()   const { return reinterpret_cast<const T*>(elems) + elem_count; }
+    iterator begin() { return cast_ptr(T, memory); }
+    iterator end()   { return cast_ptr(T, memory) + count; }
+    const_iterator begin() const { return reinterpret_cast<const T*>(memory); }
+    const_iterator end()   const { return reinterpret_cast<const T*>(memory) + count; }
 };
 
 } // namespace sk
 
-#endif // FIXED_ARRAY_H
+#endif // FIXED_VECTOR_H

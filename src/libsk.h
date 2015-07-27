@@ -24,7 +24,7 @@
 
 // concrete headers
 #include "utility/utility.h"
-#include "container/fixed_array.h"
+#include "container/fixed_vector.h"
 #include "container/referable_array.h"
 #include "shm/shm_seg.h"
 #include "shm/shm_mgr.h"
