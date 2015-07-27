@@ -18,12 +18,12 @@
 #include <new>
 
 // common headers
-#include "assert_helper.h"
-#include "types.h"
-#include "log.h"
+#include "utility/assert_helper.h"
+#include "utility/types.h"
+#include "utility/log.h"
 
 // concrete headers
-#include "utility.h"
+#include "utility/utility.h"
 #include "container/fixed_array.h"
 #include "container/referable_array.h"
 #include "shm_seg.h"
