@@ -8,9 +8,10 @@ struct shm_seg {
     char *free_addr;
     size_t free_size;
     int shmid;
+    bool owner;
 
-    shm_seg() : base_addr(NULL), free_addr(NULL), free_size(0), shmid(-1) {}
-    ~shm_seg() {}
+    shm_seg() : base_addr(NULL), free_addr(NULL), free_size(0), shmid(-1), owner(true) {}
+    ~shm_seg() { if (owner && shmid != -1) free(); }
 
     int __create(key_t key, size_t size) {
         int shmid = shmget(key, size, 0666 | IPC_CREAT | IPC_EXCL);
@@ -84,6 +85,14 @@ struct shm_seg {
 
     int init(key_t key, size_t size, bool resume) {
         return !resume ? __create(key, size) : __attach(key);
+    }
+
+    /*
+     * if the shared memory is released from this segment, it
+     * will NOT be destroyed when the segment is destructed.
+     */
+    void release() {
+        owner = false;
     }
 
     void *address() {

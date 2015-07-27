@@ -18,6 +18,8 @@ TEST(shm_seg, create) {
     ASSERT_EQ(n != NULL, true);
 
     EXPECT_EQ(*n, 7);
+
+    seg.release();
 }
 
 TEST(shm_seg, resume) {
@@ -31,14 +33,18 @@ TEST(shm_seg, resume) {
     i = (int *) seg.address();
 
     EXPECT_EQ(*i, 7);
+
+    seg.release();
 }
 
 TEST(shm_seg, free) {
-    sk::shm_seg seg;
-    int ret = seg.init(SHM_KEY, sizeof(int), true);
-    ASSERT_EQ(ret, 0);
+    int ret = 0;
 
-    seg.free();
+    {
+        sk::shm_seg seg;
+        ret = seg.init(SHM_KEY, sizeof(int), true);
+        ASSERT_EQ(ret, 0);
+    }
 
     sk::shm_seg seg2;
     ret = seg2.init(SHM_KEY, sizeof(int), true);
