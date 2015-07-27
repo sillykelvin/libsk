@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 #include "libsk.h"
-#include "detail/buddy.h"
-#include "detail/hash.h"
-#include "detail/mem_chunk.h"
-#include "detail/stack.h"
+#include "shm/detail/buddy.h"
+#include "shm/detail/hash.h"
+#include "shm/detail/mem_chunk.h"
+#include "shm/detail/stack.h"
 
 #define HASH_SHM_KEY        (0x77)
 #define BLK_CNT             (20)
