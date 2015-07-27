@@ -24,15 +24,15 @@
 
 // concrete headers
 #include "utility.h"
-#include "fixed_array.h"
-#include "referable_array.h"
+#include "container/fixed_array.h"
+#include "container/referable_array.h"
 #include "shm_seg.h"
 #include "shm_mgr.h"
 #include "shm_ptr.h"
-#include "fixed_stack.h"
-#include "fixed_rbtree.h"
-#include "fixed_set.h"
-#include "fixed_map.h"
-#include "fixed_list.h"
+#include "container/fixed_stack.h"
+#include "container/fixed_rbtree.h"
+#include "container/fixed_set.h"
+#include "container/fixed_map.h"
+#include "container/fixed_list.h"
 
 #endif // LIBSK_H
