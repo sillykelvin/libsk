@@ -52,7 +52,7 @@ struct shm_seg {
         void *addr = shmat(shmid, NULL, 0);
         assert_retval(addr, -1);
 
-        base_addr = static_cast<char *>(addr);
+        base_addr = char_ptr(addr);
         free_addr = base_addr;
         free_size = size;
         this->shmid = shmid;
@@ -74,7 +74,7 @@ struct shm_seg {
          * Under resume mode, we assume that the entire memory segment is
          * allocated, so malloc() will always fail.
          */
-        base_addr = static_cast<char *>(addr);
+        base_addr = char_ptr(addr);
         free_addr = NULL;
         free_size = 0;
         this->shmid = shmid;
@@ -87,14 +87,14 @@ struct shm_seg {
     }
 
     void *address() {
-        return static_cast<void *>(base_addr);
+        return void_ptr(base_addr);
     }
 
     void *malloc(size_t size) {
         if (size > free_size)
             return NULL;
 
-        void *ret = static_cast<void *>(free_addr);
+        void *ret = void_ptr(free_addr);
 
         free_addr += size;
         free_size -= size;
