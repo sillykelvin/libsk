@@ -22,9 +22,9 @@ struct extensible_hash_node {
         return cast_ptr(value_type, memory);
     }
 
-    void construct(const value_type& value) {
+    void construct(const K& k, const V& v) {
         value_type *v = __pair();
-        new (v) value_type(value.first, value.second);
+        new (v) value_type(k, v);
     }
 
     void destroy() {
@@ -185,7 +185,7 @@ struct extensible_hash {
 
         free_node_head = n.next;
 
-        n.construct(typename node::value_type(k, v));
+        n.construct(k, v);
         n.next = buckets[idx];
         buckets[idx] = node_idx;
 
