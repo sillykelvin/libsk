@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include "libsk.h"
 
-#define STACK_SIZE          (5)
+#define STACK_SIZE (5)
 
 using namespace sk;
 
@@ -9,7 +9,7 @@ TEST(extensible_stack, normal) {
     char buffer[STACK_SIZE * sizeof(int) + sizeof(extensible_stack<int>)];
 
     extensible_stack<int> *s = extensible_stack<int>::create(buffer, sizeof(buffer),
-                                                             STACK_SIZE, false);
+                                                             false, STACK_SIZE);
     ASSERT_EQ(s != NULL, true);
 
     EXPECT_TRUE(s->empty());
@@ -49,7 +49,7 @@ TEST(extensible_stack, normal) {
 
 
     extensible_stack<int> *s2 = extensible_stack<int>::create(buffer, sizeof(buffer),
-                                                              STACK_SIZE, true);
+                                                              true, STACK_SIZE);
     ASSERT_EQ(s2 != NULL, true);
 
     EXPECT_TRUE(!s2->empty());
