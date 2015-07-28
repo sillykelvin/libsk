@@ -74,17 +74,19 @@ struct extensible_hash {
         return sizes[nth_size];
     }
 
-    static size_t calc_size(size_t max_node_count) {
-        size_t size = hash_size(max_node_count);
+    static size_t calc_size(size_t max_node_count, size_t bucket_size = 0) {
+        if (bucket_size == 0)
+            bucket_size = hash_size(max_node_count);
 
-        return sizeof(extensible_hash) + max_node_count * sizeof(node) + size * sizeof(size_t);
+        return sizeof(extensible_hash) + max_node_count * sizeof(node) + bucket_size * sizeof(size_t);
     }
 
-    static extensible_hash *create(void *addr, size_t size, bool resume, size_t max_node_count) {
+    static extensible_hash *create(void *addr, size_t size, bool resume, size_t max_node_count, size_t bucket_size = 0) {
         assert_retval(addr, NULL);
-        assert_retval(size >= calc_size(max_node_count), NULL);
+        assert_retval(size >= calc_size(max_node_count, bucket_size), NULL);
 
-        size_t bucket_size = hash_size(max_node_count);
+        if (bucket_size == 0)
+            bucket_size = hash_size(max_node_count);
 
         extensible_hash *self = cast_ptr(extensible_hash, addr);
         char *base_addr = char_ptr(addr);
