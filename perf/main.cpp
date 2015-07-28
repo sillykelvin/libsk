@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
 
     parse_parameters(argc, argv, chunk_size, chunk_count, heap_size);
 
-    sk::shm_mgr_init(0x7777, 0x777, 0x77, 0x7, false, chunk_size, chunk_count, heap_size);
+    sk::shm_mgr_init(0x7777, false, chunk_size, chunk_count, heap_size);
 
     timeval begin_time, end_time;
 
