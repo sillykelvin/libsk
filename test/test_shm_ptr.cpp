@@ -3,9 +3,6 @@
 #include "libsk.h"
 
 #define SHM_MGR_KEY         (0x77777)
-#define HASH_SHM_KEY        (0x77)
-#define STACK_SHM_KEY       (0x777)
-#define BUDDY_SHM_KEY       (0x7777)
 #define SHM_MGR_CHUNK_SIZE  (1000)
 #define SHM_MGR_CHUNK_COUNT (1024)
 #define SHM_MGR_HEAP_SIZE   (10240)
@@ -26,9 +23,7 @@ struct ptr_test {
 };
 
 TEST(shm_ptr, shm_ptr) {
-    int ret = shm_mgr_init(SHM_MGR_KEY, HASH_SHM_KEY,
-                           STACK_SHM_KEY, BUDDY_SHM_KEY,
-                           false, SHM_MGR_CHUNK_SIZE,
+    int ret = shm_mgr_init(SHM_MGR_KEY, false, SHM_MGR_CHUNK_SIZE,
                            SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
     ASSERT_TRUE(ret == 0);
 

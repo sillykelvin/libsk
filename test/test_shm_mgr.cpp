@@ -201,7 +201,9 @@ TEST(shm_mgr, stack) {
 }
 
 TEST(shm_mgr, buddy) {
-    buddy *b = buddy::create(BUDDY_SHM_KEY, false, BUDDY_SIZE);
+    const size_t mem_size = buddy::calc_size(BUDDY_SIZE);
+    char buffer[mem_size];
+    buddy *b = buddy::create(buffer, sizeof(buffer), false, BUDDY_SIZE);
     ASSERT_TRUE(b != NULL);
 
     int offset1 = b->malloc(4);
@@ -239,7 +241,7 @@ TEST(shm_mgr, buddy) {
     b->free(valid);
 
 
-    buddy *b2 = buddy::create(BUDDY_SHM_KEY, true, BUDDY_SIZE);
+    buddy *b2 = buddy::create(buffer, sizeof(buffer), true, BUDDY_SIZE);
     ASSERT_TRUE(b2 != NULL);
 
     valid = b2->malloc(30);
@@ -283,9 +285,7 @@ struct size2064 {
 TEST(shm_mgr, shm_mgr) {
     register_singleton(ST_MIN, sizeof(size1032));
 
-    shm_mgr *mgr = shm_mgr::create(SHM_MGR_KEY, HASH_SHM_KEY,
-                                   STACK_SHM_KEY, BUDDY_SHM_KEY,
-                                   false, SHM_MGR_CHUNK_SIZE,
+    shm_mgr *mgr = shm_mgr::create(SHM_MGR_KEY, false, SHM_MGR_CHUNK_SIZE,
                                    SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
     ASSERT_TRUE(mgr != NULL);
 
@@ -364,9 +364,7 @@ TEST(shm_mgr, shm_mgr) {
     snprintf(single_1032->str, sizeof(single_1032->str), "%s", "silly kelvin");
 
 
-    shm_mgr *mgr2 = shm_mgr::create(SHM_MGR_KEY, HASH_SHM_KEY,
-                                    STACK_SHM_KEY, BUDDY_SHM_KEY,
-                                    true, SHM_MGR_CHUNK_SIZE,
+    shm_mgr *mgr2 = shm_mgr::create(SHM_MGR_KEY, true, SHM_MGR_CHUNK_SIZE,
                                     SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
 
     s2064 = cast_ptr(size2064, mgr2->mid2ptr(ps2064.mid));
