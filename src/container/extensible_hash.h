@@ -23,13 +23,13 @@ struct extensible_hash_node {
     }
 
     void construct(const K& k, const V& v) {
-        value_type *v = __pair();
-        new (v) value_type(k, v);
+        value_type *p = __pair();
+        new (p) value_type(k, v);
     }
 
     void destroy() {
-        value_type *v = __pair();
-        v->~value_type();
+        value_type *p = __pair();
+        p->~value_type();
     }
 
     const K& key() const   { return __pair()->first; }
