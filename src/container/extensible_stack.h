@@ -13,7 +13,7 @@ struct extensible_stack {
         return sizeof(extensible_stack) + sizeof(T) * max_count;
     }
 
-    static extensible_stack *create(void *addr, size_t size, size_t max_count, bool resume) {
+    static extensible_stack *create(void *addr, size_t size, bool resume, size_t max_count) {
         assert_retval(addr, NULL);
         assert_retval(size >= calc_size(max_count), NULL);
 
