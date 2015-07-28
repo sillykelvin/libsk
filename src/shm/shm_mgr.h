@@ -13,22 +13,12 @@ enum singleton_type {
 
 int register_singleton(int id, size_t size);
 
-int shm_mgr_init(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3,
-                 bool resume, size_t max_block_size, int chunk_count, size_t heap_size);
+int shm_mgr_init(key_t main_key, bool resume, size_t max_block_size, int chunk_count, size_t heap_size);
 int shm_mgr_fini();
 
 
 
 namespace detail {
-
-template<typename K>
-size_t hashcode(const K& k);
-
-template<typename K, typename V, bool D, size_t(*F)(const K& k)>
-struct hash;
-
-template<typename T>
-struct stack;
 
 struct mem_chunk;
 struct buddy;
@@ -72,22 +62,22 @@ struct shm_ptr;
 /**
  * the layout of shm_mgr:
  *
- *     +---------+-----------+-------+------+
- *     |         | singleton | chunk |      |
- *     | shm_mgr |           |       | heap |
- *     |         |  objects  | pool  |      |
- *     +---------+-----------+-------+------+
- *                           ^       ^      ^
- *                           |       |      |
- *                 pool -----+       |      +----- pool_end_offset
- *                           |   heap_head
- *     pool_head_offset -----+
+ *     +---------+-----------+------+-------+-----------+-------+------+
+ *     |         | singleton |      |       |   heap    | chunk |      |
+ *     | shm_mgr |           | hash | stack |           |       | heap |
+ *     |         |  objects  |      |       | allocator | pool  |      |
+ *     +---------+-----------+------+-------+-----------+-------+------+
+ *                                                      ^       ^      ^
+ *                                                      |       |      |
+ *                                            pool -----+       |      +----- pool_end_offset
+ *                                                      |   heap_head
+ *                                pool_head_offset -----+
  */
 struct shm_mgr {
     typedef size_t offset_t;
     typedef int index_t;
-    typedef detail::hash<size_t, index_t, true, detail::hashcode> size_index_hash;
-    typedef detail::stack<index_t> stack;
+    typedef extensible_hash<size_t, index_t> size_index_hash;
+    typedef extensible_stack<index_t> stack;
     typedef detail::mem_chunk mem_chunk;
     typedef detail::buddy heap_allocator;
 
@@ -176,8 +166,8 @@ struct shm_mgr {
 
     static size_t __align_size(size_t size);
 
-    static shm_mgr *create(key_t main_key, key_t aux_key1, key_t aux_key2, key_t aux_key3,
-                           bool resume, size_t max_block_size, int chunk_count, size_t heap_size);
+    static shm_mgr *create(key_t main_key, bool resume,
+                           size_t max_block_size, int chunk_count, size_t heap_size);
 
     static shm_mgr *get();
 
