@@ -11,7 +11,6 @@ namespace detail {
  *     - https://github.com/wuwenbin/buddy2
  */
 struct buddy {
-    int shmid;
     u32 size;
     /*
      * NOTE: as the size stored here is always the power of 2,
@@ -60,7 +59,13 @@ struct buddy {
         return left > right ? left : right;
     }
 
-    static buddy *create(key_t key, bool resume, u32 size);
+    static size_t calc_size(u32 size) {
+        size = __fix_size(size);
+        u32 leaf_count = 2 * size - 1;
+        return sizeof(buddy) + (leaf_count * sizeof(u32));
+    }
+
+    static buddy *create(void *addr, size_t mem_size, bool resume, u32 size);
 
     int malloc(u32 size);
 

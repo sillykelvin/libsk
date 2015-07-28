@@ -1,36 +1,20 @@
 #include "libsk.h"
 #include "buddy.h"
 
-sk::detail::buddy *sk::detail::buddy::create(key_t key, bool resume, u32 size) {
+sk::detail::buddy *sk::detail::buddy::create(void *addr, size_t mem_size, bool resume, u32 size) {
+    assert_retval(addr, NULL);
     assert_retval(size >= 1, NULL);
+    assert_retval(mem_size >= calc_size(size), NULL);
 
     u32 old_size = size;
     size = __fix_size(size);
     DBG("create buddy with size<%u>, after fixed<%u>.", old_size, size);
 
-    u32 leaf_count = 2 * size - 1;
-    size_t shm_size = sizeof(buddy) + (leaf_count * sizeof(u32));
+    buddy *self = cast_ptr(buddy, addr);
 
-    sk::shm_seg seg;
-    int ret = seg.init(key, shm_size, resume);
-    if (ret != 0) {
-        ERR("cannot create buddy, key<%d>, size<%lu>.", key, shm_size);
-        return NULL;
-    }
-
-    /*
-     * no matter in resume mode or not, we cast the entire memory block to buddy
-     */
-    buddy *self = NULL;
-    self = static_cast<buddy *>(seg.address());
-
-    if (!self) {
-        ERR("memory error.");
-        return NULL;
-    }
-
-    if (!resume) {
-        self->shmid = seg.shmid;
+    if (resume)
+        assert_noeffect(self->size == size);
+    else {
         self->size = size;
 
         u32 node_size = size * 2;
@@ -41,7 +25,6 @@ sk::detail::buddy *sk::detail::buddy::create(key_t key, bool resume, u32 size) {
         }
     }
 
-    seg.release();
     return self;
 }
 
