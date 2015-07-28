@@ -26,6 +26,7 @@
 #include "utility/utility.h"
 #include "container/fixed_vector.h"
 #include "container/referable_array.h"
+#include "container/extensible_stack.h"
 #include "shm/shm_seg.h"
 #include "shm/shm_mgr.h"
 #include "shm/shm_ptr.h"
