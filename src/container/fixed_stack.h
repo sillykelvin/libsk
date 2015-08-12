@@ -7,36 +7,39 @@ template<typename T, size_t N>
 struct fixed_stack {
     typedef fixed_vector<T, N> impl_type;
     typedef typename impl_type::iterator iterator;
+    typedef typename impl_type::const_iterator const_iterator;
 
-    impl_type nodes;
+    impl_type stack;
 
-    size_t size()     const { return nodes.size(); }
-    size_t capacity() const { return nodes.capacity(); }
+    size_t size()     const { return stack.size(); }
+    size_t capacity() const { return stack.capacity(); }
 
-    bool full() const { return nodes.full(); }
-    bool empty() const { return nodes.empty(); }
+    bool full() const { return stack.full(); }
+    bool empty() const { return stack.empty(); }
 
     template<typename... Args>
     T *emplace(Args&&... args) {
-        return nodes.emplace(std::forward<Args>(args)...);
+        return stack.emplace(std::forward<Args>(args)...);
     }
 
     T *top() {
         if (empty())
             return NULL;
 
-        return nodes.end() - 1;
+        return stack.end() - 1;
     }
 
     void pop() {
         if (empty())
             return;
 
-        nodes.erase(nodes.end() - 1);
+        stack.erase(stack.end() - 1);
     }
 
-    iterator begin() { return nodes.begin(); }
-    iterator end()   { return nodes.end(); }
+    iterator begin() { return stack.begin(); }
+    iterator end()   { return stack.end(); }
+    const_iterator begin() const { return stack.begin(); }
+    const_iterator end()   const { return stack.end(); }
 };
 
 } // namespace sk
