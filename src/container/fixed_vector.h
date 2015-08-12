@@ -21,7 +21,7 @@ struct fixed_vector {
     ~fixed_vector() { clear(); }
 
     fixed_vector(const fixed_vector& vector) : used_count(0) {
-        fixed_vector::const_iterator it, end;
+        const_iterator it, end;
         for (it = vector.begin(), end = vector.end(); it != end; ++it)
             emplace(*it);
     }
@@ -32,7 +32,7 @@ struct fixed_vector {
 
         clear();
 
-        fixed_vector::const_iterator it, end;
+        const_iterator it, end;
         for (it = vector.begin(), end = vector.end(); it != end; ++it)
             emplace(*it);
 
