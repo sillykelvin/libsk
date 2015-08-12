@@ -5,19 +5,28 @@ namespace sk {
 
 namespace detail {
 
+/*
+ * array_node must be a POD type, otherwise, GCC will complaint:
+ *     error: (perhaps the 'offsetof' macro was used incorrectly)
+ * in function referable_arry::index(...)
+ * so, do NOT define any ctor/dtor for it.
+ */
 template<typename T>
 struct array_node {
     bool used;
     char data[sizeof(T)];
-
-    // make array_node a POD type by disable constructor, otherwise, GCC will complaint:
-    //     error: (perhaps the 'offsetof' macro was used incorrectly)
-    // in function index(...)
-    // array_node(size_t next) : used(false) { *cast_ptr(size_t, data) = next; }
 };
 
 } // namespace detail
 
+/*
+ * referable_array is an array with fixed size, the difference between fixed_vector
+ * and referable_array is: the element index in the former one may change, while it
+ * will not change in the latter one
+ *
+ * so, if there may be references between these elements, use the latter one.
+ * this container is used to implement fixed_list, fixed_set, fixed_map, etc.
+ */
 template<typename T, size_t N>
 struct referable_array {
     static_assert(sizeof(T) >= sizeof(size_t), "type size not enough");
@@ -35,7 +44,7 @@ struct referable_array {
     /*
      * Note: we cannot just put the nodes in array into this container, as this
      * is a referable container, the data type T may contains index reference,
-     * so we MUST keep the index unchanged. so does the assignment operator
+     * so we MUST keep the index unchanged, so does the assignment operator.
      */
     referable_array(const referable_array& array) { __copy(array); }
 
