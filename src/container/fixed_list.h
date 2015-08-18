@@ -65,7 +65,7 @@ struct list_iterator {
     bool operator==(const self& x) const { return n == x.n && l == x.l; }
     bool operator!=(const self& x) const { return !(*this == x); }
 
-    bool operator==(const list_iterator<T, !C>& x) const { return n == x.n && l == x.t; }
+    bool operator==(const list_iterator<T, !C>& x) const { return n == x.n && l == x.l; }
     bool operator!=(const list_iterator<T, !C>& x) const { return !(*this == x); }
 };
 
