@@ -42,6 +42,8 @@ struct buddy {
     }
 
     static u32 __fix_size(u32 size) {
+        static_assert(sizeof(size) == 4, "only 32 bit size can be fixed with this function");
+
         if (__power_of_two(size))
             return size;
 
