@@ -65,6 +65,8 @@ inline bool sk::shm_mgr::__power_of_two(size_t num) {
 }
 
 inline size_t sk::shm_mgr::__fix_size(size_t size) {
+    static_assert(sizeof(size_t) == 8, "only 64 bit size can be fixed with this function");
+
     if (__power_of_two(size))
         return size;
 
