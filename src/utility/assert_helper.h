@@ -6,25 +6,38 @@
 
 #define assert_retval(exp, val)                 \
     do {                                        \
-        if (exp)                                \
-            break;                              \
+        if (exp) break;                         \
         ASSERT(exp);                            \
-        return val;                             \
+        return (val);                           \
     } while (0)
 
 #define assert_retnone(exp)                     \
     do {                                        \
-        if (exp)                                \
-            break;                              \
+        if (exp) break;                         \
         ASSERT(exp);                            \
         return;                                 \
     } while (0)
 
 #define assert_noeffect(exp)                    \
     do {                                        \
-        if (exp)                                \
-            break;                              \
+        if (exp) break;                         \
         ASSERT(exp);                            \
     } while (0)
+
+#define assert_break(exp)                       \
+    {                                           \
+        if (!(exp)) {                           \
+            ASSERT(exp);                        \
+            break;                              \
+        }                                       \
+    }
+
+#define assert_continue(exp)                    \
+    {                                           \
+        if (!(exp)) {                           \
+            ASSERT(exp);                        \
+            continue;                           \
+        }                                       \
+    }
 
 #endif // ASSERT_HELPER_H
