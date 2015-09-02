@@ -94,9 +94,9 @@ struct extensible_hash {
         self->nodes = cast_ptr(node, base_addr + sizeof(extensible_hash) + sizeof(size_t) * bucket_size);
 
         if (resume) {
-            assert_noeffect(self->total_node_count == max_node_count);
-            assert_noeffect(self->used_node_count <= self->total_node_count);
-            assert_noeffect(self->bucket_size == bucket_size);
+            assert_retval(self->total_node_count == max_node_count, NULL);
+            assert_retval(self->used_node_count <= self->total_node_count, NULL);
+            assert_retval(self->bucket_size == bucket_size, NULL);
         } else {
             self->total_node_count = max_node_count;
             self->used_node_count = 0;

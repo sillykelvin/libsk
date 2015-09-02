@@ -99,6 +99,7 @@ struct fixed_rbtree {
     size_t root;
 
     fixed_rbtree() : root(npos) { __check(); }
+    ~fixed_rbtree() { clear(); }
 
     fixed_rbtree(const fixed_rbtree& tree) : nodes(tree.nodes), root(tree.root) {}
 
@@ -261,7 +262,7 @@ struct fixed_rbtree {
 
     size_t capacity() const { return nodes.capacity(); }
 
-    bool empty() const { return root == npos; }
+    bool empty() const { return nodes.empty(); }
 
     bool full()  const { return nodes.full(); }
 
@@ -366,8 +367,11 @@ struct fixed_rbtree {
                 // check if the comparison function is sane
                 assert_noeffect(__gt(f(x->value), f(value)));
                 x = __left(x);
-            } else
+            } else {
+                // check if the comparison function is sane
+                assert_noeffect(!__gt(f(x->value), f(value)));
                 x = __right(x);
+            }
         }
 
         int ret = __insert(p, value);

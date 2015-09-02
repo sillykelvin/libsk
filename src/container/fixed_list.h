@@ -87,6 +87,7 @@ struct fixed_list {
     size_t tail;
 
     fixed_list() : head(npos), tail(npos) {}
+    ~fixed_list() { clear(); }
 
     fixed_list(const fixed_list& list) : list(list.list), head(list.head), tail(list.tail) {}
 
@@ -180,7 +181,7 @@ struct fixed_list {
             return -ENOMEM;
 
         node *old_node = it.n;
-        if (!old_node) // pos == NULL, it must be the end() iterator
+        if (!old_node) // empty node, it must be the end() iterator
             return push_back(t);
 
         size_t old_idx = __index(old_node);

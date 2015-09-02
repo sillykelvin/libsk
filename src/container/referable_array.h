@@ -94,7 +94,7 @@ struct referable_array {
     }
 
     const node *__at(size_t index) const {
-        return cast_ptr(node, const_cast<char *>(memory)) + index;
+        return cast_ptr(node, const_cast<char*>(memory)) + index;
     }
 
     /*
@@ -213,7 +213,10 @@ struct referable_array {
         size_t offset = char_ptr(n) - memory;
         assert_noeffect(offset % sizeof(node) == 0);
 
-        return offset / sizeof(node);
+        size_t index = offset / sizeof(node);
+        assert_retval(index < N, npos);
+
+        return index;
     }
 };
 

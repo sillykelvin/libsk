@@ -20,7 +20,7 @@ struct extensible_stack {
         extensible_stack *self = cast_ptr(extensible_stack, addr);
 
         if (resume)
-            assert_noeffect(self->total_count == max_count);
+            assert_retval(self->total_count == max_count, NULL);
         else {
             self->used_count = 0;
             self->total_count = max_count;
