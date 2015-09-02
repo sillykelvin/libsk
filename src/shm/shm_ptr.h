@@ -19,6 +19,8 @@ struct dereference<void> {
 
 template<typename T>
 struct shm_ptr {
+    static_assert(sizeof(detail::detail_ptr) == sizeof(u64), "size mismatch");
+
     typedef T* pointer;
     typedef typename detail::dereference<T>::type reference;
 
@@ -26,8 +28,7 @@ struct shm_ptr {
 
     shm_ptr() : mid(0) {}
 
-    explicit shm_ptr(detail::detail_ptr ptr)
-        : mid(*cast_ptr(u64, &ptr)) { assert_noeffect(sizeof(ptr) == sizeof(u64)); }
+    explicit shm_ptr(detail::detail_ptr ptr) : mid(*cast_ptr(u64, &ptr)) {}
 
     template<typename U>
     shm_ptr(shm_ptr<U> ptr) : mid(ptr.mid) {}
