@@ -408,7 +408,7 @@ struct fixed_rbtree {
 
         // if parent is null, the tree must be an empty tree
         if (!parent) {
-            assert_noeffect(root == npos && empty());
+            assert_noeffect(root == npos);
             n->color = black;
             root = idx;
             return 0;
