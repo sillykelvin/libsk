@@ -11,9 +11,9 @@ enum singleton_type {
     ST_MAX
 };
 
-int register_singleton(int id, size_t size);
+int shm_register_singleton(int id, size_t size);
 
-int shm_mgr_init(key_t main_key, bool resume, size_t max_block_size, int chunk_count, size_t heap_size);
+int shm_mgr_init(key_t key, bool resume, size_t max_block_size, int chunk_count, size_t heap_size);
 int shm_mgr_fini();
 
 
@@ -99,7 +99,7 @@ struct shm_mgr {
      * like the chunk pool, however, we call it
      * "unit" here
      */
-    size_t heap_total_size;
+    size_t heap_size;
     size_t heap_unit_size;
 
     /*
@@ -108,22 +108,9 @@ struct shm_mgr {
     offset_t singletons[ST_MAX];
 
     /*
-     * pool is the base address of entire mem pool
+     * pool is the base address of entire memory pool
      * also, it is the head of chunk pool
      *
-     * pool_head_offset is the head offset of pool:
-     *     [pool head] = [pool addr] - [addr of this]
-     *
-     * pool_end_offset is the end offset of pool:
-     *     [pool end] = [actual total shm size]
-     *
-     * NOTE: pool_end_offset is NOT in the pool!!!
-     */
-    char *pool;
-    offset_t pool_head_offset;
-    offset_t pool_end_offset;
-
-    /*
      * the pool will be divided into two parts:
      *     1. chunk pool
      *     2. heap
@@ -136,15 +123,16 @@ struct shm_mgr {
      * NOT mean there is no more space on heap
      *
      * NOTE: a variable with type offset_t means an offset
-     * measured from address of this ptr, however, the two
+     * measured from address of "this" ptr, however, the two
      * variables below are measured from pool ptr
      */
+    char *pool;
     size_t chunk_end;
     size_t heap_head;
 
     /*
-     * free_chunk_hash stores the mapping from block size
-     * to chunk index, it only stores those chunks can
+     * free_chunk_hash stores the mapping between block size
+     * and chunk index, it only stores those chunks can
      * allocate at leaset one block, full chunks will be
      * erased from the hash
      *
@@ -152,6 +140,7 @@ struct shm_mgr {
      * we can reuse those chunks to store blocks with
      * different sizes
      */
+    // TODO: we may use empty_chunk_hash instead of stack here
     size_index_hash *free_chunk_hash;
     stack *empty_chunk_stack;
 
@@ -166,7 +155,7 @@ struct shm_mgr {
 
     static size_t __align_size(size_t size);
 
-    static shm_mgr *create(key_t main_key, bool resume,
+    static shm_mgr *create(key_t key, bool resume,
                            size_t max_block_size, int chunk_count, size_t heap_size);
 
     static shm_mgr *get();

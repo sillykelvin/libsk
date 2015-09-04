@@ -23,8 +23,10 @@ static singleton_vector singleton_meta_info;
 static sk::shm_mgr *mgr = NULL;
 
 
-int sk::register_singleton(int id, size_t size) {
+int sk::shm_register_singleton(int id, size_t size) {
     assert_retval(id >= ST_MIN && id < ST_MAX, -EINVAL);
+    // if mgr is inited, the registration will be meaningless
+    assert_retval(!mgr, -EINVAL);
 
     singleton_info tmp;
     tmp.id = id;
@@ -40,20 +42,19 @@ int sk::register_singleton(int id, size_t size) {
     return 0;
 }
 
-int sk::shm_mgr_init(key_t main_key, bool resume,
+int sk::shm_mgr_init(key_t key, bool resume,
                      size_t max_block_size, int chunk_count, size_t heap_size) {
-    mgr = sk::shm_mgr::create(main_key, resume, max_block_size, chunk_count, heap_size);
+    mgr = sk::shm_mgr::create(key, resume, max_block_size, chunk_count, heap_size);
 
-    if (!mgr)
-        return -EINVAL;
-
-    return 0;
+    return mgr ? 0 : -EINVAL;
 }
 
 int sk::shm_mgr_fini() {
     if (!mgr)
         return 0;
 
+    // TODO: we may need to call destructors of the objects
+    // still in pool here
     shmctl(mgr->shmid, IPC_RMID, 0);
 
     mgr = NULL;
@@ -80,19 +81,16 @@ inline size_t sk::shm_mgr::__fix_size(size_t size) {
 }
 
 inline size_t sk::shm_mgr::__align_size(size_t size) {
-    bool has_lo = false;
-    if (size & ALIGN_MASK)
-        has_lo = true;
-
-    size &= ~ALIGN_MASK;
-    if (has_lo)
-        size += ALIGN_SIZE;
-
-    return size;
+    // TODO: redefine the ALIGN related macros
+    return (size + ALIGN_MASK) & ~ALIGN_MASK;
 }
 
-sk::shm_mgr *sk::shm_mgr::create(key_t main_key, bool resume,
+sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
                                  size_t max_block_size, int chunk_count, size_t heap_size) {
+    DBG("shm mgr creation parameters: max_block_size<%lu>, chunk_count<%d>, heap_size<%lu>.",
+        max_block_size, chunk_count, heap_size);
+
+    // TODO: refine the size fixing here
     max_block_size = __align_size(max_block_size);
     size_t chunk_size = max_block_size + sizeof(mem_chunk);
 
@@ -102,6 +100,9 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, bool resume,
     // heap unit count must be 2^n
     heap_unit_count = __fix_size(heap_unit_count);
     heap_size  = heap_unit_count * heap_unit_size;
+
+    DBG("parameters after fixed: max_block_size<%lu>, chunk_size<%lu>, chunk_count<%d>, heap_size<%lu>, heap_unit_size<%lu>, heap_unit_count<%lu>.",
+        max_block_size, chunk_size, chunk_count, heap_size, heap_unit_size, heap_unit_count);
 
     size_t singleton_size = 0;
     for (auto it = singleton_meta_info.begin(); it != singleton_meta_info.end(); ++it)
@@ -120,10 +121,13 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, bool resume,
     shm_size += chunk_size * chunk_count;
     shm_size += heap_size;
 
+    DBG("shm size info: mgr<%lu>, singleton<%lu>, hash<%lu>, stack<%lu>, heap allocator<%lu>, chunk pool<%lu>, heap<%lu>, total<%lu>.",
+        sizeof(shm_mgr), singleton_size, hash_size, stack_size, heap_allocator_size, chunk_size * chunk_count, heap_size, shm_size);
+
     sk::shm_seg seg;
-    int ret = seg.init(main_key, shm_size, resume);
+    int ret = seg.init(key, shm_size, resume);
     if (ret != 0) {
-        ERR("cannot create shm mgr, key<%d>, size<%lu>.", main_key, shm_size);
+        ERR("cannot create shm mgr, key<%d>, size<%lu>.", key, shm_size);
         return NULL;
     }
 
@@ -173,22 +177,20 @@ sk::shm_mgr *sk::shm_mgr::create(key_t main_key, bool resume,
     self->pool = base_addr;
 
     if (resume) {
-        assert_noeffect(self->shmid == seg.shmid);
-        assert_noeffect(self->chunk_size == chunk_size);
-        assert_noeffect(self->max_block_size == max_block_size);
-        assert_noeffect(self->heap_total_size == heap_size);
-        assert_noeffect(self->heap_unit_size == heap_unit_size);
+        assert_retval(self->shmid == seg.shmid, NULL);
+        assert_retval(self->chunk_size == chunk_size, NULL);
+        assert_retval(self->max_block_size == max_block_size, NULL);
+        assert_retval(self->heap_size == heap_size, NULL);
+        assert_retval(self->heap_unit_size == heap_unit_size, NULL);
+        assert_retval(self->heap_head == chunk_size * chunk_count, NULL);
     } else {
         self->shmid = seg.shmid;
 
         self->chunk_size = chunk_size;
         self->max_block_size = max_block_size;
 
-        self->heap_total_size = heap_size;
+        self->heap_size = heap_size;
         self->heap_unit_size = heap_unit_size;
-
-        self->pool_head_offset = self->pool - char_ptr(self);
-        self->pool_end_offset  = shm_size;
 
         self->chunk_end = 0;
         self->heap_head = chunk_size * chunk_count;
@@ -212,7 +214,7 @@ sk::shm_mgr::mem_chunk *sk::shm_mgr::__index2chunk(sk::shm_mgr::index_t idx) {
     return cast_ptr(mem_chunk, pool + offset);
 }
 
-int sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, int &chunk_index, int &block_index) {
+int sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, int& chunk_index, int& block_index) {
     mem_chunk *chunk = NULL;
     index_t index = IDX_NULL;
 
@@ -232,7 +234,7 @@ int sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, int &chunk_index, int
             assert_retval(idx, -EFAULT);
 
             // TODO: check if chunk is null here, and also
-            // verify the return value of chun->init(...)
+            // verify the return value of chunk->init(...)
             // also check item 3
             chunk = __index2chunk(*idx);
             chunk->init(chunk_size, mem_size);
@@ -249,7 +251,7 @@ int sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, int &chunk_index, int
             break;
         }
 
-        // 3. there is available chunk in pool
+        // 3. there is available space in pool
         if (chunk_end + chunk_size <= heap_head) {
             assert_retval(chunk_end % chunk_size == 0, -EFAULT);
 
@@ -294,7 +296,7 @@ int sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, int &chunk_index, int
     return 0;
 }
 
-int sk::shm_mgr::__malloc_from_heap(size_t mem_size, int &unit_index) {
+int sk::shm_mgr::__malloc_from_heap(size_t mem_size, int& unit_index) {
     u32 unit_count = mem_size / heap_unit_size;
     if (mem_size % heap_unit_size != 0)
         unit_count += 1;

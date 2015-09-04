@@ -150,7 +150,7 @@ struct size2064 {
 };
 
 TEST(shm_mgr, shm_mgr) {
-    register_singleton(ST_MIN, sizeof(size1032));
+    shm_register_singleton(ST_MIN, sizeof(size1032));
 
     shm_mgr *mgr = shm_mgr::create(SHM_MGR_KEY, false, SHM_MGR_CHUNK_SIZE,
                                    SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
