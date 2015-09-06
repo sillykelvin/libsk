@@ -200,7 +200,7 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
     return self;
 }
 
-sk::shm_mgr *sk::shm_mgr::get() {
+inline sk::shm_mgr *sk::shm_mgr::get() {
     assert_retval(mgr, NULL);
     return mgr;
 }
