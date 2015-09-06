@@ -13,7 +13,7 @@ sk::detail::buddy *sk::detail::buddy::create(void *addr, size_t mem_size, bool r
     buddy *self = cast_ptr(buddy, addr);
 
     if (resume)
-        assert_noeffect(self->size == size);
+        assert_retval(self->size == size, NULL);
     else {
         self->size = size;
 
