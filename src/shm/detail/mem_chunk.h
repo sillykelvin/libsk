@@ -38,8 +38,6 @@ struct mem_chunk {
     size_t block_size;  // block size
     char data[0];
 
-    int init(size_t chunk_size, size_t block_size);
-
     bool full() const {
         assert_retval(magic == MAGIC, true); // mark the block as full if overflowed
         return free_count <= 0;
@@ -50,34 +48,19 @@ struct mem_chunk {
         return free_count >= total_count;
     }
 
+    int init(size_t chunk_size, size_t block_size);
+
     /**
      * @brief malloc will allocate a block from this chunk
      * @return block index if succeeded, negative value if not
      */
-    int malloc() {
-        if (full())
-            return -ENOMEM;
-
-        int block_index = free_head;
-        free_head = *(static_cast<int *>(static_cast<void *>(data + free_head * block_size)));
-        --free_count;
-
-        return block_index;
-    }
+    int malloc();
 
     /**
      * @brief free will deallocate a block in this chunk
      * @param block_index is the block index in the chunk
      */
-    void free(int block_index) {
-        assert_retnone(magic == MAGIC);
-        assert_retnone(!empty());
-        assert_retnone(block_index >= 0 && block_index < total_count);
-
-        *(static_cast<int *>(static_cast<void *>(data + block_size * block_index))) = free_head;
-        free_head = block_index;
-        ++free_count;
-    }
+    void free(int block_index);
 };
 
 } // namespace detail

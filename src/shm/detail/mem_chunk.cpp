@@ -15,10 +15,31 @@ int sk::detail::mem_chunk::init(size_t chunk_size, size_t block_size) {
     // link the free blocks
     int *n = NULL;
     for (int i = 0; i < free_count; ++i) {
-        n = static_cast<int *>(static_cast<void *>(data + i * block_size));
+        n = cast_ptr(int, data + i * block_size);
         *n = i + 1;
     }
     *n = IDX_NULL; // the last block
 
     return 0;
+}
+
+int sk::detail::mem_chunk::malloc() {
+    if (full())
+        return -ENOMEM;
+
+    int block_index = free_head;
+    free_head = *cast_ptr(int, data + free_head * block_size);
+    --free_count;
+
+    return block_index;
+}
+
+void sk::detail::mem_chunk::free(int block_index) {
+    assert_retnone(magic == MAGIC);
+    assert_retnone(!empty());
+    assert_retnone(block_index >= 0 && block_index < total_count);
+
+    *(cast_ptr(int, data + block_size * block_index)) = free_head;
+    free_head = block_index;
+    ++free_count;
 }
