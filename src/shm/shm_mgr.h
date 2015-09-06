@@ -197,7 +197,7 @@ void *shm_singleton(int id);
 
 template<typename T>
 shm_ptr<T> shm_new() {
-    shm_ptr<T> ptr = shm_malloc(sizeof(T));
+    shm_ptr<T> ptr(shm_malloc(sizeof(T)));
     if (!ptr)
         return ptr;
 
