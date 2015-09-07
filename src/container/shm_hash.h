@@ -38,6 +38,7 @@ inline size_t hash_size(size_t max_node_count) {
 template<typename K, typename V>
 struct shm_hash_node {
     typedef pair<K, V> value_type;
+
     value_type data;
     shm_ptr<shm_hash_node> next;
 
