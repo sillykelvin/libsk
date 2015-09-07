@@ -195,14 +195,14 @@ void shm_free(shm_ptr<void> ptr);
 void *shm_singleton(int id);
 
 
-template<typename T>
-shm_ptr<T> shm_new() {
+template<typename T, typename... Args>
+shm_ptr<T> shm_new(Args&&... args) {
     shm_ptr<T> ptr(shm_malloc(sizeof(T)));
     if (!ptr)
         return ptr;
 
     T *t = ptr.get();
-    new (t) T();
+    new (t) T(std::forward<Args>(args)...);
 
     return ptr;
 }
