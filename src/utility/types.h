@@ -7,6 +7,8 @@
 #define void_ptr(ptr)       static_cast<void*>(ptr)
 #define char_ptr(ptr)       cast_ptr(char, ptr)
 
+#define SHM_NULL shm_ptr<void>()
+
 typedef int8_t   s8;
 typedef uint8_t  u8;
 typedef int16_t  s16;
