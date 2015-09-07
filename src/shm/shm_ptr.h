@@ -31,7 +31,7 @@ struct shm_ptr {
     explicit shm_ptr(detail::detail_ptr ptr) : mid(*cast_ptr(u64, &ptr)) {}
 
     template<typename U>
-    explicit shm_ptr(shm_ptr<U> ptr) : mid(ptr.mid) {}
+    shm_ptr(shm_ptr<U> ptr) : mid(ptr.mid) {}
 
     template<typename U>
     shm_ptr& operator=(const shm_ptr<U>& ptr) {
