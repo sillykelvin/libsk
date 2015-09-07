@@ -123,18 +123,30 @@ struct fixed_list {
     }
 
     node *__prev(node *n) {
+        if (!n)
+            return NULL;
+
         return n->prev == npos ? NULL : __node(n->prev);
     }
 
     const node *__prev(const node *n) const {
+        if (!n)
+            return NULL;
+
         return n->prev == npos ? NULL : __node(n->prev);
     }
 
     node *__next(node *n) {
+        if (!n)
+            return NULL;
+
         return n->next == npos ? NULL : __node(n->next);
     }
 
     const node *__next(node *n) const {
+        if (!n)
+            return NULL;
+
         return n->next == npos ? NULL : __node(n->next);
     }
 
