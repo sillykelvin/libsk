@@ -39,7 +39,7 @@ struct shm_ptr {
         return *this;
     }
 
-    void *__ptr() {
+    void *__ptr() const {
         if (!mid)
             return NULL;
 
@@ -47,7 +47,7 @@ struct shm_ptr {
         return mgr->mid2ptr(mid);
     }
 
-    pointer get() {
+    pointer get() const {
         return cast_ptr(T, __ptr());
     }
 
