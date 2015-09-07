@@ -40,4 +40,23 @@
         }                                       \
     }
 
+
+#define check_retval(exp, val)                  \
+    do {                                        \
+        if (exp) break;                         \
+        return (val);                           \
+    } while (0)
+
+#define check_retnone(exp)                      \
+    do {                                        \
+        if (exp) break;                         \
+        return;                                 \
+    } while (0)
+
+#define check_break(exp)                        \
+    if (!(exp)) break                           \
+
+#define check_continue(exp)                     \
+    if (!(exp)) continue                        \
+
 #endif // ASSERT_HELPER_H
