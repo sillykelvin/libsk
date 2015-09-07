@@ -37,11 +37,65 @@ inline size_t hash_size(size_t max_node_count) {
 
 template<typename K, typename V>
 struct shm_hash_node {
-    K k;
-    V v;
+    typedef pair<K, V> value_type;
+    value_type data;
     shm_ptr<shm_hash_node> next;
 
-    shm_hash_node(const K& k, const V& v) : k(k), v(v), next() {}
+    shm_hash_node(const K& k, const V& v) : data(k, v), next() {}
+};
+
+/*
+ * Note:
+ *   1. T should be a shm_hash type here
+ *   2. C stands for constness, true makes this iterator a const iterator
+ */
+template<typename T, bool C>
+struct shm_hash_iterator {
+    typedef T                                                     hash_type;
+    typedef typename T::node                                      node_type;
+    typedef typename T::value_type                                value_type;
+    typedef shm_hash_iterator<T, C>                               self;
+    typedef typename if_<C, const hash_type*, hash_type*>::type   hash_pointer;
+    typedef typename if_<C, const node_type*, node_type*>::type   node_pointer;
+    typedef typename if_<C, const value_type*, value_type*>::type pointer;
+    typedef typename if_<C, const value_type&, value_type&>::type reference;
+
+    hash_pointer h;
+    node_pointer n;
+
+    explicit shm_hash_iterator(hash_pointer h) : h(h), n(NULL) {}
+    shm_hash_iterator(hash_pointer h, node_pointer n) : h(h), n(n) {}
+
+    /*
+     * make a templated copy constructor here to support construction of
+     * const iterator from mutable iterator
+     */
+    template<bool B>
+    shm_hash_iterator(const shm_hash_iterator<T, B>& s) : h(s.h), n(s.n) {}
+
+    self& operator=(const self& s) {
+        if (this == &s)
+            return *this;
+
+        h = s.h;
+        n = s.n;
+
+        return *this;
+    }
+
+    reference operator*() const { return n->data; }
+    pointer operator->() const { return &n->data; }
+
+    self& operator++() { n = h->__next(n); return *this; }
+    self operator++(int) { self tmp(*this); n = h->__next(n); return tmp; }
+    self& operator--()   { n = h->__prev(n); return *this; }
+    self operator--(int) { self tmp(*this); n = h->__prev(n); return tmp; }
+
+    bool operator==(const self& x) const { return n == x.n && h == x.h; }
+    bool operator!=(const self& x) const { return !(*this == x); }
+
+    bool operator==(const shm_hash_iterator<T, !C>& x) const { return n == x.n && h == x.h; }
+    bool operator!=(const shm_hash_iterator<T, !C>& x) const { return !(*this == x); }
 };
 
 } // namespace detail
@@ -53,8 +107,12 @@ struct shm_hash_node {
  */
 template<typename K, typename V, size_t(*F)(const K& k)>
 struct shm_hash {
-    typedef detail::shm_hash_node<K, V> node;
-    typedef shm_ptr<node> pointer;
+    typedef detail::shm_hash_node<K, V>            node;
+    typedef typename node::value_type              value_type;
+    typedef shm_ptr<node>                          pointer;
+    typedef shm_hash<K, V, F>                      self;
+    typedef detail::shm_hash_iterator<self, false> iterator;
+    typedef detail::shm_hash_iterator<self, true>  const_iterator;
 
     size_t bucket_size;
     size_t used_node_count;
@@ -100,7 +158,7 @@ struct shm_hash {
         pointer *base_addr = buckets.get();
         pointer p = base_addr[idx];
         while (p) {
-            if (p->k == k)
+            if (p->data.first == k)
                 return p;
 
             p = p->next;
@@ -109,12 +167,163 @@ struct shm_hash {
         return SHM_NULL;
     }
 
+    node *__next(node *n) {
+        if (!n)
+            return NULL;
+
+        // 1. if there is next node in current bucket, return it
+        if (n->next)
+            return n->next.get();
+
+        size_t hashcode = F(n->data.first);
+        size_t idx = hashcode % bucket_size;
+
+        // 2. search next bucket, until one valid node is found or the end reached
+        pointer *base_addr = buckets.get();
+        while (true) {
+            ++idx;
+
+            // end reached
+            if (idx >= bucket_size)
+                break;
+
+            pointer p = base_addr[idx];
+            if (p)
+                return p.get();
+        }
+
+        return NULL;
+    }
+
+    const node *__next(const node *n) const {
+        if (!n)
+            return NULL;
+
+        if (n->next)
+            return n->next.get();
+
+        size_t hashcode = F(n->data.first);
+        size_t idx = hashcode % bucket_size;
+
+        pointer *base_addr = buckets.get();
+        while (true) {
+            ++idx;
+
+            if (idx >= bucket_size)
+                break;
+
+            pointer p = base_addr[idx];
+            if (p)
+                return p.get();
+        }
+
+        return NULL;
+    }
+
+    node *__prev(node *n) const {
+        if (!n)
+            return NULL;
+
+        size_t hashcode = F(n->data.first);
+        size_t idx = hashcode % bucket_size;
+
+        pointer *base_addr = buckets.get();
+        pointer p = base_addr[idx];
+        assert_retval(p, NULL);
+
+        pointer prev = SHM_NULL;
+        while (p) {
+            if (p.get() == n)
+                break;
+
+            prev = p;
+            p = p->next;
+        }
+
+        assert_retval(p && p.get() == n, NULL);
+
+        if (prev) {
+            assert_retval(prev->next == p, NULL);
+            return prev.get();
+        }
+
+        assert_retval(base_addr[idx] == p, NULL);
+        while (true) {
+            if (idx <= 0)
+                break;
+
+            --idx;
+
+            p = base_addr[idx];
+            if (!p)
+                continue;
+
+            while (p) {
+                prev = p;
+                p = p->next;
+            }
+
+            return prev.get();
+        }
+
+        return NULL;
+    }
+
+    const node *__prev(const node *n) const {
+        if (!n)
+            return NULL;
+
+        size_t hashcode = F(n->data.first);
+        size_t idx = hashcode % bucket_size;
+
+        pointer *base_addr = buckets.get();
+        pointer p = base_addr[idx];
+        assert_retval(p, NULL);
+
+        pointer prev = SHM_NULL;
+        while (p) {
+            if (p.get() == n)
+                break;
+
+            prev = p;
+            p = p->next;
+        }
+
+        assert_retval(p && p.get() == n, NULL);
+
+        if (prev) {
+            assert_retval(prev->next == p, NULL);
+            return prev.get();
+        }
+
+        assert_retval(base_addr[idx] == p, NULL);
+        while (true) {
+            if (idx <= 0)
+                break;
+
+            --idx;
+
+            p = base_addr[idx];
+            if (!p)
+                continue;
+
+            while (p) {
+                prev = p;
+                p = p->next;
+            }
+
+            return prev.get();
+        }
+
+        return NULL;
+    }
+
     V *find(const K& k) {
         pointer p = __search(k);
         if (!p)
             return NULL;
 
-        return &p->v;
+        return &p->data.second;
     }
 
     int insert(const K& k, const V& v) {
@@ -123,7 +332,7 @@ struct shm_hash {
 
         pointer p = __search(k);
         if (p) {
-            p->v = v;
+            p->data.second = v;
             return 0;
         }
 
@@ -157,7 +366,7 @@ struct shm_hash {
         pointer prev = SHM_NULL;
         pointer p = base_addr[idx];
         while (p) {
-            if (p->k == k) {
+            if (p->data.first == k) {
                 found = true;
                 break;
             }
@@ -198,6 +407,39 @@ struct shm_hash {
 
         used_node_count = 0;
     }
+
+    iterator begin() {
+        size_t idx = 0;
+
+        pointer *base_addr = buckets.get();
+        pointer p = SHM_NULL;
+        while (!p) {
+            if (idx >= bucket_size)
+                break;
+
+            p = base_addr[idx++];
+        }
+
+        return iterator(this, p ? p.get() : NULL);
+    }
+
+    const_iterator begin() const {
+        size_t idx = 0;
+
+        pointer *base_addr = buckets.get();
+        pointer p = SHM_NULL;
+        while (!p) {
+            if (idx >= bucket_size)
+                break;
+
+            p = base_addr[idx++];
+        }
+
+        return const_iterator(this, p ? p.get() : NULL);
+    }
+
+    iterator end() { return iterator(this); }
+    const_iterator end() const { return const_iterator(this); }
 };
 
 } // namespace sk
