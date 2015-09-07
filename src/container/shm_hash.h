@@ -1,8 +1,6 @@
 #ifndef SHM_HASH_H
 #define SHM_HASH_H
 
-#include "libsk.h"
-
 namespace sk {
 namespace detail {
 
