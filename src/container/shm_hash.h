@@ -1,6 +1,8 @@
 #ifndef SHM_HASH_H
 #define SHM_HASH_H
 
+#include "libsk.h"
+
 namespace sk {
 namespace detail {
 
@@ -150,8 +152,7 @@ struct shm_hash {
     }
 
     pointer __search(const K& k) {
-        if (empty())
-            return SHM_NULL;
+        check_retval(!empty(), SHM_NULL);
 
         size_t hashcode = F(k);
         size_t idx = hashcode % bucket_size;
@@ -169,8 +170,7 @@ struct shm_hash {
     }
 
     node *__next(node *n) {
-        if (!n)
-            return NULL;
+        check_retval(n, NULL);
 
         // 1. if there is next node in current bucket, return it
         if (n->next)
@@ -184,9 +184,7 @@ struct shm_hash {
         while (true) {
             ++idx;
 
-            // end reached
-            if (idx >= bucket_size)
-                break;
+            check_break(idx < bucket_size);
 
             pointer p = base_addr[idx];
             if (p)
@@ -197,8 +195,7 @@ struct shm_hash {
     }
 
     const node *__next(const node *n) const {
-        if (!n)
-            return NULL;
+        check_retval(n, NULL);
 
         if (n->next)
             return n->next.get();
@@ -210,8 +207,7 @@ struct shm_hash {
         while (true) {
             ++idx;
 
-            if (idx >= bucket_size)
-                break;
+            check_break(idx < bucket_size);
 
             pointer p = base_addr[idx];
             if (p)
@@ -222,8 +218,7 @@ struct shm_hash {
     }
 
     node *__prev(node *n) const {
-        if (!n)
-            return NULL;
+        check_retval(n, NULL);
 
         size_t hashcode = F(n->data.first);
         size_t idx = hashcode % bucket_size;
@@ -256,8 +251,7 @@ struct shm_hash {
             --idx;
 
             p = base_addr[idx];
-            if (!p)
-                continue;
+            check_continue(p);
 
             while (p) {
                 prev = p;
@@ -271,8 +265,7 @@ struct shm_hash {
     }
 
     const node *__prev(const node *n) const {
-        if (!n)
-            return NULL;
+        check_retval(n, NULL);
 
         size_t hashcode = F(n->data.first);
         size_t idx = hashcode % bucket_size;
@@ -305,8 +298,7 @@ struct shm_hash {
             --idx;
 
             p = base_addr[idx];
-            if (!p)
-                continue;
+            check_continue(p);
 
             while (p) {
                 prev = p;
@@ -321,15 +313,13 @@ struct shm_hash {
 
     V *find(const K& k) {
         pointer p = __search(k);
-        if (!p)
-            return NULL;
+        check_retval(p, NULL);
 
         return &p->data.second;
     }
 
     int insert(const K& k, const V& v) {
-        if (full())
-            return -ENOMEM;
+        check_retval(!full(), -ENOMEM);
 
         pointer p = __search(k);
         if (p) {
@@ -356,8 +346,7 @@ struct shm_hash {
     }
 
     void erase(const K& k) {
-        if (empty())
-            return;
+        check_retnone(!empty());
 
         size_t hashcode = F(k);
         size_t idx = hashcode % bucket_size;
@@ -376,8 +365,7 @@ struct shm_hash {
             p = p->next;
         }
 
-        if (!found)
-            return;
+        check_retnone(found);
 
         if (!prev) {
             assert_noeffect(base_addr[idx] == p);
@@ -415,8 +403,7 @@ struct shm_hash {
         pointer *base_addr = buckets.get();
         pointer p = SHM_NULL;
         while (!p) {
-            if (idx >= bucket_size)
-                break;
+            check_break(idx < bucket_size);
 
             p = base_addr[idx++];
         }
@@ -430,8 +417,7 @@ struct shm_hash {
         pointer *base_addr = buckets.get();
         pointer p = SHM_NULL;
         while (!p) {
-            if (idx >= bucket_size)
-                break;
+            check_break(idx < bucket_size);
 
             p = base_addr[idx++];
         }
