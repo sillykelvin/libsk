@@ -37,5 +37,6 @@
 #include "container/fixed_map.h"
 #include "container/fixed_list.h"
 #include "container/shm_hash.h"
+#include "container/shm_list.h"
 
 #endif // LIBSK_H
