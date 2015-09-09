@@ -78,9 +78,40 @@ TEST(shm_list, normal) {
         ++it;
     }
 
+    it = l->begin();
+    l->erase(it);
+    ASSERT_TRUE(l->size() == 4);
+    ASSERT_TRUE(l->front()->a == 2);
+
+    it = l->begin();
+    ++it;
+    ++it;
+    ++it;
+    l->erase(it);
+    ASSERT_TRUE(l->size() == 3);
+    ASSERT_TRUE(l->back()->a == 4);
+
+    it = l->begin();
+    ++it;
+    l->erase(it--);
+    ASSERT_TRUE(l->size() == 2);
+    ASSERT_TRUE(l->front()->a == 2);
+    it++;
+    l->erase(--it);
+    ASSERT_TRUE(l->size() == 1);
+    ASSERT_TRUE(l->front()->a == 4);
+    l->erase(l->begin());
+    ASSERT_TRUE(l->empty() && l->size() == 0);
+    ASSERT_TRUE(l->front() == NULL && l->back() == NULL);
+
+    t.a = 999;
+    l->push_front(t);
+    ASSERT_TRUE(!l->empty());
+
     l->clear();
     ASSERT_TRUE(l->empty() && l->size() == 0);
 
+    t.a = 111;
     l->push_front(t);
 
     shm_del(l);
