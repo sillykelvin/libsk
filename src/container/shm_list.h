@@ -55,10 +55,10 @@ struct shm_list_iterator {
     reference operator*() const { return n->data; }
     pointer operator->() const { return &n->data; }
 
-    self& operator++()   { n = n->next.get(); return *this; }
-    self operator++(int) { self tmp(*this); n = n->next.get(); return tmp; }
-    self& operator--()   { n = n->prev.get(); return *this; }
-    self operator--(int) { self tmp(*this); n = n->prev.get(); return tmp; }
+    self& operator++()   { if(n) n = n->next.get(); return *this; }
+    self operator++(int) { self tmp(*this); if(n) n = n->next.get(); return tmp; }
+    self& operator--()   { if (n) n = n->prev.get(); return *this; }
+    self operator--(int) { self tmp(*this); if(n) n = n->prev.get(); return tmp; }
 
     bool operator==(const self& x) const { return n == x.n && l == x.l; }
     bool operator!=(const self& x) const { return !(*this == x); }
