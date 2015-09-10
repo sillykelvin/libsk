@@ -98,7 +98,7 @@ int sk::detail::buddy::malloc(size_t mem_size, int& unit_index) {
 }
 
 void sk::detail::buddy::free(int offset) {
-    assert_retnone(offset >= 0 && (u32) offset < size);
+    assert_retnone(offset >= 0 && static_cast<u32>(offset) < size);
 
     u32 node_size = 1;
     int index = offset + size - 1;
