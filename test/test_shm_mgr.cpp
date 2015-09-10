@@ -74,7 +74,8 @@ TEST(shm_mgr, mem_chunk) {
 TEST(shm_mgr, buddy) {
     const size_t mem_size = buddy::calc_size(BUDDY_SIZE);
     char buffer[mem_size];
-    buddy *b = buddy::create(buffer, sizeof(buffer), false, BUDDY_SIZE, 1);
+    char *pool = (char *) malloc(BUDDY_SIZE);
+    buddy *b = buddy::create(buffer, sizeof(buffer), false, pool, BUDDY_SIZE, BUDDY_SIZE, 1);
     ASSERT_TRUE(b != NULL);
 
     int offset1 = IDX_NULL;
@@ -127,7 +128,7 @@ TEST(shm_mgr, buddy) {
     b->free(valid);
 
 
-    buddy *b2 = buddy::create(buffer, sizeof(buffer), true, BUDDY_SIZE, 1);
+    buddy *b2 = buddy::create(buffer, sizeof(buffer), true, pool, BUDDY_SIZE, BUDDY_SIZE, 1);
     ASSERT_TRUE(b2 != NULL);
 
     ret = b2->malloc(30, valid);
@@ -136,6 +137,8 @@ TEST(shm_mgr, buddy) {
     ret = b2->malloc(27, valid);
     ASSERT_TRUE(ret == 0);
     ASSERT_TRUE(valid != -1);
+
+    free(pool);
 }
 
 TEST(shm_mgr, lru) {
@@ -143,14 +146,19 @@ TEST(shm_mgr, lru) {
     ASSERT_TRUE(pool != NULL);
 
     lru l;
-    int ret = l.init(pool, SHM_MGR_CHUNK_SIZE, false);
-    ASSERT_EQ(ret, 0);
+    l.head = IDX_NULL;
+    l.tail = IDX_NULL;
+    l.chunk_size = SHM_MGR_CHUNK_SIZE;
+    l.pool = pool;
+
     ASSERT_TRUE(l.empty());
     ASSERT_EQ(l.pop(), IDX_NULL);
 
 #define init_chunk(index) \
     ret = cast_ptr(mem_chunk, pool + SHM_MGR_CHUNK_SIZE * index)->init(SHM_MGR_CHUNK_SIZE, sizeof(long)); \
     ASSERT_EQ(ret, 0)
+
+    int ret = 0;
 
     init_chunk(0);
     ret = l.renew(0);
@@ -371,8 +379,6 @@ TEST(shm_mgr, lru) {
     ASSERT_FALSE(l.empty());
 
     lru *pl = &l;
-    ret = pl->init(pool, SHM_MGR_CHUNK_SIZE, true);
-    ASSERT_EQ(ret, 0);
     ASSERT_FALSE(pl->empty());
 
     ret = pl->renew(2);
@@ -435,16 +441,13 @@ TEST(shm_mgr, chunk_mgr) {
     ASSERT_TRUE(addr != NULL);
     char *pool = addr + mgr_size;
 
-    chunk_mgr *mgr = chunk_mgr::create(addr, mgr_size, false, sizeof(long) * 3 + 1,
-                                       sizeof(long) * 3 + sizeof(mem_chunk), 3);
+    chunk_mgr *mgr = chunk_mgr::create(addr, mgr_size, false, pool, mem_size - mgr_size,
+                                       sizeof(long) * 3 + 1,sizeof(long) * 3 + sizeof(mem_chunk), 3);
     ASSERT_TRUE(mgr != NULL);
-
-    int ret = mgr->init(pool);
-    ASSERT_EQ(ret, 0);
 
     int chunk_index = IDX_NULL;
     int block_index = IDX_NULL;
-    ret = mgr->malloc(sizeof(long), chunk_index, block_index);
+    int ret = mgr->malloc(sizeof(long), chunk_index, block_index);
     ASSERT_EQ(ret, 0);
     ASSERT_EQ(chunk_index, 0);
     ASSERT_EQ(block_index, 0);
@@ -599,12 +602,9 @@ TEST(shm_mgr, chunk_mgr) {
     ret = mgr->malloc(1, chunk_index, block_index);
     ASSERT_EQ(ret, -ENOMEM);
 
-    chunk_mgr *mgr2 = chunk_mgr::create(addr, mgr_size, true, sizeof(long) * 3 + 1,
-                                        sizeof(long) * 3 + sizeof(mem_chunk), 3);
+    chunk_mgr *mgr2 = chunk_mgr::create(addr, mgr_size, true, pool, mem_size - mgr_size,
+                                        sizeof(long) * 3 + 1, sizeof(long) * 3 + sizeof(mem_chunk), 3);
     ASSERT_TRUE(mgr2 != NULL);
-
-    ret = mgr2->init(pool);
-    ASSERT_EQ(ret, 0);
 
     ret = mgr2->malloc(1, chunk_index, block_index);
     ASSERT_EQ(ret, -ENOMEM);
