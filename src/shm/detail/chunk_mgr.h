@@ -51,7 +51,7 @@ struct chunk_mgr {
 
     void *index2ptr(int chunk_index, int block_index);
 
-    int malloc(size_t size, int& chunk_index, int& block_index);
+    int malloc(size_t mem_size, int& chunk_index, int& block_index);
 
     void free(int chunk_index, int block_index);
 };

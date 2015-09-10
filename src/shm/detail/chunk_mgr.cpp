@@ -210,8 +210,8 @@ void *sk::detail::chunk_mgr::index2ptr(int chunk_index, int block_index) {
     return void_ptr(chunk->data + block_index * chunk->block_size);
 }
 
-int sk::detail::chunk_mgr::malloc(size_t size, int &chunk_index, int &block_index) {
-    size_t idx = size % bucket_size;
+int sk::detail::chunk_mgr::malloc(size_t mem_size, int &chunk_index, int &block_index) {
+    size_t idx = mem_size % bucket_size;
 
     // 0. if there is partially allocated chunk with same size
     if (partial_buckets[idx] != IDX_NULL) {
@@ -253,7 +253,7 @@ int sk::detail::chunk_mgr::malloc(size_t size, int &chunk_index, int &block_inde
     if (used_chunk_count < total_chunk_count) {
         chunk_index = used_chunk_count;
         mem_chunk *chunk = __at(chunk_index, false);
-        int ret = chunk->init(chunk_size, size);
+        int ret = chunk->init(chunk_size, mem_size);
         assert_retval(ret == 0, ret);
 
         ++used_chunk_count;
@@ -299,7 +299,7 @@ int sk::detail::chunk_mgr::malloc(size_t size, int &chunk_index, int &block_inde
             assert_noeffect(found);
         }
 
-        int ret = chunk->init(chunk_size, size);
+        int ret = chunk->init(chunk_size, mem_size);
         assert_retval(ret == 0, ret);
 
         block_index = chunk->malloc();
