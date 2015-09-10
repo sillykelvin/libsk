@@ -93,7 +93,7 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
 
     // TODO: refine the size fixing here
     max_block_size = __align_size(max_block_size);
-    size_t chunk_size = max_block_size + sizeof(mem_chunk);
+    size_t chunk_size = max_block_size + sizeof(detail::mem_chunk);
 
     // for blocks with size > max_block_size will go into heap
     size_t heap_unit_size = __align_size(max_block_size);
@@ -109,19 +109,19 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
     for (auto it = singleton_meta_info.begin(); it != singleton_meta_info.end(); ++it)
         singleton_size += it->size;
 
-    size_t chunk_mgr_size = pool_mgr::calc_size(max_block_size);
-    size_t heap_allocator_size = heap_allocator::calc_size(heap_unit_count);
+    size_t chunk_mgr_size = chunk_allocator::calc_size(max_block_size);
+    size_t heap_mgr_size = heap_allocator::calc_size(heap_unit_count);
 
     size_t shm_size = 0;
     shm_size += sizeof(shm_mgr);
     shm_size += singleton_size;
     shm_size += chunk_mgr_size;
-    shm_size += heap_allocator_size;
+    shm_size += heap_mgr_size;
     shm_size += chunk_size * chunk_count;
     shm_size += heap_size;
 
-    DBG("shm size info: mgr<%lu>, singleton<%lu>, chunk mgr<%lu>, heap allocator<%lu>, chunk pool<%lu>, heap<%lu>, total<%lu>.",
-        sizeof(shm_mgr), singleton_size, chunk_mgr_size, heap_allocator_size, chunk_size * chunk_count, heap_size, shm_size);
+    DBG("shm size info: mgr<%lu>, singleton<%lu>, chunk mgr<%lu>, heap mgr<%lu>, chunk pool<%lu>, heap pool<%lu>, total<%lu>.",
+        sizeof(shm_mgr), singleton_size, chunk_mgr_size, heap_mgr_size, chunk_size * chunk_count, heap_size, shm_size);
 
     sk::shm_seg seg;
     int ret = seg.init(key, shm_size, resume);
@@ -132,7 +132,7 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
 
     shm_mgr *self = cast_ptr(shm_mgr, seg.address());
     char *base_addr = char_ptr(seg.address());
-    char *chunk_pool = base_addr + singleton_size + chunk_mgr_size + heap_allocator_size;
+    char *chunk_pool = base_addr + singleton_size + chunk_mgr_size + heap_mgr_size;
     char *heap_pool = chunk_pool + chunk_size * chunk_count;
     base_addr += sizeof(shm_mgr);
 
@@ -153,9 +153,9 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
 
     // 1. init chunk_mgr
     {
-        self->chunk_mgr = pool_mgr::create(base_addr, chunk_mgr_size, resume,
-                                           chunk_pool, chunk_size * chunk_count,
-                                           max_block_size, chunk_size, chunk_count);
+        self->chunk_mgr = chunk_allocator::create(base_addr, chunk_mgr_size, resume,
+                                                  chunk_pool, chunk_size * chunk_count,
+                                                  max_block_size, chunk_size, chunk_count);
         assert_retval(self->chunk_mgr, NULL);
 
         base_addr += chunk_mgr_size;
@@ -163,12 +163,12 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
 
     // 2. init heap allocator
     {
-        self->heap = heap_allocator::create(base_addr, heap_allocator_size, resume,
-                                            heap_pool, heap_size,
-                                            heap_unit_count, heap_unit_size);
-        assert_retval(self->heap, NULL);
+        self->heap_mgr = heap_allocator::create(base_addr, heap_mgr_size, resume,
+                                                heap_pool, heap_size,
+                                                heap_unit_count, heap_unit_size);
+        assert_retval(self->heap_mgr, NULL);
 
-        base_addr += heap_allocator_size;
+        base_addr += heap_mgr_size;
     }
 
     if (resume) {
@@ -193,7 +193,7 @@ int sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, int& chunk_index, int
 }
 
 int sk::shm_mgr::__malloc_from_heap(size_t mem_size, int& unit_index) {
-    return heap->malloc(mem_size, unit_index);
+    return heap_mgr->malloc(mem_size, unit_index);
 }
 
 void sk::shm_mgr::__free_from_chunk_pool(int chunk_index, int block_index) {
@@ -201,7 +201,7 @@ void sk::shm_mgr::__free_from_chunk_pool(int chunk_index, int block_index) {
 }
 
 void sk::shm_mgr::__free_from_heap(int unit_index) {
-    heap->free(unit_index);
+    heap_mgr->free(unit_index);
 }
 
 // TODO: refine this function, it has almost the same logic with free(...)
@@ -228,7 +228,7 @@ void *sk::shm_mgr::mid2ptr(u64 mid) {
         int unit_index = ptr->idx1;
         assert_retval(unit_index >= 0, NULL);
 
-        return heap->index2ptr(unit_index);
+        return heap_mgr->index2ptr(unit_index);
     }
     default:
         assert_retval(0, NULL);

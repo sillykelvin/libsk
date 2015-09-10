@@ -63,21 +63,15 @@ struct shm_ptr;
 /**
  * the layout of shm_mgr:
  *
- *     +---------+-----------+------+-------+-----------+-------+------+
- *     |         | singleton |      |       |   heap    | chunk |      |
- *     | shm_mgr |           | hash | stack |           |       | heap |
- *     |         |  objects  |      |       | allocator | pool  |      |
- *     +---------+-----------+------+-------+-----------+-------+------+
- *                                                      ^       ^      ^
- *                                                      |       |      |
- *                                            pool -----+       |      +----- pool_end_offset
- *                                                      |   heap_head
- *                                pool_head_offset -----+
+ *     +---------+-----------+-----------+-----------+-------+------+
+ *     |         | singleton |           |   heap    | chunk | heap |
+ *     | shm_mgr |           | chunk mgr |           |       |      |
+ *     |         |  objects  |           | allocator | pool  | pool |
+ *     +---------+-----------+-----------+-----------+-------+------+
  */
 struct shm_mgr {
     typedef size_t offset_t;
-    typedef detail::chunk_mgr pool_mgr;
-    typedef detail::mem_chunk mem_chunk;
+    typedef detail::chunk_mgr chunk_allocator;
     typedef detail::buddy heap_allocator;
 
     /*
@@ -86,8 +80,10 @@ struct shm_mgr {
     int shmid;
 
     /*
-     * a block is an area inside a chunk, so:
-     *     [max block size] = [chunk size] - [chunk header size]
+     * a block is an area inside a chunk, max_block_size is
+     * the maximum block can be allocated in chunk pool, so:
+     * 1. mem_size <= max_block_size, allocate in chunk pool
+     * 2. mem_size > max_block_size, allocate in heap pool
      */
     size_t max_block_size;
 
@@ -96,12 +92,16 @@ struct shm_mgr {
      */
     offset_t singletons[ST_MAX];
 
-    pool_mgr *chunk_mgr;
+    /*
+     * the chunk pool mgr, it manages memory in chunk pool
+     */
+    chunk_allocator *chunk_mgr;
 
     /*
-     * the heap allocator, uses buddy algorithm
+     * the heap pool mgr, uses buddy algorithm, it manages
+     * memory in heap pool
      */
-    heap_allocator *heap;
+    heap_allocator *heap_mgr;
 
     static bool __power_of_two(size_t num);
 
