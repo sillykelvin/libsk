@@ -1,5 +1,6 @@
 #include "libsk.h"
 #include "detail/buddy.h"
+#include "detail/chunk_mgr.h"
 #include "detail/mem_chunk.h"
 
 struct singleton_info {
@@ -108,21 +109,19 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
     for (auto it = singleton_meta_info.begin(); it != singleton_meta_info.end(); ++it)
         singleton_size += it->size;
 
-    size_t hash_size = size_index_hash::calc_size(chunk_count, max_block_size);
-    size_t stack_size = stack::calc_size(chunk_count);
+    size_t chunk_mgr_size = pool_mgr::calc_size(max_block_size);
     size_t heap_allocator_size = heap_allocator::calc_size(heap_unit_count);
 
     size_t shm_size = 0;
     shm_size += sizeof(shm_mgr);
     shm_size += singleton_size;
-    shm_size += hash_size;
-    shm_size += stack_size;
+    shm_size += chunk_mgr_size;
     shm_size += heap_allocator_size;
     shm_size += chunk_size * chunk_count;
     shm_size += heap_size;
 
-    DBG("shm size info: mgr<%lu>, singleton<%lu>, hash<%lu>, stack<%lu>, heap allocator<%lu>, chunk pool<%lu>, heap<%lu>, total<%lu>.",
-        sizeof(shm_mgr), singleton_size, hash_size, stack_size, heap_allocator_size, chunk_size * chunk_count, heap_size, shm_size);
+    DBG("shm size info: mgr<%lu>, singleton<%lu>, chunk mgr<%lu>, heap allocator<%lu>, chunk pool<%lu>, heap<%lu>, total<%lu>.",
+        sizeof(shm_mgr), singleton_size, chunk_mgr_size, heap_allocator_size, chunk_size * chunk_count, heap_size, shm_size);
 
     sk::shm_seg seg;
     int ret = seg.init(key, shm_size, resume);
@@ -150,50 +149,36 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
         }
     }
 
-    // 1. init free_chunk_hash
+    // 1. init chunk_mgr
     {
-        self->free_chunk_hash = size_index_hash::create(base_addr, hash_size, resume, chunk_count, max_block_size);
-        assert_retval(self->free_chunk_hash, NULL);
+        self->chunk_mgr = pool_mgr::create(base_addr, chunk_mgr_size, resume, max_block_size, chunk_size, chunk_count);
+        assert_retval(self->chunk_mgr, NULL);
 
-        base_addr += hash_size;
+        base_addr += chunk_mgr_size;
     }
 
-    // 2. init empty_stack
+    // 2. init heap allocator
     {
-        self->empty_chunk_stack = stack::create(base_addr, stack_size, resume, chunk_count);
-        assert_retval(self->empty_chunk_stack, NULL);
-
-        base_addr += stack_size;
-    }
-
-    // 3. init heap allocator
-    {
-        self->heap = heap_allocator::create(base_addr, heap_allocator_size, resume, heap_unit_count);
+        self->heap = heap_allocator::create(base_addr, heap_allocator_size, resume, heap_unit_count, heap_unit_size);
         assert_retval(self->heap, NULL);
 
         base_addr += heap_allocator_size;
     }
 
-    self->pool = base_addr;
+    ret = self->chunk_mgr->init(base_addr);
+    assert_retval(ret == 0, NULL);
+    base_addr += chunk_size * chunk_count;
+
+    ret = self->heap->init(base_addr);
+    assert_retval(ret == 0, NULL);
+    base_addr += heap_size;
 
     if (resume) {
         assert_retval(self->shmid == seg.shmid, NULL);
-        assert_retval(self->chunk_size == chunk_size, NULL);
         assert_retval(self->max_block_size == max_block_size, NULL);
-        assert_retval(self->heap_size == heap_size, NULL);
-        assert_retval(self->heap_unit_size == heap_unit_size, NULL);
-        assert_retval(self->heap_head == chunk_size * chunk_count, NULL);
     } else {
         self->shmid = seg.shmid;
-
-        self->chunk_size = chunk_size;
         self->max_block_size = max_block_size;
-
-        self->heap_size = heap_size;
-        self->heap_unit_size = heap_unit_size;
-
-        self->chunk_end = 0;
-        self->heap_head = chunk_size * chunk_count;
     }
 
     seg.release();
@@ -205,148 +190,19 @@ inline sk::shm_mgr *sk::shm_mgr::get() {
     return mgr;
 }
 
-sk::shm_mgr::mem_chunk *sk::shm_mgr::__index2chunk(sk::shm_mgr::index_t idx) {
-    assert_retval(idx >= 0, NULL);
-
-    size_t offset = idx * chunk_size;
-    assert_retval(offset + chunk_size <= chunk_end, NULL);
-
-    return cast_ptr(mem_chunk, pool + offset);
-}
-
 int sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, int& chunk_index, int& block_index) {
-    mem_chunk *chunk = NULL;
-    index_t index = IDX_NULL;
-
-    do {
-        index_t *idx = free_chunk_hash->find(mem_size);
-
-        // 1. there exists free chunk with same size
-        if (idx) {
-            chunk = __index2chunk(*idx);
-            index = *idx;
-            break;
-        }
-
-        // 2. no free chunk exists, but there is empty chunk
-        if (!empty_chunk_stack->empty()) {
-            idx = empty_chunk_stack->top();
-            assert_retval(idx, -EFAULT);
-
-            // TODO: check if chunk is null here, and also
-            // verify the return value of chunk->init(...)
-            // also check item 3
-            chunk = __index2chunk(*idx);
-            chunk->init(chunk_size, mem_size);
-            index = *idx;
-
-            // TODO: here if the chunk has only one block,
-            // then there is no need to insert it into the
-            // hash, as we will remove it from the hash later
-            // this condition also applies to item 3
-            int ret = free_chunk_hash->insert(mem_size, *idx);
-            assert_retval(ret == 0, -EFAULT);
-
-            empty_chunk_stack->pop();
-            break;
-        }
-
-        // 3. there is available space in pool
-        if (chunk_end + chunk_size <= heap_head) {
-            assert_retval(chunk_end % chunk_size == 0, -EFAULT);
-
-            chunk = cast_ptr(mem_chunk, pool + chunk_end);
-            chunk->init(chunk_size, mem_size);
-
-            index = chunk_end / chunk_size;
-            int ret = free_chunk_hash->insert(mem_size, index);
-            assert_retval(ret == 0, -EFAULT);
-
-            chunk_end += chunk_size;
-            break;
-        }
-
-        // 4. no empty chunk, and also chunk pool has used up
-        //    we hope it will never get here :(
-        ERR("chunk pool has been used up!!!");
-        return -ENOMEM;
-
-    } while (0);
-
-    assert_retval(chunk, -EFAULT);
-
-    // actually, it should never get here
-    if (chunk->full()) {
-        assert_noeffect(0);
-
-        // however, if it gets here, we still can handle:
-        // remove the full chunk, and call this function recursively
-        free_chunk_hash->erase(mem_size);
-        return __malloc_from_chunk_pool(mem_size, chunk_index, block_index);
-    }
-
-    block_index = chunk->malloc();
-    assert_retval(block_index >= 0, -EFAULT);
-
-    chunk_index = index;
-
-    if (chunk->full())
-        free_chunk_hash->erase(mem_size);
-
-    return 0;
+    return chunk_mgr->malloc(mem_size, chunk_index, block_index);
 }
 
 int sk::shm_mgr::__malloc_from_heap(size_t mem_size, int& unit_index) {
-    u32 unit_count = mem_size / heap_unit_size;
-    if (mem_size % heap_unit_size != 0)
-        unit_count += 1;
-
-    int idx = heap->malloc(unit_count);
-
-    // there is no more memory
-    // we hope it will never get here :(
-    if (idx < 0) {
-        ERR("no more space on heap!!!");
-        return -ENOMEM;
-    }
-
-    unit_index = idx;
-    return 0;
+    return heap->malloc(mem_size, unit_index);
 }
 
 void sk::shm_mgr::__free_from_chunk_pool(int chunk_index, int block_index) {
-    assert_retnone(chunk_index >= 0 && block_index >= 0);
-    size_t chunk_offset = chunk_size * chunk_index;
-    assert_retnone(chunk_offset + chunk_size <= chunk_end);
-
-    mem_chunk *chunk = cast_ptr(mem_chunk, pool + chunk_offset);
-
-    bool full_before_free = chunk->full();
-
-    chunk->free(block_index);
-
-    bool empty_after_free = chunk->empty();
-
-    if (full_before_free && empty_after_free) {
-        int ret = empty_chunk_stack->push(chunk_index);
-        assert_retnone(ret == 0);
-    } else if (full_before_free) {
-        int ret = free_chunk_hash->insert(chunk->block_size, chunk_index);
-        assert_retnone(ret == 0);
-    } else if (empty_after_free) {
-        free_chunk_hash->erase(chunk->block_size, chunk_index);
-
-        int ret = empty_chunk_stack->push(chunk_index);
-        assert_retnone(ret == 0);
-    } else {
-        // not full before free, also not empty after free, it
-        // will still lay in free_chunk_hash, so we do nothing here
-    }
+    chunk_mgr->free(chunk_index, block_index);
 }
 
 void sk::shm_mgr::__free_from_heap(int unit_index) {
-    assert_retnone(unit_index >= 0);
-
     heap->free(unit_index);
 }
 
@@ -368,18 +224,13 @@ void *sk::shm_mgr::mid2ptr(u64 mid) {
         int block_index = ptr->idx2;
         assert_retval(chunk_index >= 0 && block_index >= 0, NULL);
 
-        // TODO: extract the logic below into a method of mem_chunk
-        mem_chunk *chunk = __index2chunk(chunk_index);
-        assert_retval(chunk && chunk->magic == MAGIC, NULL);
-
-        return void_ptr(chunk->data + block_index * chunk->block_size);
+        return chunk_mgr->index2ptr(chunk_index, block_index);
     }
     case detail::PTR_TYPE_HEAP: {
         int unit_index = ptr->idx1;
         assert_retval(unit_index >= 0, NULL);
 
-        // TODO: define another field: "char *heap_pool", seperate "chunk_pool" and "heap_pool"
-        return void_ptr(pool + heap_head + unit_index * heap_unit_size);
+        return heap->index2ptr(unit_index);
     }
     default:
         assert_retval(0, NULL);

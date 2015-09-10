@@ -20,6 +20,7 @@ int shm_mgr_fini();
 
 namespace detail {
 
+struct chunk_mgr;
 struct mem_chunk;
 struct buddy;
 
@@ -75,9 +76,7 @@ struct shm_ptr;
  */
 struct shm_mgr {
     typedef size_t offset_t;
-    typedef int index_t;
-    typedef extensible_hash<size_t, index_t> size_index_hash;
-    typedef extensible_stack<index_t> stack;
+    typedef detail::chunk_mgr pool_mgr;
     typedef detail::mem_chunk mem_chunk;
     typedef detail::buddy heap_allocator;
 
@@ -90,59 +89,14 @@ struct shm_mgr {
      * a block is an area inside a chunk, so:
      *     [max block size] = [chunk size] - [chunk header size]
      */
-    size_t chunk_size;
     size_t max_block_size;
-
-    /*
-     * according to the heap allocation algorithm,
-     * the heap is also seperated into many chunks
-     * like the chunk pool, however, we call it
-     * "unit" here
-     */
-    size_t heap_size;
-    size_t heap_unit_size;
 
     /*
      * the offsets to singleton objects
      */
     offset_t singletons[ST_MAX];
 
-    /*
-     * pool is the base address of entire memory pool
-     * also, it is the head of chunk pool
-     *
-     * the pool will be divided into two parts:
-     *     1. chunk pool
-     *     2. heap
-     *
-     * chunk_end is the "realtime" end of chunk pool
-     * heap_head is the fixed head of heap
-     *
-     * chunk_end can grow, if it meets heap_head, then
-     * there is no more available chunk, but, it does
-     * NOT mean there is no more space on heap
-     *
-     * NOTE: a variable with type offset_t means an offset
-     * measured from address of "this" ptr, however, the two
-     * variables below are measured from pool ptr
-     */
-    char *pool;
-    size_t chunk_end;
-    size_t heap_head;
-
-    /*
-     * free_chunk_hash stores the mapping between block size
-     * and chunk index, it only stores those chunks can
-     * allocate at leaset one block, full chunks will be
-     * erased from the hash
-     *
-     * empty_chunk_stack stores those empty chunks, so that
-     * we can reuse those chunks to store blocks with
-     * different sizes
-     */
-    // TODO: we may use empty_chunk_hash instead of stack here
-    size_index_hash *free_chunk_hash;
-    stack *empty_chunk_stack;
+    pool_mgr *chunk_mgr;
 
     /*
      * the heap allocator, uses buddy algorithm
@@ -159,8 +113,6 @@ struct shm_mgr {
                            size_t max_block_size, int chunk_count, size_t heap_size);
 
     static shm_mgr *get();
-
-    mem_chunk *__index2chunk(index_t idx);
 
     int __malloc_from_chunk_pool(size_t mem_size, int& chunk_index, int& block_index);
 
