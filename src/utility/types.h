@@ -8,6 +8,7 @@
 #define char_ptr(ptr)       cast_ptr(char, ptr)
 
 #define SHM_NULL shm_ptr<void>()
+#define IDX_NULL (-1)
 
 typedef int8_t   s8;
 typedef uint8_t  u8;
@@ -28,6 +29,5 @@ static_assert(sizeof(s64) == 8, "inconsistent name and type");
 static_assert(sizeof(u64) == 8, "inconsistent name and type");
 
 static const size_t INVALID_OFFSET = (size_t) 0;
-static const int IDX_NULL = (int) -1;
 
 #endif // TYPES_H
