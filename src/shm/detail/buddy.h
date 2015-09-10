@@ -75,7 +75,7 @@ struct buddy {
 
     void *index2ptr(int unit_index);
 
-    int malloc(size_t mem_size);
+    int malloc(size_t mem_size, int& unit_index);
 
     void free(int offset);
 };

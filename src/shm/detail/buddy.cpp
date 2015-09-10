@@ -48,7 +48,7 @@ void *sk::detail::buddy::index2ptr(int unit_index) {
     return void_ptr(pool + unit_index * unit_size);
 }
 
-int sk::detail::buddy::malloc(size_t mem_size) {
+int sk::detail::buddy::malloc(size_t mem_size, int& unit_index) {
     u32 size = mem_size / unit_size;
     if (mem_size % unit_size != 0)
         size += 1;
@@ -62,8 +62,10 @@ int sk::detail::buddy::malloc(size_t mem_size) {
     int index = 0;
     int offset = 0;
 
-    if (longest[index] < size)
-        return -1;
+    if (longest[index] < size) {
+        ERR("no more space :(");
+        return -ENOMEM;
+    }
 
     for (node_size = this->size; node_size != size; node_size /= 2) {
         int left  = __left_leaf(index);
@@ -91,7 +93,8 @@ int sk::detail::buddy::malloc(size_t mem_size) {
         longest[index] = __max_child(index);
     }
 
-    return offset;
+    unit_index = offset;
+    return 0;
 }
 
 void sk::detail::buddy::free(int offset) {
