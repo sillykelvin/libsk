@@ -7,6 +7,9 @@ int sk::detail::mem_chunk::init(size_t chunk_size, size_t block_size) {
     assert_retval(block_size >= sizeof(int), -EINVAL);
 
     magic = MAGIC;
+    prev_lru = IDX_NULL;
+    next_lru = IDX_NULL;
+    next_chunk = IDX_NULL;
     free_head = 0;
     free_count = (chunk_size - sizeof(mem_chunk)) / block_size;
     total_count = free_count;

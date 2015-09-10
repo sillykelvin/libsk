@@ -32,6 +32,9 @@ namespace detail {
  */
 struct mem_chunk {
     int magic;          // for memory overflow verification
+    int prev_lru;       // prev chunk index in lru list
+    int next_lru;       // next chunk index in lru list
+    int next_chunk;     // next chunk index in allocation list
     int free_head;      // free head index
     int free_count;     // free block count
     int total_count;    // total block count
