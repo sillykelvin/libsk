@@ -132,9 +132,9 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
 
     shm_mgr *self = cast_ptr(shm_mgr, seg.address());
     char *base_addr = char_ptr(seg.address());
+    base_addr += sizeof(shm_mgr);
     char *chunk_pool = base_addr + singleton_size + chunk_mgr_size + heap_mgr_size;
     char *heap_pool = chunk_pool + chunk_size * chunk_count;
-    base_addr += sizeof(shm_mgr);
 
     // 0. init singletons
     {
