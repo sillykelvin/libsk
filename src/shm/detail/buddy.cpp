@@ -1,16 +1,22 @@
 #include "libsk.h"
 #include "buddy.h"
 
-sk::detail::buddy *sk::detail::buddy::create(void *addr, size_t mem_size, bool resume, u32 size, size_t unit_size) {
+sk::detail::buddy *sk::detail::buddy::create(void *addr, size_t mem_size, bool resume,
+                                             char *pool, size_t pool_size,
+                                             u32 size, size_t unit_size) {
     assert_retval(addr, NULL);
     assert_retval(size >= 1, NULL);
     assert_retval(mem_size >= calc_size(size), NULL);
+    assert_retval(pool, NULL);
+    assert_retval(pool_size >= size * unit_size, NULL);
+    assert_retval(pool + pool_size <= char_ptr(addr) || pool >= char_ptr(addr) + mem_size, NULL);
 
     u32 old_size = size;
     size = __fix_size(size);
     DBG("create buddy with size<%u>, after fixed<%u>.", old_size, size);
 
     buddy *self = cast_ptr(buddy, addr);
+    self->pool = pool;
 
     if (resume) {
         assert_retval(self->size == size, NULL);
@@ -28,18 +34,6 @@ sk::detail::buddy *sk::detail::buddy::create(void *addr, size_t mem_size, bool r
     }
 
     return self;
-}
-
-int sk::detail::buddy::init(char *pool) {
-    assert_retval(pool, -EINVAL);
-    assert_retval(pool + unit_size * size <= char_ptr(this)
-                  || pool >= (char_ptr(this) + calc_size(size)), -EINVAL);
-
-    check_retval(!this->pool, 0);
-
-    this->pool = pool;
-
-    return 0;
 }
 
 void *sk::detail::buddy::index2ptr(int unit_index) {

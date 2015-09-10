@@ -69,9 +69,9 @@ struct buddy {
         return sizeof(buddy) + (leaf_count * sizeof(u32));
     }
 
-    static buddy *create(void *addr, size_t mem_size, bool resume, u32 size, size_t unit_size);
-
-    int init(char *pool);
+    static buddy *create(void *addr, size_t mem_size, bool resume,
+                         char *pool, size_t pool_size,
+                         u32 size, size_t unit_size);
 
     void *index2ptr(int unit_index);
 
