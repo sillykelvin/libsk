@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "libsk.h"
 #include "shm/detail/buddy.h"
+#include "shm/detail/chunk_mgr.h"
 #include "shm/detail/mem_chunk.h"
 
 #define BLK_CNT             (20)
@@ -21,6 +22,9 @@ TEST(shm_mgr, mem_chunk) {
 
     int ret = chunk->init(mem_size, sizeof(long));
     ASSERT_EQ(ret, 0);
+    ASSERT_EQ(chunk->prev_lru, IDX_NULL);
+    ASSERT_EQ(chunk->next_lru, IDX_NULL);
+    ASSERT_EQ(chunk->next_chunk, IDX_NULL);
 
     ASSERT_EQ(chunk->full(), false);
 
@@ -70,30 +74,44 @@ TEST(shm_mgr, mem_chunk) {
 TEST(shm_mgr, buddy) {
     const size_t mem_size = buddy::calc_size(BUDDY_SIZE);
     char buffer[mem_size];
-    buddy *b = buddy::create(buffer, sizeof(buffer), false, BUDDY_SIZE);
+    buddy *b = buddy::create(buffer, sizeof(buffer), false, BUDDY_SIZE, 1);
     ASSERT_TRUE(b != NULL);
 
-    int offset1 = b->malloc(4);
+    int offset1 = IDX_NULL;
+    int ret = b->malloc(4, offset1);
+    ASSERT_TRUE(ret == 0);
     ASSERT_TRUE(offset1 != -1);
 
-    int offset2 = b->malloc(30);
+    int offset2 = IDX_NULL;
+    ret = b->malloc(30, offset2);
+    ASSERT_TRUE(ret == 0);
     ASSERT_TRUE(offset2 != -1);
 
-    int offset3 = b->malloc(1);
+    int offset3 IDX_NULL;
+    ret = b->malloc(1, offset3);
+    ASSERT_TRUE(ret == 0);
     ASSERT_TRUE(offset3 != -1);
 
-    int offset4 = b->malloc(6);
+    int offset4 = IDX_NULL;
+    ret = b->malloc(6, offset4);
+    ASSERT_TRUE(ret == 0);
     ASSERT_TRUE(offset4 != -1);
 
-    int offset5 = b->malloc(10);
+    int offset5 = IDX_NULL;
+    ret = b->malloc(10, offset5);
+    ASSERT_TRUE(ret == 0);
     ASSERT_TRUE(offset5 != -1);
 
-    int invalid = b->malloc(3);
+    int invalid = IDX_NULL;
+    ret = b->malloc(3, invalid);
+    ASSERT_TRUE(ret == -ENOMEM);
     ASSERT_TRUE(invalid == -1);
 
     b->free(offset3);
 
-    int valid = b->malloc(3);
+    int valid IDX_NULL;
+    ret = b->malloc(3, valid);
+    ASSERT_TRUE(ret == 0);
     ASSERT_TRUE(valid != -1);
 
     b->free(offset1);
@@ -102,21 +120,513 @@ TEST(shm_mgr, buddy) {
     b->free(offset5);
     b->free(valid);
 
-    valid = b->malloc(62);
+    ret = b->malloc(62, valid);
+    ASSERT_TRUE(ret == 0);
     ASSERT_TRUE(valid != -1);
 
     b->free(valid);
 
 
-    buddy *b2 = buddy::create(buffer, sizeof(buffer), true, BUDDY_SIZE);
+    buddy *b2 = buddy::create(buffer, sizeof(buffer), true, BUDDY_SIZE, 1);
     ASSERT_TRUE(b2 != NULL);
 
-    valid = b2->malloc(30);
+    ret = b2->malloc(30, valid);
+    ASSERT_TRUE(ret == 0);
     ASSERT_TRUE(valid != -1);
-    valid = b2->malloc(27);
+    ret = b2->malloc(27, valid);
+    ASSERT_TRUE(ret == 0);
     ASSERT_TRUE(valid != -1);
 }
 
+TEST(shm_mgr, lru) {
+    char *pool = (char *) malloc(SHM_MGR_CHUNK_COUNT * SHM_MGR_CHUNK_SIZE);
+    ASSERT_TRUE(pool != NULL);
+
+    lru l;
+    int ret = l.init(pool, SHM_MGR_CHUNK_SIZE, false);
+    ASSERT_EQ(ret, 0);
+    ASSERT_TRUE(l.empty());
+    ASSERT_EQ(l.pop(), IDX_NULL);
+
+#define init_chunk(index) \
+    ret = cast_ptr(mem_chunk, pool + SHM_MGR_CHUNK_SIZE * index)->init(SHM_MGR_CHUNK_SIZE, sizeof(long)); \
+    ASSERT_EQ(ret, 0)
+
+    init_chunk(0);
+    ret = l.renew(0);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 0);
+    ASSERT_EQ(l.tail, 0);
+    ASSERT_FALSE(l.empty());
+
+    ret = l.renew(0);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 0);
+    ASSERT_EQ(l.tail, 0);
+    ASSERT_FALSE(l.empty());
+
+    init_chunk(1);
+    ret = l.renew(1);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(0)->next_lru, 1);
+    ASSERT_EQ(l.__at(1)->prev_lru, 0);
+    ASSERT_EQ(l.__at(1)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 0);
+    ASSERT_EQ(l.tail, 1);
+    ASSERT_FALSE(l.empty());
+
+    ret = l.renew(1);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(0)->next_lru, 1);
+    ASSERT_EQ(l.__at(1)->prev_lru, 0);
+    ASSERT_EQ(l.__at(1)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 0);
+    ASSERT_EQ(l.tail, 1);
+    ASSERT_FALSE(l.empty());
+
+    init_chunk(2);
+    ret = l.renew(2);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(0)->next_lru, 1);
+    ASSERT_EQ(l.__at(1)->prev_lru, 0);
+    ASSERT_EQ(l.__at(1)->next_lru, 2);
+    ASSERT_EQ(l.__at(2)->prev_lru, 1);
+    ASSERT_EQ(l.__at(2)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 0);
+    ASSERT_EQ(l.tail, 2);
+    ASSERT_FALSE(l.empty());
+
+    init_chunk(3);
+    ret = l.renew(3);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(0)->next_lru, 1);
+    ASSERT_EQ(l.__at(1)->prev_lru, 0);
+    ASSERT_EQ(l.__at(1)->next_lru, 2);
+    ASSERT_EQ(l.__at(2)->prev_lru, 1);
+    ASSERT_EQ(l.__at(2)->next_lru, 3);
+    ASSERT_EQ(l.__at(3)->prev_lru, 2);
+    ASSERT_EQ(l.__at(3)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 0);
+    ASSERT_EQ(l.tail, 3);
+    ASSERT_FALSE(l.empty());
+
+    init_chunk(4);
+    ret = l.renew(4);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(0)->next_lru, 1);
+    ASSERT_EQ(l.__at(1)->prev_lru, 0);
+    ASSERT_EQ(l.__at(1)->next_lru, 2);
+    ASSERT_EQ(l.__at(2)->prev_lru, 1);
+    ASSERT_EQ(l.__at(2)->next_lru, 3);
+    ASSERT_EQ(l.__at(3)->prev_lru, 2);
+    ASSERT_EQ(l.__at(3)->next_lru, 4);
+    ASSERT_EQ(l.__at(4)->prev_lru, 3);
+    ASSERT_EQ(l.__at(4)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 0);
+    ASSERT_EQ(l.tail, 4);
+    ASSERT_FALSE(l.empty());
+
+    ret = l.renew(1);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(0)->next_lru, 2);
+    ASSERT_EQ(l.__at(2)->prev_lru, 0);
+    ASSERT_EQ(l.__at(2)->next_lru, 3);
+    ASSERT_EQ(l.__at(3)->prev_lru, 2);
+    ASSERT_EQ(l.__at(3)->next_lru, 4);
+    ASSERT_EQ(l.__at(4)->prev_lru, 3);
+    ASSERT_EQ(l.__at(4)->next_lru, 1);
+    ASSERT_EQ(l.__at(1)->prev_lru, 4);
+    ASSERT_EQ(l.__at(1)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 0);
+    ASSERT_EQ(l.tail, 1);
+    ASSERT_FALSE(l.empty());
+
+    ret = l.renew(0);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(l.__at(2)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(2)->next_lru, 3);
+    ASSERT_EQ(l.__at(3)->prev_lru, 2);
+    ASSERT_EQ(l.__at(3)->next_lru, 4);
+    ASSERT_EQ(l.__at(4)->prev_lru, 3);
+    ASSERT_EQ(l.__at(4)->next_lru, 1);
+    ASSERT_EQ(l.__at(1)->prev_lru, 4);
+    ASSERT_EQ(l.__at(1)->next_lru, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, 1);
+    ASSERT_EQ(l.__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 2);
+    ASSERT_EQ(l.tail, 0);
+    ASSERT_FALSE(l.empty());
+
+    ret = l.renew(0);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(l.__at(2)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(2)->next_lru, 3);
+    ASSERT_EQ(l.__at(3)->prev_lru, 2);
+    ASSERT_EQ(l.__at(3)->next_lru, 4);
+    ASSERT_EQ(l.__at(4)->prev_lru, 3);
+    ASSERT_EQ(l.__at(4)->next_lru, 1);
+    ASSERT_EQ(l.__at(1)->prev_lru, 4);
+    ASSERT_EQ(l.__at(1)->next_lru, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, 1);
+    ASSERT_EQ(l.__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 2);
+    ASSERT_EQ(l.tail, 0);
+    ASSERT_FALSE(l.empty());
+
+    ret = l.renew(4);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(l.__at(2)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(2)->next_lru, 3);
+    ASSERT_EQ(l.__at(3)->prev_lru, 2);
+    ASSERT_EQ(l.__at(3)->next_lru, 1);
+    ASSERT_EQ(l.__at(1)->prev_lru, 3);
+    ASSERT_EQ(l.__at(1)->next_lru, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, 1);
+    ASSERT_EQ(l.__at(0)->next_lru, 4);
+    ASSERT_EQ(l.__at(4)->prev_lru, 0);
+    ASSERT_EQ(l.__at(4)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 2);
+    ASSERT_EQ(l.tail, 4);
+    ASSERT_FALSE(l.empty());
+
+    int idx = l.pop();
+    ASSERT_EQ(idx, 2);
+    ASSERT_EQ(l.__at(2)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(2)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(3)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(3)->next_lru, 1);
+    ASSERT_EQ(l.__at(1)->prev_lru, 3);
+    ASSERT_EQ(l.__at(1)->next_lru, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, 1);
+    ASSERT_EQ(l.__at(0)->next_lru, 4);
+    ASSERT_EQ(l.__at(4)->prev_lru, 0);
+    ASSERT_EQ(l.__at(4)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 3);
+    ASSERT_EQ(l.tail, 4);
+    ASSERT_FALSE(l.empty());
+
+    ret = l.renew(2);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(l.__at(3)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(3)->next_lru, 1);
+    ASSERT_EQ(l.__at(1)->prev_lru, 3);
+    ASSERT_EQ(l.__at(1)->next_lru, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, 1);
+    ASSERT_EQ(l.__at(0)->next_lru, 4);
+    ASSERT_EQ(l.__at(4)->prev_lru, 0);
+    ASSERT_EQ(l.__at(4)->next_lru, 2);
+    ASSERT_EQ(l.__at(2)->prev_lru, 4);
+    ASSERT_EQ(l.__at(2)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 3);
+    ASSERT_EQ(l.tail, 2);
+    ASSERT_FALSE(l.empty());
+
+    l.remove(3);
+    ASSERT_EQ(l.__at(3)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(3)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(1)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(1)->next_lru, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, 1);
+    ASSERT_EQ(l.__at(0)->next_lru, 4);
+    ASSERT_EQ(l.__at(4)->prev_lru, 0);
+    ASSERT_EQ(l.__at(4)->next_lru, 2);
+    ASSERT_EQ(l.__at(2)->prev_lru, 4);
+    ASSERT_EQ(l.__at(2)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 1);
+    ASSERT_EQ(l.tail, 2);
+    ASSERT_FALSE(l.empty());
+
+    l.remove(2);
+    ASSERT_EQ(l.__at(2)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(2)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(1)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(1)->next_lru, 0);
+    ASSERT_EQ(l.__at(0)->prev_lru, 1);
+    ASSERT_EQ(l.__at(0)->next_lru, 4);
+    ASSERT_EQ(l.__at(4)->prev_lru, 0);
+    ASSERT_EQ(l.__at(4)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 1);
+    ASSERT_EQ(l.tail, 4);
+    ASSERT_FALSE(l.empty());
+
+    l.remove(0);
+    ASSERT_EQ(l.__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(1)->prev_lru, IDX_NULL);
+    ASSERT_EQ(l.__at(1)->next_lru, 4);
+    ASSERT_EQ(l.__at(4)->prev_lru, 1);
+    ASSERT_EQ(l.__at(4)->next_lru, IDX_NULL);
+    ASSERT_EQ(l.head, 1);
+    ASSERT_EQ(l.tail, 4);
+    ASSERT_FALSE(l.empty());
+
+    lru *pl = &l;
+    ret = pl->init(pool, SHM_MGR_CHUNK_SIZE, true);
+    ASSERT_EQ(ret, 0);
+    ASSERT_FALSE(pl->empty());
+
+    ret = pl->renew(2);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(pl->__at(1)->prev_lru, IDX_NULL);
+    ASSERT_EQ(pl->__at(1)->next_lru, 4);
+    ASSERT_EQ(pl->__at(4)->prev_lru, 1);
+    ASSERT_EQ(pl->__at(4)->next_lru, 2);
+    ASSERT_EQ(pl->__at(2)->prev_lru, 4);
+    ASSERT_EQ(pl->__at(2)->next_lru, IDX_NULL);
+    ASSERT_EQ(pl->head, 1);
+    ASSERT_EQ(pl->tail, 2);
+    ASSERT_FALSE(pl->empty());
+
+    idx = pl->pop();
+    ASSERT_EQ(idx, 1);
+    ASSERT_EQ(pl->__at(1)->prev_lru, IDX_NULL);
+    ASSERT_EQ(pl->__at(1)->next_lru, IDX_NULL);
+    ASSERT_EQ(pl->__at(4)->prev_lru, IDX_NULL);
+    ASSERT_EQ(pl->__at(4)->next_lru, 2);
+    ASSERT_EQ(pl->__at(2)->prev_lru, 4);
+    ASSERT_EQ(pl->__at(2)->next_lru, IDX_NULL);
+    ASSERT_EQ(pl->head, 4);
+    ASSERT_EQ(pl->tail, 2);
+    ASSERT_FALSE(pl->empty());
+
+    idx = pl->pop();
+    ASSERT_EQ(idx, 4);
+    ASSERT_EQ(pl->__at(4)->prev_lru, IDX_NULL);
+    ASSERT_EQ(pl->__at(4)->next_lru, IDX_NULL);
+    ASSERT_EQ(pl->__at(2)->prev_lru, IDX_NULL);
+    ASSERT_EQ(pl->__at(2)->next_lru, IDX_NULL);
+    ASSERT_EQ(pl->head, 2);
+    ASSERT_EQ(pl->tail, 2);
+    ASSERT_FALSE(pl->empty());
+
+    pl->remove(2);
+    ASSERT_EQ(pl->__at(2)->prev_lru, IDX_NULL);
+    ASSERT_EQ(pl->__at(2)->next_lru, IDX_NULL);
+    ASSERT_EQ(pl->head, IDX_NULL);
+    ASSERT_EQ(pl->tail, IDX_NULL);
+    ASSERT_TRUE(pl->empty());
+
+    ASSERT_EQ(l.head, IDX_NULL);
+    ASSERT_EQ(l.tail, IDX_NULL);
+    ASSERT_TRUE(l.empty());
+
+    free(pool);
+
+#undef init_chunk
+}
+
+TEST(shm_mgr, chunk_mgr) {
+    size_t mgr_size = chunk_mgr::calc_size(sizeof(long) * 3 + 1);
+    size_t mem_size = 0;
+    mem_size += mgr_size;
+    mem_size += (sizeof(long) * 3 + sizeof(mem_chunk)) * 3;
+
+    char *addr = (char *) malloc(mem_size);
+    ASSERT_TRUE(addr != NULL);
+    char *pool = addr + mgr_size;
+
+    chunk_mgr *mgr = chunk_mgr::create(addr, mgr_size, false, sizeof(long) * 3 + 1,
+                                       sizeof(long) * 3 + sizeof(mem_chunk), 3);
+    ASSERT_TRUE(mgr != NULL);
+
+    int ret = mgr->init(pool);
+    ASSERT_EQ(ret, 0);
+
+    int chunk_index = IDX_NULL;
+    int block_index = IDX_NULL;
+    ret = mgr->malloc(sizeof(long), chunk_index, block_index);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(chunk_index, 0);
+    ASSERT_EQ(block_index, 0);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long)], 0);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long)], IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.head, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.tail, IDX_NULL);
+
+    ret = mgr->malloc(sizeof(long), chunk_index, block_index);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(chunk_index, 0);
+    ASSERT_EQ(block_index, 1);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long)], 0);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long)], IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.head, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.tail, IDX_NULL);
+
+    ret = mgr->malloc(sizeof(long), chunk_index, block_index);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(chunk_index, 0);
+    ASSERT_EQ(block_index, 2);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long)], IDX_NULL);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long)], IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.head, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.tail, IDX_NULL);
+
+    ret = mgr->malloc(sizeof(long), chunk_index, block_index);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(chunk_index, 1);
+    ASSERT_EQ(block_index, 0);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long)], 1);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long)], IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.head, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.tail, IDX_NULL);
+
+    mgr->free(0, 1);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long)], 0);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long)], IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_chunk, 1);
+    ASSERT_EQ(mgr->__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.head, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.tail, IDX_NULL);
+
+    mgr->free(1, 0);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long)], 0);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long)], 1);
+    ASSERT_EQ(mgr->__at(0)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.head, 1);
+    ASSERT_EQ(mgr->lru_cache.tail, 1);
+
+    mgr->free(0, 0);
+    mgr->free(0, 2);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long)], IDX_NULL);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long)], 0);
+    ASSERT_EQ(mgr->__at(0)->next_chunk, 1);
+    ASSERT_EQ(mgr->__at(0)->prev_lru, 1);
+    ASSERT_EQ(mgr->__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->next_lru, 0);
+    ASSERT_EQ(mgr->lru_cache.head, 1);
+    ASSERT_EQ(mgr->lru_cache.tail, 0);
+
+    ret = mgr->malloc(sizeof(long) * 3, chunk_index, block_index);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(chunk_index, 2);
+    ASSERT_EQ(block_index, 0);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long) * 3], IDX_NULL);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long) * 3], IDX_NULL);
+    ASSERT_EQ(mgr->__at(2)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(2)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(2)->next_lru, IDX_NULL);
+
+    ret = mgr->malloc(sizeof(long) * 3, chunk_index, block_index);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(chunk_index, 1);
+    ASSERT_EQ(block_index, 0);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long)], 0);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long)], IDX_NULL);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long) * 3], IDX_NULL);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long) * 3], IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(1)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.head, 0);
+    ASSERT_EQ(mgr->lru_cache.tail, 0);
+
+    ret = mgr->malloc(sizeof(long), chunk_index, block_index);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(chunk_index, 0);
+    ASSERT_EQ(block_index, 2);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long)], IDX_NULL);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long)], 0);
+    ASSERT_EQ(mgr->__at(0)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.head, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.tail, IDX_NULL);
+
+    ret = mgr->malloc(sizeof(int), chunk_index, block_index);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(chunk_index, 0);
+    ASSERT_EQ(block_index, 0);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(int)], IDX_NULL);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(int)], IDX_NULL);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long)], IDX_NULL);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long)], 0);
+    ASSERT_EQ(mgr->__at(0)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.head, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.tail, IDX_NULL);
+
+    ret = mgr->malloc(sizeof(int), chunk_index, block_index);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(chunk_index, 0);
+    ASSERT_EQ(block_index, 1);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(int)], IDX_NULL);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(int)], IDX_NULL);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long)], IDX_NULL);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long)], IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(0)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.head, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.tail, IDX_NULL);
+
+    ret = mgr->malloc(1, chunk_index, block_index);
+    ASSERT_EQ(ret, -ENOMEM);
+
+    chunk_mgr *mgr2 = chunk_mgr::create(addr, mgr_size, true, sizeof(long) * 3 + 1,
+                                        sizeof(long) * 3 + sizeof(mem_chunk), 3);
+    ASSERT_TRUE(mgr2 != NULL);
+
+    ret = mgr2->init(pool);
+    ASSERT_EQ(ret, 0);
+
+    ret = mgr2->malloc(1, chunk_index, block_index);
+    ASSERT_EQ(ret, -ENOMEM);
+
+    mgr2->free(2, 0);
+    ASSERT_EQ(mgr2->partial_buckets[sizeof(long) * 3], IDX_NULL);
+    ASSERT_EQ(mgr2->empty_buckets[sizeof(long) * 3], 2);
+    ASSERT_EQ(mgr2->__at(2)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr2->__at(2)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr2->__at(2)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr2->lru_cache.head, 2);
+    ASSERT_EQ(mgr2->lru_cache.tail, 2);
+    ASSERT_EQ(mgr->partial_buckets[sizeof(long) * 3], IDX_NULL);
+    ASSERT_EQ(mgr->empty_buckets[sizeof(long) * 3], 2);
+    ASSERT_EQ(mgr->__at(2)->next_chunk, IDX_NULL);
+    ASSERT_EQ(mgr->__at(2)->prev_lru, IDX_NULL);
+    ASSERT_EQ(mgr->__at(2)->next_lru, IDX_NULL);
+    ASSERT_EQ(mgr->lru_cache.head, 2);
+    ASSERT_EQ(mgr->lru_cache.tail, 2);
+
+    free(addr);
+}
 
 struct size24 {
     size_t a;
