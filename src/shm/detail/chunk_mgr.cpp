@@ -339,6 +339,7 @@ int sk::detail::chunk_mgr::malloc(size_t mem_size, int &chunk_index, int &block_
     }
 
     // no proper chunk found, out of memory :(
+    ERR("no more space :(");
     return -ENOMEM;
 }
 
