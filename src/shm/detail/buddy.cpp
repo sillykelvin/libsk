@@ -48,7 +48,11 @@ void *sk::detail::buddy::index2ptr(int unit_index) {
     return void_ptr(pool + unit_index * unit_size);
 }
 
-int sk::detail::buddy::malloc(u32 size) {
+int sk::detail::buddy::malloc(size_t mem_size) {
+    u32 size = mem_size / unit_size;
+    if (mem_size % unit_size != 0)
+        size += 1;
+
     if (size <= 0)
         size = 1;
 
