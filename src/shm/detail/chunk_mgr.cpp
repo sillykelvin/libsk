@@ -49,22 +49,6 @@ void sk::detail::lru::__push_back(int index) {
         head = index;
 }
 
-int sk::detail::lru::init(char *pool, size_t chunk_size, bool resume) {
-    assert_retval(pool, -EINVAL);
-
-    this->pool = pool;
-
-    if (resume) {
-        assert_retval(this->chunk_size == chunk_size, -EFAULT);
-    } else {
-        head = IDX_NULL;
-        tail = IDX_NULL;
-        this->chunk_size = chunk_size;
-    }
-
-    return 0;
-}
-
 bool sk::detail::lru::empty() {
     bool empty = (head == IDX_NULL);
 
@@ -138,9 +122,14 @@ void sk::detail::lru::remove(int index) {
 }
 
 
-sk::detail::chunk_mgr *sk::detail::chunk_mgr::create(void *addr, size_t size, bool resume, size_t bucket_size, size_t chunk_size, size_t total_chunk_count) {
+sk::detail::chunk_mgr *sk::detail::chunk_mgr::create(void *addr, size_t mem_size, bool resume,
+                                                     char *pool, size_t pool_size,
+                                                     size_t bucket_size, size_t chunk_size, size_t total_chunk_count) {
     assert_retval(addr, NULL);
-    assert_retval(size >= calc_size(bucket_size), NULL);
+    assert_retval(mem_size >= calc_size(bucket_size), NULL);
+    assert_retval(pool, NULL);
+    assert_retval(pool_size >= chunk_size * total_chunk_count, NULL);
+    assert_retval(pool + pool_size <= char_ptr(addr) || pool >= char_ptr(addr) + mem_size, NULL);
 
     chunk_mgr *self = cast_ptr(chunk_mgr, addr);
     char *base_addr = char_ptr(addr);
@@ -151,8 +140,8 @@ sk::detail::chunk_mgr *sk::detail::chunk_mgr::create(void *addr, size_t size, bo
     base_addr += bucket_size * sizeof(int);
     self->empty_buckets = cast_ptr(int, base_addr);
 
-    self->lru_cache.pool = NULL;
-    self->pool = NULL;
+    self->lru_cache.pool = pool;
+    self->pool = pool;
 
     if (resume) {
         assert_retval(self->chunk_size == chunk_size, NULL);
@@ -176,19 +165,6 @@ sk::detail::chunk_mgr *sk::detail::chunk_mgr::create(void *addr, size_t size, bo
     }
 
     return self;
-}
-
-int sk::detail::chunk_mgr::init(char *pool) {
-    assert_retval(pool, -EINVAL);
-    assert_retval(pool + total_chunk_count * chunk_size <= char_ptr(this)
-                  || pool >= (char_ptr(this) + calc_size(bucket_size)), -EINVAL);
-
-    check_retval(!this->pool && !this->lru_cache.pool, 0);
-
-    this->pool = pool;
-    this->lru_cache.pool = pool;
-
-    return 0;
 }
 
 sk::detail::mem_chunk *sk::detail::chunk_mgr::__at(int index, bool check_magic) {

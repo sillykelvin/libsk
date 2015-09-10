@@ -16,8 +16,6 @@ struct lru {
 
     void __push_back(int index);
 
-    int init(char *pool, size_t chunk_size, bool resume);
-
     bool empty();
 
     int pop();
@@ -42,10 +40,9 @@ struct chunk_mgr {
         return sizeof(chunk_mgr) + bucket_size * sizeof(int) * 2;
     }
 
-    static chunk_mgr *create(void *addr, size_t size, bool resume, size_t bucket_size,
-                             size_t chunk_size, size_t total_chunk_count);
-
-    int init(char *pool);
+    static chunk_mgr *create(void *addr, size_t mem_size, bool resume,
+                             char *pool, size_t pool_size,
+                             size_t bucket_size, size_t chunk_size, size_t total_chunk_count);
 
     mem_chunk *__at(int index, bool check_magic = true);
 
