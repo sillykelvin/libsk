@@ -11,7 +11,9 @@ namespace detail {
  *     - https://github.com/wuwenbin/buddy2
  */
 struct buddy {
-    u32 size;
+    u32    size;       // the total count of unit
+    size_t unit_size;  // the size of single unit
+    char   *pool;      // base address of unit pool
     /*
      * NOTE: as the size stored here is always the power of 2,
      *       so we can use only one byte to store the exponent.
@@ -67,7 +69,11 @@ struct buddy {
         return sizeof(buddy) + (leaf_count * sizeof(u32));
     }
 
-    static buddy *create(void *addr, size_t mem_size, bool resume, u32 size);
+    static buddy *create(void *addr, size_t mem_size, bool resume, u32 size, size_t unit_size);
+
+    int init(char *pool);
+
+    void *index2ptr(int unit_index);
 
     int malloc(u32 size);
 

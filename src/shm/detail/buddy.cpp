@@ -1,7 +1,7 @@
 #include "libsk.h"
 #include "buddy.h"
 
-sk::detail::buddy *sk::detail::buddy::create(void *addr, size_t mem_size, bool resume, u32 size) {
+sk::detail::buddy *sk::detail::buddy::create(void *addr, size_t mem_size, bool resume, u32 size, size_t unit_size) {
     assert_retval(addr, NULL);
     assert_retval(size >= 1, NULL);
     assert_retval(mem_size >= calc_size(size), NULL);
@@ -12,10 +12,12 @@ sk::detail::buddy *sk::detail::buddy::create(void *addr, size_t mem_size, bool r
 
     buddy *self = cast_ptr(buddy, addr);
 
-    if (resume)
+    if (resume) {
         assert_retval(self->size == size, NULL);
-    else {
+        assert_retval(self->unit_size == unit_size, NULL);
+    } else {
         self->size = size;
+        self->unit_size = unit_size;
 
         u32 node_size = size * 2;
         for (u32 i = 0; i < 2 * size - 1; ++i) {
@@ -26,6 +28,24 @@ sk::detail::buddy *sk::detail::buddy::create(void *addr, size_t mem_size, bool r
     }
 
     return self;
+}
+
+int sk::detail::buddy::init(char *pool) {
+    assert_retval(pool, -EINVAL);
+    assert_retval(pool + unit_size * size <= char_ptr(this)
+                  || pool >= (char_ptr(this) + calc_size(size)), -EINVAL);
+
+    check_retval(!this->pool, 0);
+
+    this->pool = pool;
+
+    return 0;
+}
+
+void *sk::detail::buddy::index2ptr(int unit_index) {
+    assert_retval(unit_index >= 0 && static_cast<size_t>(unit_index) < size, NULL);
+
+    return void_ptr(pool + unit_index * unit_size);
 }
 
 int sk::detail::buddy::malloc(u32 size) {
