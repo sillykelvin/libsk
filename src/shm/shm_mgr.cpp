@@ -132,6 +132,8 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
 
     shm_mgr *self = cast_ptr(shm_mgr, seg.address());
     char *base_addr = char_ptr(seg.address());
+    char *chunk_pool = base_addr + singleton_size + chunk_mgr_size + heap_allocator_size;
+    char *heap_pool = chunk_pool + chunk_size * chunk_count;
     base_addr += sizeof(shm_mgr);
 
     // 0. init singletons
@@ -151,7 +153,9 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
 
     // 1. init chunk_mgr
     {
-        self->chunk_mgr = pool_mgr::create(base_addr, chunk_mgr_size, resume, max_block_size, chunk_size, chunk_count);
+        self->chunk_mgr = pool_mgr::create(base_addr, chunk_mgr_size, resume,
+                                           chunk_pool, chunk_size * chunk_count,
+                                           max_block_size, chunk_size, chunk_count);
         assert_retval(self->chunk_mgr, NULL);
 
         base_addr += chunk_mgr_size;
@@ -159,19 +163,13 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
 
     // 2. init heap allocator
     {
-        self->heap = heap_allocator::create(base_addr, heap_allocator_size, resume, heap_unit_count, heap_unit_size);
+        self->heap = heap_allocator::create(base_addr, heap_allocator_size, resume,
+                                            heap_pool, heap_size,
+                                            heap_unit_count, heap_unit_size);
         assert_retval(self->heap, NULL);
 
         base_addr += heap_allocator_size;
     }
-
-    ret = self->chunk_mgr->init(base_addr);
-    assert_retval(ret == 0, NULL);
-    base_addr += chunk_size * chunk_count;
-
-    ret = self->heap->init(base_addr);
-    assert_retval(ret == 0, NULL);
-    base_addr += heap_size;
 
     if (resume) {
         assert_retval(self->shmid == seg.shmid, NULL);
