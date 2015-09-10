@@ -28,6 +28,4 @@ static_assert(sizeof(u32) == 4, "inconsistent name and type");
 static_assert(sizeof(s64) == 8, "inconsistent name and type");
 static_assert(sizeof(u64) == 8, "inconsistent name and type");
 
-static const size_t INVALID_OFFSET = (size_t) 0;
-
 #endif // TYPES_H
