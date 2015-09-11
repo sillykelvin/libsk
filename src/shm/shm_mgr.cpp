@@ -98,6 +98,9 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
     // for blocks with size > max_block_size will go into heap
     size_t heap_unit_size = __align_size(max_block_size);
     size_t heap_unit_count = heap_size / heap_unit_size;
+    if (heap_unit_count <= 0)
+        heap_unit_count = 1;
+
     // heap unit count must be 2^n
     heap_unit_count = __fix_size(heap_unit_count);
     heap_size  = heap_unit_count * heap_unit_size;
