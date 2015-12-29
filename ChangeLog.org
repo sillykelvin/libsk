@@ -1,0 +1,11 @@
+#+TITLE:  Change Log
+#+AUTHOR: Kelvin Hu
+#+EMAIL:  ini.kelvin@gmail.com
+#+DATE:   2015-12-29 Tue
+
+
+* v0.1
+
+- Shared memory allocator/pointer
+- Useful containers: fixed_list, fixed_map, fixed_set, fixed_stack, fixed_vector, shm_hash, shm_list
+- Basic memory allocation/deallocation benchmark tool, measured with malloc/free in glibc
