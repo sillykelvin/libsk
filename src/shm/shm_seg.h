@@ -19,7 +19,7 @@ struct shm_seg {
             void *addr = shmat(shmid, NULL, 0);
             assert_retval(addr, -1);
 
-            base_addr = static_cast<char *>(addr);
+            base_addr = char_ptr(addr);
             free_addr = base_addr;
             free_size = size;
             this->shmid = shmid;
