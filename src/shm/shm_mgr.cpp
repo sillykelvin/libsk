@@ -2,6 +2,7 @@
 #include "detail/buddy.h"
 #include "detail/chunk_mgr.h"
 #include "detail/mem_chunk.h"
+#include "detail/shm_segment.h"
 
 struct singleton_info {
     int id;
@@ -126,7 +127,7 @@ sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
     DBG("shm size info: mgr<%lu>, singleton<%lu>, chunk mgr<%lu>, heap mgr<%lu>, chunk pool<%lu>, heap pool<%lu>, total<%lu>.",
         sizeof(shm_mgr), singleton_size, chunk_mgr_size, heap_mgr_size, chunk_size * chunk_count, heap_size, shm_size);
 
-    sk::shm_seg seg;
+    sk::detail::shm_segment seg;
     int ret = seg.init(key, shm_size, resume);
     if (ret != 0) {
         ERR("cannot create shm mgr, key<%d>, size<%lu>.", key, shm_size);

@@ -28,7 +28,6 @@
 #include "container/referable_array.h"
 #include "container/extensible_stack.h"
 #include "container/extensible_hash.h"
-#include "shm/shm_seg.h"
 #include "shm/shm_mgr.h"
 #include "shm/shm_ptr.h"
 #include "container/fixed_stack.h"

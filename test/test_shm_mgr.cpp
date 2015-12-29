@@ -3,9 +3,11 @@
 #include "shm/detail/buddy.h"
 #include "shm/detail/chunk_mgr.h"
 #include "shm/detail/mem_chunk.h"
+#include "shm/detail/shm_segment.h"
 
 #define BLK_CNT             (20)
 #define BUDDY_SIZE          (60)
+#define SHM_SEG_KEY         (0x77)
 #define SHM_MGR_KEY         (0x77777)
 #define SHM_MGR_CHUNK_SIZE  (1000)
 #define SHM_MGR_CHUNK_COUNT (1024)
@@ -626,6 +628,37 @@ TEST(shm_mgr, chunk_mgr) {
     ASSERT_EQ(mgr->lru_cache.tail, 2);
 
     free(addr);
+}
+
+TEST(shm_mgr, shm_segment) {
+    {
+        sk::detail::shm_segment seg;
+        int ret = seg.init(SHM_SEG_KEY, sizeof(int), false);
+        ASSERT_TRUE(ret == 0);
+
+        int *n = cast_ptr(int, seg.address());
+        ASSERT_TRUE(n != NULL);
+
+        *n = 77;
+
+        seg.release();
+    }
+
+    {
+        sk::detail::shm_segment seg;
+        int ret = seg.init(SHM_SEG_KEY, sizeof(int), true);
+        ASSERT_TRUE(ret == 0);
+
+        int *n = cast_ptr(int, seg.address());
+        ASSERT_TRUE(n != NULL);
+        ASSERT_TRUE(*n == 77);
+    }
+
+    {
+        sk::detail::shm_segment seg;
+        int ret = seg.init(SHM_SEG_KEY, sizeof(int), true);
+        ASSERT_TRUE(ret != 0);
+    }
 }
 
 struct size24 {
