@@ -1,6 +1,16 @@
 #include "libsk.h"
 #include "mem_chunk.h"
 
+bool sk::detail::mem_chunk::full() const {
+    assert_retval(magic == MAGIC, true); // mark the block as full if overflowed
+    return free_count <= 0;
+}
+
+bool sk::detail::mem_chunk::empty() const {
+    assert_retval(magic == MAGIC, false);
+    return free_count >= total_count;
+}
+
 int sk::detail::mem_chunk::init(size_t chunk_size, size_t block_size) {
     assert_retval(chunk_size >= sizeof(mem_chunk) + block_size, -EINVAL);
     assert_retval(block_size % ALIGN_SIZE == 0, -EINVAL);

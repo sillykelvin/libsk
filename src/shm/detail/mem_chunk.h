@@ -2,11 +2,6 @@
 #define MEM_CHUNK_H
 
 namespace sk {
-
-static const int MAGIC      = 0xC0DEFEED;     // "code feed" :-)
-static const int ALIGN_SIZE = 8;              // memory align size, 8 bytes
-static const int ALIGN_MASK = ALIGN_SIZE - 1;
-
 namespace detail {
 
 /**
@@ -41,15 +36,9 @@ struct mem_chunk {
     size_t block_size;  // block size
     char data[0];
 
-    bool full() const {
-        assert_retval(magic == MAGIC, true); // mark the block as full if overflowed
-        return free_count <= 0;
-    }
+    bool full() const;
 
-    bool empty() const {
-        assert_retval(magic == MAGIC, false);
-        return free_count >= total_count;
-    }
+    bool empty() const;
 
     int init(size_t chunk_size, size_t block_size);
 
