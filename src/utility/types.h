@@ -7,8 +7,9 @@
 #define void_ptr(ptr)       static_cast<void*>(ptr)
 #define char_ptr(ptr)       cast_ptr(char, ptr)
 
-#define SHM_NULL shm_ptr<void>()
-#define IDX_NULL (-1)
+#define SHM_NULL    shm_ptr<void>()
+#define IDX_NULL    (-1)
+#define OFFSET_NULL 0
 
 typedef int8_t   s8;
 typedef uint8_t  u8;
@@ -18,6 +19,9 @@ typedef int32_t  s32;
 typedef uint32_t u32;
 typedef int64_t  s64;
 typedef uint64_t u64;
+
+typedef size_t offset_t;
+typedef size_t page_t;
 
 static_assert(sizeof(s8)  == 1, "inconsistent name and type");
 static_assert(sizeof(u8)  == 1, "inconsistent name and type");

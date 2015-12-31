@@ -129,6 +129,46 @@ struct shm_mgr {
     shm_ptr<void> malloc(size_t size);
 
     void free(shm_ptr<void> ptr);
+
+//---------------------------------------------------------------------------
+
+    /*
+     * total memory size and used memory size
+     */
+    size_t total_size;
+    size_t used_size;
+
+    /*
+     * statistics of memory allocation
+     */
+    struct {
+    } stat;
+
+    /*
+     * allocate raw memory from shared memory, like sbrk() in linux kernel
+     * note: it's caller's responsibility to do alignment for size
+     */
+    void *__sbrk(size_t size, offset_t *offset) {
+        // if there is no enough memory, just return
+        if (used_size + size > total_size)
+            return NULL;
+
+        char *base_addr = char_ptr(this);
+        void *ret = base_addr + used_size;
+        if (offset)
+            *offset = used_size;
+
+        used_size += size;
+
+        return ret;
+    }
+
+    void *offset2ptr(offset_t offset) {
+        assert_retval(offset >= sizeof(*this), NULL);
+        assert_retval(offset < used_size, NULL);
+
+        return char_ptr(this) + offset;
+    }
 };
 
 
