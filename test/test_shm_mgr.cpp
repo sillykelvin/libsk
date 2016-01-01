@@ -665,6 +665,10 @@ TEST(shm_mgr, page_map) {
     // TODO: add test for page_mag here
 }
 
+TEST(shm_mgr, metadata_allocator) {
+    // TODO: add test for metadata_allocator here
+}
+
 struct size24 {
     size_t a;
     size_t b;

@@ -29,4 +29,11 @@ static const int META_ALIGN_SIZE  = 1 << META_ALIGN_SHIFT;
  */
 static const size_t META_ALLOC_SIZE = 8 * 1024;
 
+/*
+ * allocation size increment for metadata objects, 128KB
+ * it is used in metadata_allocator, META_ALLOC_SIZE is
+ * used in shm_mgr, which is much more low level
+ */
+static const size_t META_ALLOC_INCREMENT = 128 * 1024;
+
 #endif // CONFIG_H
