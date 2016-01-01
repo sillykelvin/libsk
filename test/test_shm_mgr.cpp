@@ -662,7 +662,7 @@ TEST(shm_mgr, shm_segment) {
 }
 
 TEST(shm_mgr, page_map) {
-    // TODO: add test for page_mag here
+    // TODO: add test for page_map here
 }
 
 TEST(shm_mgr, metadata_allocator) {
