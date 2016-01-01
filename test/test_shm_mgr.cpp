@@ -800,3 +800,7 @@ TEST(shm_mgr, shm_mgr) {
     ASSERT_TRUE(single_1032_2->i == 77);
     ASSERT_STREQ(single_1032_2->str, "silly kelvin");
 }
+
+TEST(shm_mgr, metadata) {
+    // TODO: add test for shm_mgr::allocate_metadata(...)
+}

@@ -107,8 +107,6 @@ struct shm_mgr {
 
     static size_t __fix_size(size_t size);
 
-    static size_t __align_size(size_t size);
-
     static shm_mgr *create(key_t key, bool resume,
                            size_t max_block_size, int chunk_count, size_t heap_size);
 
@@ -139,36 +137,37 @@ struct shm_mgr {
     size_t used_size;
 
     /*
+     * metadata allocation
+     */
+    offset_t metadata_offset;
+    size_t metadata_left;
+
+    /*
      * statistics of memory allocation
      */
     struct {
+        size_t metadata_total_size;
+        size_t metadata_waste_size;
+        size_t metadata_alloc_count;
     } stat;
+
+    static size_t __align_size(size_t size);
 
     /*
      * allocate raw memory from shared memory, like sbrk() in linux kernel
      * note: it's caller's responsibility to do alignment for size
      */
-    void *__sbrk(size_t size, offset_t *offset) {
-        // if there is no enough memory, just return
-        if (used_size + size > total_size)
-            return NULL;
+    void *__sbrk(size_t size, offset_t *offset);
 
-        char *base_addr = char_ptr(this);
-        void *ret = base_addr + used_size;
-        if (offset)
-            *offset = used_size;
+    /*
+     * allocate raw memory for metadata usage, record allocation info
+     */
+    void *allocate_metadata(size_t size, offset_t *offset);
 
-        used_size += size;
-
-        return ret;
-    }
-
-    void *offset2ptr(offset_t offset) {
-        assert_retval(offset >= sizeof(*this), NULL);
-        assert_retval(offset < used_size, NULL);
-
-        return char_ptr(this) + offset;
-    }
+    /*
+     * turn a valid offset into raw pointer
+     */
+    void *offset2ptr(offset_t offset);
 };
 
 

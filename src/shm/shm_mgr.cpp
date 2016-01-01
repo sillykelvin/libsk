@@ -82,11 +82,6 @@ inline size_t sk::shm_mgr::__fix_size(size_t size) {
     return size + 1;
 }
 
-inline size_t sk::shm_mgr::__align_size(size_t size) {
-    // TODO: redefine the ALIGN related macros
-    return (size + ALIGN_MASK) & ~ALIGN_MASK;
-}
-
 sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
                                  size_t max_block_size, int chunk_count, size_t heap_size) {
     DBG("shm mgr creation parameters: max_block_size<%lu>, chunk_count<%d>, heap_size<%lu>.",
@@ -348,3 +343,82 @@ void *sk::shm_singleton(int id) {
 
     return mgr->get_singleton(id);
 }
+
+//---------------------------------------------------------------------------
+
+namespace sk {
+
+inline size_t shm_mgr::__align_size(size_t size) {
+    // TODO: redefine the ALIGN related macros
+    return (size + ALIGN_MASK) & ~ALIGN_MASK;
+}
+
+void *shm_mgr::__sbrk(size_t size, sk::shm_mgr::offset_t *offset) {
+    // if there is no enough memory, just return
+    if (used_size + size > total_size)
+        return NULL;
+
+    char *base_addr = char_ptr(this);
+    void *ret = base_addr + used_size;
+    if (offset)
+        *offset = used_size;
+
+    used_size += size;
+
+    return ret;
+}
+
+void *shm_mgr::allocate_metadata(size_t size, sk::shm_mgr::offset_t *offset) {
+    // align size
+    size = ((size + META_ALIGN_SIZE - 1) >> META_ALIGN_SHIFT) << META_ALIGN_SHIFT;
+
+    // 1. if the size is g.e. to meta allocation size, we
+    //    then allocate a new block
+    if (size >= META_ALLOC_SIZE) {
+        offset_t off = OFFSET_NULL;
+        void *addr = __sbrk(size, &off);
+        if (addr) {
+            stat.metadata_total_size += size;
+            stat.metadata_alloc_count += 1;
+            assert_noeffect(off % META_ALIGN_SIZE == 0);
+
+            if (offset)
+                *offset = off;
+        }
+
+        return addr;
+    }
+
+    // 2. if the left space is not enough, we then drop the
+    //    block and allocate a new one
+    if (size > metadata_left) {
+        stat.metadata_waste_size += metadata_left;
+
+        metadata_left = META_ALLOC_SIZE;
+        void *addr = __sbrk(metadata_left, &metadata_offset);
+        if (!addr)
+            return NULL;
+
+        assert_noeffect(metadata_offset % META_ALIGN_SIZE == 0);
+        stat.metadata_total_size += metadata_left;
+        stat.metadata_alloc_count += 1;
+    }
+
+    void *addr = offset2ptr(metadata_offset);
+    if (offset)
+        *offset = metadata_offset;
+
+    metadata_left -= size;
+    metadata_offset += size;
+
+    return addr;
+}
+
+void *shm_mgr::offset2ptr(shm_mgr::offset_t offset) {
+    assert_retval(offset >= sizeof(*this), NULL);
+    assert_retval(offset < used_size, NULL);
+
+    return char_ptr(this) + offset;
+}
+
+} // namespace sk
