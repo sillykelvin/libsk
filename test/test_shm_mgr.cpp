@@ -661,6 +661,10 @@ TEST(shm_mgr, shm_segment) {
     }
 }
 
+TEST(shm_mgr, page_map) {
+    // TODO: add test for page_mag here
+}
+
 struct size24 {
     size_t a;
     size_t b;
