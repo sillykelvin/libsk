@@ -2,7 +2,6 @@
 #define SHM_PTR_H
 
 namespace sk {
-
 namespace detail {
 
 template<typename T>
@@ -19,32 +18,30 @@ struct dereference<void> {
 
 template<typename T>
 struct shm_ptr {
-    static_assert(sizeof(detail::detail_ptr) == sizeof(u64), "size mismatch");
-
     typedef T* pointer;
     typedef typename detail::dereference<T>::type reference;
 
-    u64 mid;
+    offset_t offset;
 
-    shm_ptr() : mid(0) {}
+    shm_ptr() : offset(OFFSET_NULL) {}
 
-    explicit shm_ptr(detail::detail_ptr ptr) : mid(*cast_ptr(u64, &ptr)) {}
+    explicit shm_ptr(offset_t offset) : offset(offset) {}
 
     template<typename U>
-    shm_ptr(shm_ptr<U> ptr) : mid(ptr.mid) {}
+    shm_ptr(shm_ptr<U> ptr) : offset(ptr.offset) {}
 
     template<typename U>
     shm_ptr& operator=(const shm_ptr<U>& ptr) {
-        this->mid = ptr.mid;
+        this->offset = ptr.offset;
         return *this;
     }
 
     void *__ptr() const {
-        if (!mid)
+        if (offset == OFFSET_NULL)
             return NULL;
 
         shm_mgr *mgr = shm_mgr::get();
-        return mgr->mid2ptr(mid);
+        return mgr->offset2ptr(offset);
     }
 
     pointer get() const {
@@ -68,7 +65,9 @@ struct shm_ptr {
     typedef void (shm_ptr::*unspecified_bool_type)() const;
     void unspecified_bool_true() const {}
 
-    operator unspecified_bool_type() const { return mid ? &shm_ptr::unspecified_bool_true : 0; }
+    operator unspecified_bool_type() const {
+        return offset != OFFSET_NULL ? &shm_ptr::unspecified_bool_true : 0;
+    }
 };
 
 } // namespace sk

@@ -32,7 +32,7 @@ TEST(shm_ptr, shm_ptr) {
 
     ptr = shm_new<ptr_test>();
     ASSERT_TRUE(ptr);
-    ASSERT_TRUE(ptr.mid != 0);
+    ASSERT_TRUE(ptr.offset != OFFSET_NULL);
 
     ASSERT_TRUE(ptr->a == 7);
     ASSERT_STREQ(ptr->str, "hello world");

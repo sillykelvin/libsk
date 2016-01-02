@@ -709,12 +709,12 @@ TEST(shm_mgr, shm_mgr) {
 
     size24 *s24_1 = NULL;
     shm_ptr<void> ps24_1 = mgr->malloc(sizeof(*s24_1));
-    s24_1 = static_cast<size24 *>(mgr->mid2ptr(ps24_1.mid));
+    s24_1 = static_cast<size24 *>(mgr->offset2ptr(ps24_1.offset));
     ASSERT_TRUE(ps24_1 && s24_1);
 
     size24 *s24_2 = NULL;
     shm_ptr<void> ps24_2 = mgr->malloc(sizeof(*s24_2));
-    s24_2 = static_cast<size24 *>(mgr->mid2ptr(ps24_2.mid));
+    s24_2 = static_cast<size24 *>(mgr->offset2ptr(ps24_2.offset));
     ASSERT_TRUE(ps24_2 && s24_2);
 
     mgr->free(ps24_1);
@@ -725,7 +725,7 @@ TEST(shm_mgr, shm_mgr) {
     for (int i = 0; i < SHM_MGR_CHUNK_COUNT; ++i) {
         size1000 *tmp = NULL;
         s1000_blocks[i] = mgr->malloc(sizeof(*tmp));
-        tmp = static_cast<size1000 *>(mgr->mid2ptr(s1000_blocks[i].mid));
+        tmp = static_cast<size1000 *>(mgr->offset2ptr(s1000_blocks[i].offset));
         ASSERT_TRUE(s1000_blocks[i] && tmp);
     }
 
@@ -736,7 +736,7 @@ TEST(shm_mgr, shm_mgr) {
     for (int i = 0; i < avail_count; ++i) {
         size24 *tmp = NULL;
         s24_blocks[i] = mgr->malloc(sizeof(*tmp));
-        tmp = static_cast<size24 *>(mgr->mid2ptr(s24_blocks[i].mid));
+        tmp = static_cast<size24 *>(mgr->offset2ptr(s24_blocks[i].offset));
         ASSERT_TRUE(s24_blocks[i] && tmp);
     }
 
@@ -744,13 +744,13 @@ TEST(shm_mgr, shm_mgr) {
     for (int i = 0; i < 8; ++i) {
         size1024 *tmp = NULL;
         s1024_blocks[i] = mgr->malloc(sizeof(*tmp));
-        tmp = static_cast<size1024 *>(mgr->mid2ptr(s1024_blocks[i].mid));
+        tmp = static_cast<size1024 *>(mgr->offset2ptr(s1024_blocks[i].offset));
         ASSERT_TRUE(s1024_blocks[i] && tmp);
     }
 
     size1024 *s1024_inval = NULL;
     shm_ptr<void> ps1024_inval = mgr->malloc(sizeof(*s1024_inval));
-    s1024_inval = static_cast<size1024 *>(mgr->mid2ptr(ps1024_inval.mid));
+    s1024_inval = static_cast<size1024 *>(mgr->offset2ptr(ps1024_inval.offset));
     ASSERT_TRUE(!ps1024_inval && !s1024_inval);
 
     mgr->free(s1024_blocks[0]);
@@ -758,7 +758,7 @@ TEST(shm_mgr, shm_mgr) {
 
     size2064 *s2064 = NULL;
     shm_ptr<void> ps2064 = mgr->malloc(sizeof(*s2064));
-    s2064 = static_cast<size2064 *>(mgr->mid2ptr(ps2064.mid));
+    s2064 = static_cast<size2064 *>(mgr->offset2ptr(ps2064.offset));
     ASSERT_TRUE(ps2064 && s2064);
 
 
@@ -768,12 +768,12 @@ TEST(shm_mgr, shm_mgr) {
     snprintf(s2064->str1, sizeof(s2064->str1), "%s", "Talk is cheap.");
     snprintf(s2064->str2, sizeof(s2064->str2), "%s", "Show me the code.");
 
-    size24 *s24 = cast_ptr(size24, mgr->mid2ptr(s24_blocks[10].mid));
+    size24 *s24 = cast_ptr(size24, mgr->offset2ptr(s24_blocks[10].offset));
     s24->a = 1;
     s24->b = 2;
     s24->c = 3;
 
-    size1000 *s1000 = cast_ptr(size1000, mgr->mid2ptr(s1000_blocks[20].mid));
+    size1000 *s1000 = cast_ptr(size1000, mgr->offset2ptr(s1000_blocks[20].offset));
     snprintf(s1000->str, sizeof(s1000->str), "%s", "silly kelvin");
 
     size1032 *single_1032 = cast_ptr(size1032, mgr->get_singleton(ST_MIN));
@@ -785,7 +785,7 @@ TEST(shm_mgr, shm_mgr) {
     shm_mgr *mgr2 = shm_mgr::create(SHM_MGR_KEY, true, SHM_MGR_CHUNK_SIZE,
                                     SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
 
-    s2064 = cast_ptr(size2064, mgr2->mid2ptr(ps2064.mid));
+    s2064 = cast_ptr(size2064, mgr2->offset2ptr(ps2064.offset));
     ASSERT_TRUE(s2064 != NULL);
     ASSERT_TRUE(s2064->a == 10);
     ASSERT_TRUE(s2064->b == 20);
@@ -793,13 +793,13 @@ TEST(shm_mgr, shm_mgr) {
     ASSERT_STREQ(s2064->str1, "Talk is cheap.");
     ASSERT_STREQ(s2064->str2, "Show me the code.");
 
-    s24 = cast_ptr(size24, mgr2->mid2ptr(s24_blocks[10].mid));
+    s24 = cast_ptr(size24, mgr2->offset2ptr(s24_blocks[10].offset));
     ASSERT_TRUE(s24 != NULL);
     ASSERT_TRUE(s24->a == 1);
     ASSERT_TRUE(s24->b == 2);
     ASSERT_TRUE(s24->c == 3);
 
-    s1000 = cast_ptr(size1000, mgr2->mid2ptr(s1000_blocks[20].mid));
+    s1000 = cast_ptr(size1000, mgr2->offset2ptr(s1000_blocks[20].offset));
     ASSERT_TRUE(s1000 != NULL);
     ASSERT_STREQ(s1000->str, "silly kelvin");
 

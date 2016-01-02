@@ -244,82 +244,88 @@ void *sk::shm_mgr::get_singleton(int id) {
 }
 
 sk::shm_ptr<void> sk::shm_mgr::malloc(size_t size) {
-    size_t mem_size = __align_size(size);
+    // TODO: re-implement this function
+    (void) size;
+    return shm_ptr<void>();
 
-    do {
-        if (mem_size > max_block_size)
-            break;
+    // size_t mem_size = __align_size(size);
 
-        int chunk_index = IDX_NULL;
-        int block_index = IDX_NULL;
-        int ret = __malloc_from_chunk_pool(mem_size, chunk_index, block_index);
+    // do {
+    //     if (mem_size > max_block_size)
+    //         break;
 
-        // 1. the allocation succeeds
-        if (ret == 0) {
-            detail::detail_ptr ptr;
-            ptr.type = detail::PTR_TYPE_CHUNK;
-            ptr.idx1 = chunk_index;
-            ptr.idx2 = block_index;
+    //     int chunk_index = IDX_NULL;
+    //     int block_index = IDX_NULL;
+    //     int ret = __malloc_from_chunk_pool(mem_size, chunk_index, block_index);
 
-            return shm_ptr<void>(ptr);
-        }
+    //     // 1. the allocation succeeds
+    //     if (ret == 0) {
+    //         detail::detail_ptr ptr;
+    //         ptr.type = detail::PTR_TYPE_CHUNK;
+    //         ptr.idx1 = chunk_index;
+    //         ptr.idx2 = block_index;
 
-        // 2. fatal errors other than "no more memory", we return NULL
-        if (ret != -ENOMEM)
-            return shm_ptr<void>();
+    //         return shm_ptr<void>(ptr);
+    //     }
 
-        // 3. the error is because chunk pool is used up, then we will
-        //    allocate it from heap
-        break;
+    //     // 2. fatal errors other than "no more memory", we return NULL
+    //     if (ret != -ENOMEM)
+    //         return shm_ptr<void>();
 
-    } while (0);
+    //     // 3. the error is because chunk pool is used up, then we will
+    //     //    allocate it from heap
+    //     break;
 
-    // if the block should be allocated on heap, or the allocation fails in chunk pool
-    // because it is used up, then we do the allocation on heap
-    int unit_index = IDX_NULL;
-    int ret = __malloc_from_heap(mem_size, unit_index);
-    if (ret != 0)
-        return shm_ptr<void>();
+    // } while (0);
 
-    detail::detail_ptr ptr;
-    ptr.type = detail::PTR_TYPE_HEAP;
-    ptr.idx1 = unit_index;
-    ptr.idx2 = 0;
+    // // if the block should be allocated on heap, or the allocation fails in chunk pool
+    // // because it is used up, then we do the allocation on heap
+    // int unit_index = IDX_NULL;
+    // int ret = __malloc_from_heap(mem_size, unit_index);
+    // if (ret != 0)
+    //     return shm_ptr<void>();
 
-    return shm_ptr<void>(ptr);
+    // detail::detail_ptr ptr;
+    // ptr.type = detail::PTR_TYPE_HEAP;
+    // ptr.idx1 = unit_index;
+    // ptr.idx2 = 0;
+
+    // return shm_ptr<void>(ptr);
 }
 
 void sk::shm_mgr::free(shm_ptr<void> ptr) {
     if (!ptr)
         return;
 
-    detail::detail_ptr *raw_ptr = cast_ptr(detail::detail_ptr, &ptr.mid);
-    switch (raw_ptr->type) {
-    case detail::PTR_TYPE_SINGLETON: {
-        int singleton_id = raw_ptr->idx1;
-        assert_retnone(singleton_id >= ST_MIN && singleton_id < ST_MAX);
+    // TODO: re-implement this function
 
-        assert_noeffect(0);
-        return;
-    }
-    case detail::PTR_TYPE_CHUNK: {
-        int chunk_index = raw_ptr->idx1;
-        int block_index = raw_ptr->idx2;
-        assert_retnone(chunk_index >= 0 && block_index >= 0);
+    // detail::detail_ptr *raw_ptr = cast_ptr(detail::detail_ptr, &ptr.mid);
+    // switch (raw_ptr->type) {
+    // case detail::PTR_TYPE_SINGLETON: {
+    //     int singleton_id = raw_ptr->idx1;
+    //     assert_retnone(singleton_id >= ST_MIN && singleton_id < ST_MAX);
 
-        __free_from_chunk_pool(chunk_index, block_index);
-        return;
-    }
-    case detail::PTR_TYPE_HEAP: {
-        int unit_index = raw_ptr->idx1;
-        assert_retnone(unit_index >= 0);
+    //     assert_noeffect(0);
+    //     return;
+    // }
+    // case detail::PTR_TYPE_CHUNK: {
+    //     int chunk_index = raw_ptr->idx1;
+    //     int block_index = raw_ptr->idx2;
+    //     assert_retnone(chunk_index >= 0 && block_index >= 0);
 
-        __free_from_heap(unit_index);
-        return;
-    }
-    default:
-        assert_retnone(0);
-    }
+    //     __free_from_chunk_pool(chunk_index, block_index);
+    //     return;
+    // }
+    // case detail::PTR_TYPE_HEAP: {
+    //     int unit_index = raw_ptr->idx1;
+    //     assert_retnone(unit_index >= 0);
+
+    //     __free_from_heap(unit_index);
+    //     return;
+    // }
+    // default:
+    //     assert_retnone(0);
+    // }
 }
 
 
