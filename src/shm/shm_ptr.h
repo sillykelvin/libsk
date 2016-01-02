@@ -18,7 +18,7 @@ struct dereference<void> {
 
 template<typename T>
 struct shm_ptr {
-    typedef T* pointer;
+    typedef T*                                    pointer;
     typedef typename detail::dereference<T>::type reference;
 
     offset_t offset;
@@ -48,14 +48,14 @@ struct shm_ptr {
         return cast_ptr(T, __ptr());
     }
 
-    pointer operator->() {
+    pointer operator->() const {
         pointer ptr = get();
         assert_noeffect(ptr);
 
         return ptr;
     }
 
-    reference operator*() {
+    reference operator*() const {
         pointer ptr = get();
         assert_noeffect(ptr);
 
