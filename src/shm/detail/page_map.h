@@ -16,18 +16,19 @@ struct page_map {
     static const int LEAF_LENGTH = 1 << LEAF_BITS;
 
     struct leaf {
-        offset_t values[LEAF_LENGTH];
+        shm_ptr<void> values[LEAF_LENGTH];
     };
 
-    offset_t root[ROOT_LENGTH];
+    shm_ptr<leaf> root[ROOT_LENGTH];
 
     void init() {
-        memset(&root, 0x00, sizeof(root));
+        // TODO: it's ok here, but maybe risky
+        memset(root, 0x00, sizeof(root));
     }
 
-    offset_t get(page_t p) const;
+    shm_ptr<void> get(page_t p) const;
 
-    void set(page_t p, offset_t o);
+    void set(page_t p, shm_ptr<void> v);
 };
 
 } // namespace detail

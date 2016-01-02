@@ -4,42 +4,35 @@
 namespace sk {
 namespace detail {
 
-offset_t page_map::get(page_t p) const {
+shm_ptr<void> page_map::get(page_t p) const {
     const size_t i1 = p >> LEAF_BITS;
     const size_t i2 = p & (LEAF_LENGTH - 1);
 
     // the page id exceeds max value
     if ((p >> PREFIX_BITS) > 0)
-        return OFFSET_NULL;
+        return SHM_NULL;
 
-    if (root[i1] == OFFSET_NULL)
-        return OFFSET_NULL;
+    if (!root[i1])
+        return SHM_NULL;
 
-    // TODO: refine here
-    void *addr = shm_mgr::get()->offset2ptr(root[i1]);
-    if (!addr)
-        return OFFSET_NULL;
-
-    return cast_ptr(leaf, addr)->values[i2];
+    return root[i1]->values[i2];
 }
 
-void page_map::set(page_t p, offset_t o) {
+void page_map::set(page_t p, shm_ptr<void> v) {
     const size_t i1 = p >> LEAF_BITS;
     const size_t i2 = p & (LEAF_LENGTH - 1);
     assert_retnone(i1 < (size_t) ROOT_LENGTH);
 
-    if (root[i1] == OFFSET_NULL) {
-        void *addr = shm_mgr::get()->allocate_metadata(sizeof(leaf), &root[i1]);
-        assert_retnone(addr);
+    if (!root[i1]) {
+        root[i1] = shm_mgr::get()->allocate_metadata(sizeof(leaf));
+        assert_retnone(root[i1]);
 
-        memset(addr, 0x00, sizeof(leaf));
+        // TODO: it's ok here, but maybe risky
+        leaf *addr = root[i1].get();
+        memset(addr, 0x00, sizeof(*addr));
     }
 
-    // TODO: refine here
-    void *addr = shm_mgr::get()->offset2ptr(root[i1]);
-    assert_retnone(addr);
-
-    cast_ptr(leaf, addr)->values[i2] = o;
+    root[i1]->values[i2] = v;
 }
 
 } // namespace detail

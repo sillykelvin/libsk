@@ -157,12 +157,12 @@ struct shm_mgr {
      * allocate raw memory from shared memory, like sbrk() in linux kernel
      * note: it's caller's responsibility to do alignment for size
      */
-    void *__sbrk(size_t size, offset_t *offset);
+    shm_ptr<void> __sbrk(size_t size);
 
     /*
      * allocate raw memory for metadata usage, record allocation info
      */
-    void *allocate_metadata(size_t size, offset_t *offset);
+    shm_ptr<void> allocate_metadata(size_t size);
 
     /*
      * turn a valid offset into raw pointer
