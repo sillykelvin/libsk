@@ -390,13 +390,12 @@ shm_ptr<void> shm_mgr::allocate_metadata(size_t size) {
     // 2. if the left space is not enough, we then drop the
     //    block and allocate a new one
     if (size > metadata_left) {
-        stat.metadata_waste_size += metadata_left;
-
-        metadata_left = META_ALLOC_SIZE;
-        shm_ptr<void> ptr = __sbrk(metadata_left);
+        shm_ptr<void> ptr = __sbrk(META_ALLOC_SIZE);
         if (!ptr)
             return SHM_NULL;
 
+        stat.metadata_waste_size += metadata_left;
+        metadata_left = META_ALLOC_SIZE;
         metadata_offset = ptr.offset;
         assert_noeffect(metadata_offset % META_ALIGN_SIZE == 0);
 
