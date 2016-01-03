@@ -36,4 +36,10 @@ static const size_t META_ALLOC_SIZE = 8 * 1024;
  */
 static const size_t META_ALLOC_INCREMENT = 128 * 1024;
 
+/*
+ * for span with pages < MAX_PAGES will be stored in
+ * a span array to speed up query, 128
+ */
+static const int MAX_PAGES = 1 << (20 - PAGE_SHIFT);
+
 #endif // CONFIG_H
