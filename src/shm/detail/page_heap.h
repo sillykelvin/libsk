@@ -18,6 +18,8 @@ struct page_heap {
     metadata_allocator<span> span_allocator;
 
     struct {
+        size_t total_count; // how many pages has been allocated
+        size_t grow_count;  // how many times has heap grown
     } stat;
 
     void init() {
@@ -28,11 +30,14 @@ struct page_heap {
         large_list = SHM_NULL;
 
         span_allocator.init();
+
+        memset(&stat, 0x00, sizeof(stat));
     }
 
     shm_ptr<span> allocate_span(int page_count);
     void deallocate_span(shm_ptr<span> ptr);
 
+    shm_ptr<span> __search_existing(int page_count);
     shm_ptr<span> __allocate_large(int page_count);
 
     shm_ptr<span> __page2span(page_t page);

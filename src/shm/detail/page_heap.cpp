@@ -6,12 +6,14 @@ namespace detail {
 shm_ptr<span> page_heap::allocate_span(int page_count) {
     assert_retval(page_count > 0, SHM_NULL);
 
-    for (int i = page_count; i < MAX_PAGES; ++i) {
-        if (free_lists[i])
-            return __carve(free_lists[i], page_count);
-    }
+    shm_ptr<span> ret = __search_existing(page_count);
+    if (ret)
+        return ret;
 
-    return __allocate_large(page_count);
+    if (__grow_heap(page_count))
+        return __search_existing(page_count);
+
+    return SHM_NULL;
 }
 
 void page_heap::deallocate_span(shm_ptr<span> ptr) {
@@ -64,6 +66,15 @@ void page_heap::deallocate_span(shm_ptr<span> ptr) {
     }
 
     __link(ptr);
+}
+
+shm_ptr<span> page_heap::__search_existing(int page_count) {
+    for (int i = page_count; i < MAX_PAGES; ++i) {
+        if (free_lists[i])
+            return __carve(free_lists[i], page_count);
+    }
+
+    return __allocate_large(page_count);
 }
 
 shm_ptr<span> page_heap::__allocate_large(int page_count) {
@@ -172,9 +183,53 @@ shm_ptr<span> page_heap::__carve(shm_ptr<span> ptr, int page_count) {
 }
 
 bool page_heap::__grow_heap(int page_count) {
-    // TODO: implement this function
-    (void) page_count;
-    return false;
+    assert_retval(page_count > 0, false);
+    assert_noeffect(MAX_PAGES >= MIN_RAW_ALLOC_SIZE);
+
+    if (page_count > MAX_VALID_PAGES)
+      return false;
+
+    int ask = page_count;
+    if (page_count < MIN_RAW_ALLOC_SIZE)
+      ask = MIN_RAW_ALLOC_SIZE;
+
+    shm_ptr<void> ptr = shm_mgr::get()->allocate_metadata(ask << PAGE_SHIFT);
+    do {
+        if (ptr)
+            break;
+
+        if (page_count >= ask)
+            return false;
+
+        ask = page_count;
+        ptr = shm_mgr::get()->allocate_metadata(ask << PAGE_SHIFT);
+        if (ptr)
+            break;
+
+        return false;
+    } while (0);
+
+    stat.grow_count += 1;
+    stat.total_count += ask;
+
+    const page_t p = ptr.offset >> PAGE_SHIFT;
+
+    shm_ptr<span> s = __new_span();
+    if (!s) {
+        // TODO: handle the allocated memory here...
+        assert_noeffect(0);
+        return false;
+    }
+
+    s->init(p, ask);
+    span_map.set(p, s);
+    if (ask > 1)
+        span_map.set(p + ask - 1, s);
+
+    s->in_use = true;
+    deallocate_span(s);
+
+    return true;
 }
 } // namespace detail
 } // namespace sk

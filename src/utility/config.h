@@ -42,4 +42,15 @@ static const size_t META_ALLOC_INCREMENT = 128 * 1024;
  */
 static const int MAX_PAGES = 1 << (20 - PAGE_SHIFT);
 
+/*
+ * minimum number of pages to fetch for shared memory
+ * segment at a time
+ */
+static const int MIN_RAW_ALLOC_SIZE = MAX_PAGES;
+
+/*
+ * max pages can be managed, 19bits
+ */
+static const int MAX_VALID_PAGES = ~0 >> PAGE_SHIFT;
+
 #endif // CONFIG_H
