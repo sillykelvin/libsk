@@ -3,3 +3,6 @@
 *.files
 *.includes
 *.creator.user
+
+*.o
+*.d
