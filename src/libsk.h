@@ -36,6 +36,7 @@
 #include "container/fixed_set.h"
 #include "container/fixed_map.h"
 #include "container/fixed_list.h"
+#include "container/fixed_string.h"
 #include "container/shm_hash.h"
 #include "container/shm_list.h"
 
