@@ -6,3 +6,11 @@
 
 *.o
 *.d
+
+.clang_complete
+
+GPATH
+GTAGS
+GRTAGS
+
+lib/
