@@ -17,10 +17,7 @@ shm_ptr<span> page_heap::allocate_span(int page_count) {
 }
 
 void page_heap::deallocate_span(shm_ptr<span> ptr) {
-    if (!ptr) {
-        assert_noeffect(0);
-        return;
-    }
+    assert_retnone(ptr);
 
     span *s = ptr.get();
 
@@ -187,11 +184,11 @@ bool page_heap::__grow_heap(int page_count) {
     assert_noeffect(MAX_PAGES >= MIN_RAW_ALLOC_SIZE);
 
     if (page_count > MAX_VALID_PAGES)
-      return false;
+        return false;
 
     int ask = page_count;
     if (page_count < MIN_RAW_ALLOC_SIZE)
-      ask = MIN_RAW_ALLOC_SIZE;
+        ask = MIN_RAW_ALLOC_SIZE;
 
     shm_ptr<void> ptr = shm_mgr::get()->allocate_metadata(ask << PAGE_SHIFT);
     do {
