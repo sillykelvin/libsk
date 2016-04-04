@@ -1,6 +1,8 @@
 #ifndef SHM_MGR_H
 #define SHM_MGR_H
 
+#include "detail/page_heap.h"
+
 namespace sk {
 
 enum singleton_type {
@@ -151,6 +153,8 @@ struct shm_mgr {
         size_t metadata_alloc_count;
     } stat;
 
+    detail::page_heap page_heap;
+
     static size_t __align_size(size_t size);
 
     /*
@@ -174,6 +178,11 @@ struct shm_mgr {
      * OFFSET_NULL if ptr does not fall into the shm range
      */
     offset_t ptr2offset(void *ptr);
+
+    /*
+     * return the page which the pointer is in
+     */
+    page_t ptr2page(shm_ptr<void> ptr);
 };
 
 

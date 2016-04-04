@@ -427,4 +427,11 @@ offset_t shm_mgr::ptr2offset(void *ptr) {
     return p - base;
 }
 
+page_t shm_mgr::ptr2page(shm_ptr<void> ptr) {
+    assert_noeffect(ptr.offset >= sizeof(*this));
+    assert_noeffect(ptr.offset < used_size);
+
+    return ptr.offset >> PAGE_SHIFT;
+}
+
 } // namespace sk
