@@ -18,7 +18,7 @@ static const int MAX_MEM_SHIFT   = 35;
 static const size_t MAX_MEM_SIZE = 1ULL << MAX_MEM_SHIFT;
 
 /*
- * mata data alignment, 8 byte
+ * mata data alignment, 8 bytes
  */
 static const int META_ALIGN_SHIFT = 3;
 static const int META_ALIGN_SIZE  = 1 << META_ALIGN_SHIFT;
