@@ -15,6 +15,8 @@ struct span {
     page_t start; // the start page id
     shm_ptr<span> prev; // previous span in list
     shm_ptr<span> next; // next span in list
+    shm_ptr<void> chunk_list; // chunks in pages managed by this span
+    size_t used_count; // allocated chunk count
 
     void init(page_t start, int count);
 };
