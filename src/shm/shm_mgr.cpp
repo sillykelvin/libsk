@@ -411,11 +411,20 @@ shm_ptr<void> shm_mgr::allocate_metadata(size_t size) {
     return ptr;
 }
 
-void *shm_mgr::offset2ptr(shm_mgr::offset_t offset) {
+void *shm_mgr::offset2ptr(offset_t offset) {
     assert_retval(offset >= sizeof(*this), NULL);
     assert_retval(offset < used_size, NULL);
 
     return char_ptr(this) + offset;
+}
+
+offset_t shm_mgr::ptr2offset(void *ptr) {
+    char *p = char_ptr(ptr);
+    char *base = char_ptr(this);
+    assert_retval(p >= base + sizeof(this), OFFSET_NULL);
+    assert_retval(p < base + used_size, OFFSET_NULL);
+
+    return p - base;
 }
 
 } // namespace sk

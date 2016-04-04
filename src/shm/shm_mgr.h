@@ -168,6 +168,12 @@ struct shm_mgr {
      * turn a valid offset into raw pointer
      */
     void *offset2ptr(offset_t offset);
+
+    /*
+     * turn a raw pointer into an offset, returns
+     * OFFSET_NULL if ptr does not fall into the shm range
+     */
+    offset_t ptr2offset(void *ptr);
 };
 
 
