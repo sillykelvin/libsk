@@ -25,15 +25,15 @@ void page_heap::deallocate_span(shm_ptr<span> ptr) {
     assert_noeffect(s->count > 0);
     assert_noeffect(!s->prev);
     assert_noeffect(!s->next);
-    assert_noeffect(__page2span(s->start) == ptr);
-    assert_noeffect(__page2span(s->start + s->count - 1) == ptr);
+    assert_noeffect(find_span(s->start) == ptr);
+    assert_noeffect(find_span(s->start + s->count - 1) == ptr);
 
     s->in_use = false;
 
     const page_t orig_start = s->start;
     const int    orig_count = s->count;
 
-    shm_ptr<span> prev = __page2span(orig_start - 1);
+    shm_ptr<span> prev = find_span(orig_start - 1);
     if (prev && !prev->in_use) {
         span *p = prev.get();
         assert_noeffect(p->count > 0);
@@ -48,7 +48,7 @@ void page_heap::deallocate_span(shm_ptr<span> ptr) {
         span_map.set(s->start, ptr);
     }
 
-    shm_ptr<span> next = __page2span(orig_start + orig_count);
+    shm_ptr<span> next = find_span(orig_start + orig_count);
     if (next && !next->in_use) {
         span *n = next.get();
         assert_noeffect(n->count > 0);
@@ -63,6 +63,10 @@ void page_heap::deallocate_span(shm_ptr<span> ptr) {
     }
 
     __link(ptr);
+}
+
+shm_ptr<span> page_heap::find_span(page_t page) {
+    return span_map.get(page);
 }
 
 shm_ptr<span> page_heap::__search_existing(int page_count) {
@@ -95,10 +99,6 @@ shm_ptr<span> page_heap::__allocate_large(int page_count) {
         return __carve(best, page_count);
 
     return SHM_NULL;
-}
-
-shm_ptr<span> page_heap::__page2span(page_t page) {
-    return span_map.get(page);
 }
 
 shm_ptr<span>& page_heap::__get_head(shm_ptr<span> ptr) {
@@ -167,7 +167,7 @@ shm_ptr<span> page_heap::__carve(shm_ptr<span> ptr, int page_count) {
         if (l->count > 1)
             span_map.set(l->start + l->count - 1, left);
 
-        shm_ptr<span> next = __page2span(l->start + l->count);
+        shm_ptr<span> next = find_span(l->start + l->count);
         assert_noeffect(!next || next->in_use);
 
         __link(left);

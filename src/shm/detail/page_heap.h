@@ -36,11 +36,10 @@ struct page_heap {
 
     shm_ptr<span> allocate_span(int page_count);
     void deallocate_span(shm_ptr<span> ptr);
+    shm_ptr<span> find_span(page_t page);
 
     shm_ptr<span> __search_existing(int page_count);
     shm_ptr<span> __allocate_large(int page_count);
-
-    shm_ptr<span> __page2span(page_t page);
 
     shm_ptr<span>& __get_head(shm_ptr<span> ptr);
 
