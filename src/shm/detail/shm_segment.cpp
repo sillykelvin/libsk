@@ -1,7 +1,10 @@
 #include "libsk.h"
 #include "shm_segment.h"
 
-int sk::detail::shm_segment::__create(key_t key, size_t size) {
+namespace sk {
+namespace detail {
+
+int shm_segment::__create(key_t key, size_t size) {
     int shmid = shmget(key, size, 0666 | IPC_CREAT | IPC_EXCL);
     if (shmid != -1) {
         void *addr = shmat(shmid, NULL, 0);
@@ -45,7 +48,7 @@ int sk::detail::shm_segment::__create(key_t key, size_t size) {
     return 0;
 }
 
-int sk::detail::shm_segment::__attach(key_t key) {
+int shm_segment::__attach(key_t key) {
     int shmid = shmget(key, 0, 0666);
     if (shmid == -1) {
         ERR("shmget() failed, error<%s>.", strerror(errno));
@@ -61,11 +64,11 @@ int sk::detail::shm_segment::__attach(key_t key) {
     return 0;
 }
 
-int sk::detail::shm_segment::init(key_t key, size_t size, bool resume) {
+int shm_segment::init(key_t key, size_t size, bool resume) {
     return !resume ? __create(key, size) : __attach(key);
 }
 
-void sk::detail::shm_segment::fini() {
+void shm_segment::fini() {
     if (shmid != -1) {
         int ret = shmctl(shmid, IPC_RMID, NULL);
         if (ret != 0) {
@@ -77,3 +80,6 @@ void sk::detail::shm_segment::fini() {
     base_addr = NULL;
     shmid = -1;
 }
+
+} // namespace detail
+} // namespace sk

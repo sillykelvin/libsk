@@ -3,10 +3,7 @@
 #include "libsk.h"
 
 #define SHM_MGR_KEY         (0x77777)
-#define SHM_MGR_CHUNK_SIZE  (10240)
-#define SHM_MGR_CHUNK_COUNT (1024)
-#define SHM_MGR_HEAP_SIZE   (102400)
-#define SHM_HASH_NODE_COUNT (10)
+#define SHM_SIZE            (1024000)
 
 using namespace std;
 using namespace sk;
@@ -28,8 +25,7 @@ struct list_test {
 typedef shm_list<list_test> list;
 
 TEST(shm_list, normal) {
-    int ret = shm_mgr_init(SHM_MGR_KEY, false, SHM_MGR_CHUNK_SIZE,
-                           SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
+    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
     ASSERT_TRUE(ret == 0);
 
     shm_ptr<list> l = shm_new<list>();

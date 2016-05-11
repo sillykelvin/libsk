@@ -3,9 +3,7 @@
 #include "libsk.h"
 
 #define SHM_MGR_KEY         (0x77777)
-#define SHM_MGR_CHUNK_SIZE  (10240)
-#define SHM_MGR_CHUNK_COUNT (1024)
-#define SHM_MGR_HEAP_SIZE   (102400)
+#define SHM_SIZE            (1024000)
 #define SHM_HASH_NODE_COUNT (10)
 
 using namespace std;
@@ -28,8 +26,7 @@ struct hash_test {
 typedef shm_hash<u64, hash_test, hashfunc> hash;
 
 TEST(shm_hash, normal) {
-    int ret = shm_mgr_init(SHM_MGR_KEY, false, SHM_MGR_CHUNK_SIZE,
-                           SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
+    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
     ASSERT_TRUE(ret == 0);
 
     shm_ptr<hash> h = shm_new<hash>(SHM_HASH_NODE_COUNT);
@@ -89,8 +86,7 @@ TEST(shm_hash, normal) {
 }
 
 TEST(shm_hash, iterator) {
-    int ret = shm_mgr_init(SHM_MGR_KEY, false, SHM_MGR_CHUNK_SIZE,
-                           SHM_MGR_CHUNK_COUNT, SHM_MGR_HEAP_SIZE);
+    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
     ASSERT_TRUE(ret == 0);
 
     shm_ptr<hash> h = shm_new<hash>(SHM_HASH_NODE_COUNT);

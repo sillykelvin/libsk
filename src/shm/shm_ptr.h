@@ -36,7 +36,25 @@ struct shm_ptr {
         return *this;
     }
 
+    template<typename U>
+    bool operator==(const shm_ptr<U>& ptr) const {
+        return this->offset == ptr.offset;
+    }
+
+    template<typename U>
+    bool operator!=(const shm_ptr<U>& ptr) const {
+        return this->offset != ptr.offset;
+    }
+
     void *__ptr() const {
+        if (offset == OFFSET_NULL)
+            return NULL;
+
+        shm_mgr *mgr = shm_mgr::get();
+        return mgr->offset2ptr(offset);
+    }
+
+    void *__ptr() {
         if (offset == OFFSET_NULL)
             return NULL;
 
@@ -48,6 +66,10 @@ struct shm_ptr {
         return cast_ptr(T, __ptr());
     }
 
+    pointer get() {
+        return cast_ptr(T, __ptr());
+    }
+
     pointer operator->() const {
         pointer ptr = get();
         assert_noeffect(ptr);
@@ -55,7 +77,21 @@ struct shm_ptr {
         return ptr;
     }
 
+    pointer operator->() {
+        pointer ptr = get();
+        assert_noeffect(ptr);
+
+        return ptr;
+    }
+
     reference operator*() const {
+        pointer ptr = get();
+        assert_noeffect(ptr);
+
+        return *ptr;
+    }
+
+    reference operator*() {
         pointer ptr = get();
         assert_noeffect(ptr);
 

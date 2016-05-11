@@ -1,6 +1,10 @@
 #ifndef PAGE_MAP_H
 #define PAGE_MAP_H
 
+#include "shm/shm_ptr.h"
+#include "utility/types.h"
+#include "utility/config.h"
+
 namespace sk {
 namespace detail {
 
@@ -21,10 +25,13 @@ struct page_map {
 
     shm_ptr<leaf> root[ROOT_LENGTH];
 
-    void init() {
-        // TODO: it's ok here, but maybe risky
-        memset(root, 0x00, sizeof(root));
-    }
+    /*
+     * estimate the metadata space needed to store page -> span
+     * mapping info by given page count
+     */
+    static size_t estimate_space(int page_count);
+
+    void init();
 
     shm_ptr<void> get(page_t p) const;
 

@@ -104,32 +104,26 @@ void print_time_cost(const char *test_type, const timeval& begin, const timeval&
     printf("test type: %s;\t\t time cost: %f ms.\n", test_type, (float) (handle.tv_sec * 1000.0 + handle.tv_usec / 1000.0));
 }
 
-void parse_parameters(int argc, char **argv,
-                      size_t& chunk_size, int& chunk_count, size_t& heap_size) {
-    chunk_size  = 0;
-    chunk_count = 0;
-    heap_size   = 0;
+void parse_parameters(int argc, char **argv, size_t& shm_size) {
+    shm_size  = 0;
 
     int opt;
-    while ((opt = getopt(argc, argv, "s:c:h:")) != -1) {
+    while ((opt = getopt(argc, argv, "s:h:")) != -1) {
         switch (opt) {
         case 's':
-            chunk_size = atol(optarg);
-            break;
-        case 'c':
-            chunk_count = atoi(optarg);
+            shm_size = atol(optarg);
             break;
         case 'h':
-            heap_size = atol(optarg);
-            break;
+            fprintf(stdout, "Usage: %s -s shm_size.\n", argv[0]);
+            exit(EXIT_SUCCESS);
         default:
-            fprintf(stderr, "Usage: %s <-s chunk_size> <-c chunk_count> <-h heap_size>.\n", argv[0]);
+            fprintf(stderr, "Usage: %s -s shm_size.\n", argv[0]);
             exit(EXIT_FAILURE);
         }
     }
 
-    if (chunk_size == 0 || chunk_count == 0 || heap_size == 0) {
-        fprintf(stderr, "Usage: %s <-s chunk_size> <-c chunk_count> <-h heap_size>.\n", argv[0]);
+    if (shm_size == 0) {
+        fprintf(stderr, "Usage: %s -s shm_size.\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 }
@@ -137,13 +131,11 @@ void parse_parameters(int argc, char **argv,
 int main(int argc, char **argv) {
     srand(time(NULL));
 
-    size_t chunk_size = 0;
-    int chunk_count   = 0;
-    size_t heap_size  = 0;
+    size_t shm_size = 0;
 
-    parse_parameters(argc, argv, chunk_size, chunk_count, heap_size);
+    parse_parameters(argc, argv, shm_size);
 
-    sk::shm_mgr_init(0x7777, false, chunk_size, chunk_count, heap_size);
+    sk::shm_mgr_init(0x7777, shm_size, false);
 
     timeval begin_time, end_time;
 

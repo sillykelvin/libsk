@@ -4,6 +4,17 @@
 namespace sk {
 namespace detail {
 
+size_t page_map::estimate_space(int page_count) {
+    const page_t last_page = page_count - 1;
+    const size_t i1 = last_page >> LEAF_BITS;
+
+    return (i1 + 1) * sizeof(leaf);
+}
+
+void page_map::init() {
+    memset(root, 0x00, sizeof(root));
+}
+
 shm_ptr<void> page_map::get(page_t p) const {
     const size_t i1 = p >> LEAF_BITS;
     const size_t i2 = p & (LEAF_LENGTH - 1);
@@ -24,10 +35,10 @@ void page_map::set(page_t p, shm_ptr<void> v) {
     assert_retnone(i1 < (size_t) ROOT_LENGTH);
 
     if (!root[i1]) {
-        root[i1] = shm_mgr::get()->allocate_metadata(sizeof(leaf));
-        assert_retnone(root[i1]);
+        shm_ptr<void> ptr(shm_mgr::get()->allocate_metadata(sizeof(leaf)));
+        assert_retnone(ptr);
 
-        // TODO: it's ok here, but maybe risky
+        root[i1] = ptr;
         leaf *addr = root[i1].get();
         memset(addr, 0x00, sizeof(*addr));
     }

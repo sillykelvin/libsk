@@ -1,6 +1,12 @@
 #ifndef METADATA_ALLOCATOR_H
 #define METADATA_ALLOCATOR_H
 
+#include "shm/shm_mgr.h"
+#include "shm/shm_ptr.h"
+#include "utility/types.h"
+#include "utility/config.h"
+#include "utility/assert_helper.h"
+
 namespace sk {
 namespace detail {
 
@@ -40,7 +46,7 @@ struct metadata_allocator {
 
         // 2. if no enough space in free space
         if (space_left < sizeof(T)) {
-            shm_ptr<void> ptr = shm_mgr::get()->allocate_metadata(META_ALLOC_INCREMENT);
+            shm_ptr<void> ptr(shm_mgr::get()->allocate_metadata(META_ALLOC_INCREMENT));
             if (!ptr)
                 return SHM_NULL;
 

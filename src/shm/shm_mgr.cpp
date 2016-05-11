@@ -1,57 +1,25 @@
 #include "libsk.h"
-#include "detail/buddy.h"
-#include "detail/chunk_mgr.h"
-#include "detail/mem_chunk.h"
-#include "detail/shm_segment.h"
-
-struct singleton_info {
-    int id;
-    size_t size;
-
-    bool operator==(const singleton_info& other) {
-        if (this == &other)
-            return true;
-
-        if (other.id == this->id)
-            return true;
-
-        return false;
-    }
-};
-
-typedef sk::fixed_vector<singleton_info, sk::ST_MAX> singleton_vector;
-static singleton_vector singleton_meta_info;
+#include "shm/shm_mgr.h"
+#include "shm/detail/span.h"
+#include "shm/detail/size_map.h"
+#include "shm/detail/chunk_cache.h"
+#include "shm/detail/page_heap.h"
+#include "shm/detail/shm_segment.h"
+#include "utility/config.h"
 
 static sk::shm_mgr *mgr = NULL;
 
+namespace sk {
 
-int sk::shm_register_singleton(int id, size_t size) {
-    assert_retval(id >= ST_MIN && id < ST_MAX, -EINVAL);
-    // if mgr is inited, the registration will be meaningless
-    assert_retval(!mgr, -EINVAL);
+int shm_mgr_init(key_t key, size_t size_hint, bool resume) {
+    mgr = shm_mgr::create(key, size_hint, resume);
+    if (!mgr)
+        return -EINVAL;
 
-    singleton_info tmp;
-    tmp.id = id;
-    assert_retval(!singleton_meta_info.find(tmp), -EEXIST);
-
-    singleton_info *info = singleton_meta_info.emplace();
-    assert_retval(info, -ENOMEM);
-
-    info->id = id;
-    // TODO: we may fix the size here to make it aligned
-    info->size = size;
-
-    return 0;
+    return mgr->init(resume);
 }
 
-int sk::shm_mgr_init(key_t key, bool resume,
-                     size_t max_block_size, int chunk_count, size_t heap_size) {
-    mgr = sk::shm_mgr::create(key, resume, max_block_size, chunk_count, heap_size);
-
-    return mgr ? 0 : -EINVAL;
-}
-
-int sk::shm_mgr_fini() {
+int shm_mgr_fini() {
     if (!mgr)
         return 0;
 
@@ -63,352 +31,187 @@ int sk::shm_mgr_fini() {
     return 0;
 }
 
-inline bool sk::shm_mgr::__power_of_two(size_t num) {
-    return !(num & (num - 1));
-}
+int shm_mgr::init(bool resume) {
+    assert_retval(shmid != 0, -1);
+    assert_retval(used_size != 0, -1);
+    assert_retval(total_size != 0, -1);
 
-inline size_t sk::shm_mgr::__fix_size(size_t size) {
-    static_assert(sizeof(size) == 8, "only 64 bit size can be fixed with this function");
+    char *base_addr = char_ptr(this);
+    base_addr += sizeof(*this);
 
-    if (__power_of_two(size))
-        return size;
-
-    size |= size >> 1;
-    size |= size >> 2;
-    size |= size >> 4;
-    size |= size >> 8;
-    size |= size >> 16;
-    size |= size >> 32;
-    return size + 1;
-}
-
-sk::shm_mgr *sk::shm_mgr::create(key_t key, bool resume,
-                                 size_t max_block_size, int chunk_count, size_t heap_size) {
-    DBG("shm mgr creation parameters: max_block_size<%lu>, chunk_count<%d>, heap_size<%lu>.",
-        max_block_size, chunk_count, heap_size);
-
-    // TODO: refine the size fixing here
-    max_block_size = __align_size(max_block_size);
-    size_t chunk_size = max_block_size + sizeof(detail::mem_chunk);
-
-    // for blocks with size > max_block_size will go into heap
-    size_t heap_unit_size = __align_size(max_block_size);
-    size_t heap_unit_count = heap_size / heap_unit_size;
-    if (heap_unit_count <= 0)
-        heap_unit_count = 1;
-
-    // heap unit count must be 2^n
-    heap_unit_count = __fix_size(heap_unit_count);
-    heap_size  = heap_unit_count * heap_unit_size;
-
-    DBG("parameters after fixed: max_block_size<%lu>, chunk_size<%lu>, chunk_count<%d>, heap_size<%lu>, heap_unit_size<%lu>, heap_unit_count<%lu>.",
-        max_block_size, chunk_size, chunk_count, heap_size, heap_unit_size, heap_unit_count);
-
-    size_t singleton_size = 0;
-    for (auto it = singleton_meta_info.begin(); it != singleton_meta_info.end(); ++it)
-        singleton_size += it->size;
-
-    size_t chunk_mgr_size = chunk_allocator::calc_size(max_block_size);
-    size_t heap_mgr_size = heap_allocator::calc_size(heap_unit_count);
-
-    size_t shm_size = 0;
-    shm_size += sizeof(shm_mgr);
-    shm_size += singleton_size;
-    shm_size += chunk_mgr_size;
-    shm_size += heap_mgr_size;
-    shm_size += chunk_size * chunk_count;
-    shm_size += heap_size;
-
-    DBG("shm size info: mgr<%lu>, singleton<%lu>, chunk mgr<%lu>, heap mgr<%lu>, chunk pool<%lu>, heap pool<%lu>, total<%lu>.",
-        sizeof(shm_mgr), singleton_size, chunk_mgr_size, heap_mgr_size, chunk_size * chunk_count, heap_size, shm_size);
-
-    sk::detail::shm_segment seg;
-    int ret = seg.init(key, shm_size, resume);
-    if (ret != 0) {
-        ERR("cannot create shm mgr, key<%d>, size<%lu>.", key, shm_size);
-        return NULL;
-    }
-
-    shm_mgr *self = cast_ptr(shm_mgr, seg.address());
-    char *base_addr = char_ptr(seg.address());
-    base_addr += sizeof(shm_mgr);
-    char *chunk_pool = base_addr + singleton_size + chunk_mgr_size + heap_mgr_size;
-    char *heap_pool = chunk_pool + chunk_size * chunk_count;
-
-    // 0. init singletons
+    // 0. init size map
     {
-        if (resume)
-            base_addr += singleton_size;
-        else {
-            memset(self->singletons, 0x00, sizeof(self->singletons));
-
-            for (auto it = singleton_meta_info.begin(); it != singleton_meta_info.end(); ++it) {
-                assert_retval(it->id >= ST_MIN && it->id < ST_MAX, NULL);
-                self->singletons[it->id] = base_addr - char_ptr(self);
-                base_addr += it->size;
+        size_map = cast_ptr(detail::size_map, base_addr);
+        base_addr += sizeof(detail::size_map);
+        if (!resume) {
+            int ret = size_map->init();
+            if (ret != 0) {
+                ERR("size map init failure: %d.", ret);
+                return ret;
             }
         }
     }
 
-    // 1. init chunk_mgr
+    // 1. init chunk cache
     {
-        self->chunk_mgr = chunk_allocator::create(base_addr, chunk_mgr_size, resume,
-                                                  chunk_pool, chunk_size * chunk_count,
-                                                  max_block_size, chunk_size, chunk_count);
-        assert_retval(self->chunk_mgr, NULL);
-
-        base_addr += chunk_mgr_size;
+        chunk_cache = cast_ptr(detail::chunk_cache, base_addr);
+        base_addr += sizeof(detail::chunk_cache);
+        if (!resume)
+            chunk_cache->init();
     }
 
-    // 2. init heap allocator
+    // 2. init page heap
     {
-        self->heap_mgr = heap_allocator::create(base_addr, heap_mgr_size, resume,
-                                                heap_pool, heap_size,
-                                                heap_unit_count, heap_unit_size);
-        assert_retval(self->heap_mgr, NULL);
-
-        base_addr += heap_mgr_size;
+        page_heap = cast_ptr(detail::page_heap, base_addr);
+        base_addr += sizeof(detail::page_heap);
+        if (!resume)
+            page_heap->init();
     }
 
-    if (resume) {
-        assert_retval(self->shmid == seg.shmid, NULL);
-        assert_retval(self->max_block_size == max_block_size, NULL);
-    } else {
+    // 3. init metadata block
+    {
+        if (!resume) {
+            metadata_offset = base_addr - char_ptr(this);
+            metadata_left = used_size - metadata_offset;
+        }
+        base_addr += metadata_left;
+    }
+
+    return 0;
+}
+
+shm_mgr *shm_mgr::create(key_t key, size_t size_hint, bool resume) {
+    if (size_hint < MIN_SHM_SPACE)
+        size_hint = MIN_SHM_SPACE;
+
+    INF("shm mgr creation, size_hint: %lu.", size_hint);
+
+    size_t metadata_size = detail::page_heap::estimate_space(size_hint);
+    // the calculated size is the maximum possible size, so
+    // we multiple a factor to get the final size
+    metadata_size = static_cast<size_t>(metadata_size * 0.5);
+    if (metadata_size < MIN_METADATA_SPACE)
+        metadata_size = MIN_METADATA_SPACE;
+
+    size_t shm_size = 0;
+    shm_size += sizeof(shm_mgr);
+    shm_size += sizeof(detail::size_map);
+    shm_size += sizeof(detail::chunk_cache);
+    shm_size += sizeof(detail::page_heap);
+    shm_size += metadata_size;
+    shm_size += size_hint;
+
+    detail::shm_segment seg;
+    int ret = seg.init(key, shm_size, resume);
+    if (ret != 0) {
+        ERR("cannot create shm_mgr, key<%d>, size<%lu>.", key, shm_size);
+        return NULL;
+    }
+
+    char *base_addr = char_ptr(seg.address());
+    shm_mgr *self = cast_ptr(shm_mgr, base_addr);
+
+    if (!resume) {
+        memset(self, 0x00, sizeof(*self));
+
         self->shmid = seg.shmid;
-        self->max_block_size = max_block_size;
+        self->total_size = shm_size;
+
+        self->used_size = 0;
+        self->used_size += sizeof(*self);
+        self->used_size += sizeof(detail::size_map);
+        self->used_size += sizeof(detail::chunk_cache);
+        self->used_size += sizeof(page_heap);
+        self->used_size += metadata_size;
+
+        // do page alignment
+        offset_t offset = ((self->used_size + PAGE_SIZE - 1) >> PAGE_SHIFT) << PAGE_SHIFT;
+        assert_retval(self->used_size <= offset, NULL);
+        self->used_size = offset;
+    } else {
+        assert_retval(self->shmid == seg.shmid, NULL);
+        assert_retval(self->total_size == shm_size, NULL);
     }
 
     seg.release();
     return self;
 }
 
-inline sk::shm_mgr *sk::shm_mgr::get() {
+shm_mgr *shm_mgr::get() {
     assert_retval(mgr, NULL);
     return mgr;
 }
 
-int sk::shm_mgr::__malloc_from_chunk_pool(size_t mem_size, int& chunk_index, int& block_index) {
-    return chunk_mgr->malloc(mem_size, chunk_index, block_index);
-}
+shm_ptr<void> shm_mgr::malloc(size_t bytes) {
+    if (bytes <= MAX_SIZE)
+        return chunk_cache->allocate(bytes);
 
-int sk::shm_mgr::__malloc_from_heap(size_t mem_size, int& unit_index) {
-    return heap_mgr->malloc(mem_size, unit_index);
-}
-
-void sk::shm_mgr::__free_from_chunk_pool(int chunk_index, int block_index) {
-    chunk_mgr->free(chunk_index, block_index);
-}
-
-void sk::shm_mgr::__free_from_heap(int unit_index) {
-    heap_mgr->free(unit_index);
-}
-
-// TODO: refine this function, it has almost the same logic with free(...)
-void *sk::shm_mgr::mid2ptr(u64 mid) {
-    if (!mid)
-        return NULL;
-
-    detail::detail_ptr *ptr = cast_ptr(detail::detail_ptr, &mid);
-    switch (ptr->type) {
-    case detail::PTR_TYPE_SINGLETON: {
-        int singleton_id = ptr->idx1;
-        assert_retval(singleton_id >= ST_MIN && singleton_id < ST_MAX, NULL);
-
-        return get_singleton(singleton_id);
-    }
-    case detail::PTR_TYPE_CHUNK: {
-        int chunk_index = ptr->idx1;
-        int block_index = ptr->idx2;
-        assert_retval(chunk_index >= 0 && block_index >= 0, NULL);
-
-        return chunk_mgr->index2ptr(chunk_index, block_index);
-    }
-    case detail::PTR_TYPE_HEAP: {
-        int unit_index = ptr->idx1;
-        assert_retval(unit_index >= 0, NULL);
-
-        return heap_mgr->index2ptr(unit_index);
-    }
-    default:
-        assert_retval(0, NULL);
-    }
-}
-
-void *sk::shm_mgr::get_singleton(int id) {
-    assert_retval(id >= ST_MIN && id < ST_MAX, NULL);
-
-    offset_t offset = singletons[id];
-    assert_retval(offset >= sizeof(*this), NULL);
-
-    return void_ptr(char_ptr(this) + offset);
-}
-
-sk::shm_ptr<void> sk::shm_mgr::malloc(size_t size) {
-    // TODO: re-implement this function
-    (void) size;
-    return shm_ptr<void>();
-
-    // size_t mem_size = __align_size(size);
-
-    // do {
-    //     if (mem_size > max_block_size)
-    //         break;
-
-    //     int chunk_index = IDX_NULL;
-    //     int block_index = IDX_NULL;
-    //     int ret = __malloc_from_chunk_pool(mem_size, chunk_index, block_index);
-
-    //     // 1. the allocation succeeds
-    //     if (ret == 0) {
-    //         detail::detail_ptr ptr;
-    //         ptr.type = detail::PTR_TYPE_CHUNK;
-    //         ptr.idx1 = chunk_index;
-    //         ptr.idx2 = block_index;
-
-    //         return shm_ptr<void>(ptr);
-    //     }
-
-    //     // 2. fatal errors other than "no more memory", we return NULL
-    //     if (ret != -ENOMEM)
-    //         return shm_ptr<void>();
-
-    //     // 3. the error is because chunk pool is used up, then we will
-    //     //    allocate it from heap
-    //     break;
-
-    // } while (0);
-
-    // // if the block should be allocated on heap, or the allocation fails in chunk pool
-    // // because it is used up, then we do the allocation on heap
-    // int unit_index = IDX_NULL;
-    // int ret = __malloc_from_heap(mem_size, unit_index);
-    // if (ret != 0)
-    //     return shm_ptr<void>();
-
-    // detail::detail_ptr ptr;
-    // ptr.type = detail::PTR_TYPE_HEAP;
-    // ptr.idx1 = unit_index;
-    // ptr.idx2 = 0;
-
-    // return shm_ptr<void>(ptr);
-}
-
-void sk::shm_mgr::free(shm_ptr<void> ptr) {
-    if (!ptr)
-        return;
-
-    // TODO: re-implement this function
-
-    // detail::detail_ptr *raw_ptr = cast_ptr(detail::detail_ptr, &ptr.mid);
-    // switch (raw_ptr->type) {
-    // case detail::PTR_TYPE_SINGLETON: {
-    //     int singleton_id = raw_ptr->idx1;
-    //     assert_retnone(singleton_id >= ST_MIN && singleton_id < ST_MAX);
-
-    //     assert_noeffect(0);
-    //     return;
-    // }
-    // case detail::PTR_TYPE_CHUNK: {
-    //     int chunk_index = raw_ptr->idx1;
-    //     int block_index = raw_ptr->idx2;
-    //     assert_retnone(chunk_index >= 0 && block_index >= 0);
-
-    //     __free_from_chunk_pool(chunk_index, block_index);
-    //     return;
-    // }
-    // case detail::PTR_TYPE_HEAP: {
-    //     int unit_index = raw_ptr->idx1;
-    //     assert_retnone(unit_index >= 0);
-
-    //     __free_from_heap(unit_index);
-    //     return;
-    // }
-    // default:
-    //     assert_retnone(0);
-    // }
-}
-
-
-sk::shm_ptr<void> sk::shm_malloc(size_t size) {
-    shm_mgr *mgr = shm_mgr::get();
-    assert_retval(mgr, shm_ptr<void>());
-
-    return mgr->malloc(size);
-}
-
-void sk::shm_free(shm_ptr<void> ptr) {
-    shm_mgr *mgr = shm_mgr::get();
-    assert_retnone(mgr);
-
-    mgr->free(ptr);
-}
-
-void *sk::shm_singleton(int id) {
-    shm_mgr *mgr = shm_mgr::get();
-    assert_retval(mgr, NULL);
-
-    return mgr->get_singleton(id);
-}
-
-//---------------------------------------------------------------------------
-
-namespace sk {
-
-inline size_t shm_mgr::__align_size(size_t size) {
-    // TODO: redefine the ALIGN related macros
-    return (size + ALIGN_MASK) & ~ALIGN_MASK;
-}
-
-shm_ptr<void> shm_mgr::__sbrk(size_t size) {
-    // if there is no enough memory, just return
-    if (used_size + size > total_size)
+    int page_count = (bytes >> PAGE_SHIFT) + ((bytes & (PAGE_SIZE - 1)) > 0 ? 1 : 0);
+    shm_ptr<detail::span> sp = page_heap->allocate_span(page_count);
+    if (!sp)
         return SHM_NULL;
 
-    shm_ptr<void> ptr(used_size);
-    used_size += size;
-
-    return ptr;
+    offset_t offset = sp->start << PAGE_SHIFT;
+    return shm_ptr<void>(offset);
 }
 
-shm_ptr<void> shm_mgr::allocate_metadata(size_t size) {
-    // align size
-    size = ((size + META_ALIGN_SIZE - 1) >> META_ALIGN_SHIFT) << META_ALIGN_SHIFT;
+void shm_mgr::free(shm_ptr<void> ptr) {
+    assert_retnone(ptr);
 
-    // 1. if the size is g.e. to meta allocation size, we
-    //    then allocate a new block
-    if (size >= META_ALLOC_SIZE) {
-        shm_ptr<void> ptr = __sbrk(size);
-        if (ptr) {
-            stat.metadata_total_size += size;
-            stat.metadata_alloc_count += 1;
-            assert_noeffect(ptr.offset % META_ALIGN_SIZE == 0);
-        }
+    page_t page = ptr2page(ptr);
+    shm_ptr<detail::span> sp = page_heap->find_span(page);
+    assert_retnone(sp);
 
-        return ptr;
+    if (sp->size_class < 0) {
+        assert_noeffect(!sp->chunk_list);
+        assert_noeffect(sp->used_count == 0);
+
+        return page_heap->deallocate_span(sp);
     }
 
-    // 2. if the left space is not enough, we then drop the
-    //    block and allocate a new one
-    if (size > metadata_left) {
-        shm_ptr<void> ptr = __sbrk(META_ALLOC_SIZE);
-        if (!ptr)
-            return SHM_NULL;
+    // TODO: the function below will search for span again, it's better to
+    // take the searched span as a parameter to improve performance
+    chunk_cache->deallocate(ptr);
+}
 
-        stat.metadata_waste_size += metadata_left;
-        metadata_left = META_ALLOC_SIZE;
-        metadata_offset = ptr.offset;
-        assert_noeffect(metadata_offset % META_ALIGN_SIZE == 0);
-
-        stat.metadata_total_size += metadata_left;
-        stat.metadata_alloc_count += 1;
+offset_t shm_mgr::__sbrk(size_t bytes) {
+    // no enough memory, return
+    if (used_size + bytes > total_size) {
+        ERR("no enough memory, used: %lu, total: %lu, needed: %lu.", used_size, total_size, bytes);
+        return OFFSET_NULL;
     }
 
-    shm_ptr<void> ptr(metadata_offset);
+    offset_t offset = used_size;
+    used_size += bytes;
 
-    metadata_left -= size;
-    metadata_offset += size;
+    return offset;
+}
 
-    return ptr;
+offset_t shm_mgr::allocate(size_t bytes) {
+    if (bytes % PAGE_SIZE != 0) {
+        DBG("bytes: %lu to be fixed.", bytes);
+        bytes = ((bytes + PAGE_SIZE - 1) >> PAGE_SHIFT) << PAGE_SHIFT;
+    }
+
+    return __sbrk(bytes);
+}
+
+offset_t shm_mgr::allocate_metadata(size_t bytes) {
+    if (bytes % PAGE_SIZE != 0) {
+        DBG("bytes: %lu to be fixed.", bytes);
+        bytes = ((bytes + PAGE_SIZE - 1) >> PAGE_SHIFT) << PAGE_SHIFT;
+    }
+
+    if (bytes > metadata_left) {
+        DBG("metadata block used up.");
+        return allocate(bytes);
+    }
+
+    offset_t offset = metadata_offset;
+    metadata_offset += bytes;
+    metadata_left -= bytes;
+
+    return offset;
 }
 
 void *shm_mgr::offset2ptr(offset_t offset) {
@@ -434,4 +237,21 @@ page_t shm_mgr::ptr2page(shm_ptr<void> ptr) {
     return ptr.offset >> PAGE_SHIFT;
 }
 
+
+
+shm_ptr<void> shm_malloc(size_t bytes) {
+    shm_mgr *mgr = shm_mgr::get();
+    assert_retval(mgr, SHM_NULL);
+
+    return mgr->malloc(bytes);
+}
+
+void shm_free(shm_ptr<void> ptr) {
+    shm_mgr *mgr = shm_mgr::get();
+    assert_retnone(mgr);
+
+    mgr->free(ptr);
+}
+
 } // namespace sk
+
