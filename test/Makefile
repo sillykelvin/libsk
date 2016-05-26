@@ -25,4 +25,6 @@ clean:
 test: $(APP_BIN)
 	./$(APP_BIN)
 
--include $(DEP)
+ifneq ($(MAKECMDGOALS),clean)
+    -include $(DEP)
+endif

@@ -22,4 +22,6 @@ $(OUT_LIB): $(DEP) $(OBJ)
 clean:
 	$(RM) $(OBJ) $(DEP) $(OUT_LIB)
 
--include $(DEP)
+ifneq ($(MAKECMDGOALS),clean)
+    -include $(DEP)
+endif
