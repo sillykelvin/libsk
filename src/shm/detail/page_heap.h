@@ -22,6 +22,8 @@ struct page_heap {
     struct {
         size_t total_count; // how many pages has been allocated
         size_t grow_count;  // how many times has heap grown
+        size_t alloc_count; // how many allocation has happened
+        size_t free_count;  // how many deallocation has happened
     } stat;
 
     /*
@@ -30,6 +32,8 @@ struct page_heap {
     static size_t estimate_space(size_t bytes);
 
     void init();
+
+    void report();
 
     shm_ptr<span> allocate_span(int page_count);
     void deallocate_span(shm_ptr<span> ptr);

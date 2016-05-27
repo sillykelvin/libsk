@@ -49,16 +49,33 @@ void page_heap::init() {
     memset(&stat, 0x00, sizeof(stat));
 }
 
+void page_heap::report() {
+    span_allocator.report();
+
+    INF("page heap => allocated page count: %lu, grow count: %lu.",
+        stat.total_count, stat.grow_count);
+    INF("page heap => allocation count: %lu, deallocation count: %lu.",
+        stat.alloc_count, stat.free_count);
+}
+
 shm_ptr<span> page_heap::allocate_span(int page_count) {
     assert_retval(page_count > 0, SHM_NULL);
 
     shm_ptr<span> ret = __search_existing(page_count);
-    if (ret)
+    if (ret) {
+        ++stat.alloc_count;
         return ret;
+    }
 
-    if (__grow_heap(page_count))
-        return __search_existing(page_count);
+    if (__grow_heap(page_count)) {
+        shm_ptr<span> ret = __search_existing(page_count);
+        if (ret)
+            ++stat.alloc_count;
 
+        return ret;
+    }
+
+    ERR("cannot grow heap, allocation failed, page count: %d.", page_count);
     return SHM_NULL;
 }
 
@@ -109,6 +126,8 @@ void page_heap::deallocate_span(shm_ptr<span> ptr) {
     }
 
     __link(ptr);
+
+    ++stat.free_count;
 
     // TODO: may try to return some memory to shm_mgr here
     // if the top most block is empty

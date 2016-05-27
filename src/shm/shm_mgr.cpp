@@ -80,11 +80,23 @@ int shm_mgr::init(bool resume) {
     return 0;
 }
 
+void shm_mgr::report() {
+    INF("=============================================================================");
+    chunk_cache->report();
+    page_heap->report();
+
+    INF("shm mgr => total: %lu, used: %lu (%.2lf%%), meta left: %lu.",
+        total_size, used_size, (used_size * 100.0 / total_size), metadata_left);
+    INF("shm mgr => allocation count: %lu, deallocation count: %lu.",
+        stat.alloc_count, stat.free_count);
+    INF("shm mgr => raw memory allocation count: %lu, meta data allocation count: %lu.",
+        stat.raw_alloc_count, stat.meta_alloc_count);
+    INF("=============================================================================");
+}
+
 shm_mgr *shm_mgr::create(key_t key, size_t size_hint, bool resume) {
     if (size_hint < MIN_SHM_SPACE)
         size_hint = MIN_SHM_SPACE;
-
-    INF("shm mgr creation, size_hint: %lu.", size_hint);
 
     size_t metadata_size = detail::page_heap::estimate_space(size_hint);
     // the calculated size is the maximum possible size, so
@@ -100,6 +112,8 @@ shm_mgr *shm_mgr::create(key_t key, size_t size_hint, bool resume) {
     shm_size += sizeof(detail::page_heap);
     shm_size += metadata_size;
     shm_size += size_hint;
+
+    INF("shm mgr creation, size_hint: %lu, fixed size: %lu.", size_hint, shm_size);
 
     detail::shm_segment seg;
     int ret = seg.init(key, shm_size, resume);
@@ -143,6 +157,10 @@ shm_mgr *shm_mgr::get() {
 }
 
 shm_ptr<void> shm_mgr::malloc(size_t bytes) {
+    // this function will almost never fail, so we increase
+    // this count at the beginning of this function
+    ++stat.alloc_count;
+
     if (bytes <= MAX_SIZE)
         return chunk_cache->allocate(bytes);
 
@@ -157,6 +175,8 @@ shm_ptr<void> shm_mgr::malloc(size_t bytes) {
 
 void shm_mgr::free(shm_ptr<void> ptr) {
     assert_retnone(ptr);
+
+    ++stat.free_count;
 
     page_t page = ptr2page(ptr);
     shm_ptr<detail::span> sp = page_heap->find_span(page);
@@ -189,27 +209,31 @@ offset_t shm_mgr::__sbrk(size_t bytes) {
 
 offset_t shm_mgr::allocate(size_t bytes) {
     if (bytes % PAGE_SIZE != 0) {
-        DBG("bytes: %lu to be fixed.", bytes);
+        INF("bytes: %lu to be fixed.", bytes);
         bytes = ((bytes + PAGE_SIZE - 1) >> PAGE_SHIFT) << PAGE_SHIFT;
     }
+
+    ++stat.raw_alloc_count;
 
     return __sbrk(bytes);
 }
 
 offset_t shm_mgr::allocate_metadata(size_t bytes) {
     if (bytes % PAGE_SIZE != 0) {
-        DBG("bytes: %lu to be fixed.", bytes);
+        INF("bytes: %lu to be fixed.", bytes);
         bytes = ((bytes + PAGE_SIZE - 1) >> PAGE_SHIFT) << PAGE_SHIFT;
     }
 
     if (bytes > metadata_left) {
-        DBG("metadata block used up.");
+        INF("metadata block used up.");
         return allocate(bytes);
     }
 
     offset_t offset = metadata_offset;
     metadata_offset += bytes;
     metadata_left -= bytes;
+
+    ++stat.meta_alloc_count;
 
     return offset;
 }

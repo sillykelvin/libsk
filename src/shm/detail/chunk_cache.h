@@ -10,9 +10,16 @@ namespace detail {
 struct chunk_cache {
     span free_lists[SIZE_CLASS_COUNT];
 
-    // TODO: add stat field here
+    struct {
+        size_t span_alloc_count; // how many span has allocated from heap
+        size_t span_free_count;  // how many span has returned to heap
+        size_t alloc_count; // how many allocation has happened
+        size_t free_count;  // how many deallocation has happened
+    } stat;
 
     void init();
+
+    void report();
 
     shm_ptr<void> allocate(size_t bytes);
     void deallocate(shm_ptr<void> ptr);

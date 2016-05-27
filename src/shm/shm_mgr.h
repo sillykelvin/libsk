@@ -36,6 +36,16 @@ struct shm_mgr {
     size_t metadata_left;
 
     /*
+     * runtime statistics
+     */
+    struct {
+        size_t alloc_count;      // total allocation count
+        size_t free_count;       // total deallocation count
+        size_t raw_alloc_count;  // raw memory allocation count
+        size_t meta_alloc_count; // metadata allocation count
+    } stat;
+
+    /*
      * pointer to size map, page heap and chunk cache
      */
     detail::size_map *size_map;
@@ -47,6 +57,8 @@ struct shm_mgr {
     static shm_mgr *get();
 
     int init(bool resume);
+
+    void report();
 
     shm_ptr<void> malloc(size_t bytes);
     void free(shm_ptr<void> ptr);

@@ -3,6 +3,7 @@
 
 #include "shm/shm_mgr.h"
 #include "shm/shm_ptr.h"
+#include "utility/log.h"
 #include "utility/types.h"
 #include "utility/config.h"
 #include "utility/assert_helper.h"
@@ -33,6 +34,14 @@ struct metadata_allocator {
         space_left = 0;
 
         memset(&stat, 0x00, sizeof(stat));
+    }
+
+    void report() {
+        INF("metadata allocator => sizeof(T): %lu.", sizeof(T));
+        INF("metadata allocator => allocated size: %lu, wasted size: %lu.",
+            stat.total_size, stat.waste_size);
+        INF("metadata allocator => allocation count: %lu, deallocation count: %lu.",
+            stat.alloc_count, stat.free_count);
     }
 
     shm_ptr<T> allocate() {

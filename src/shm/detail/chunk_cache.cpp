@@ -12,6 +12,15 @@ void chunk_cache::init() {
         shm_ptr<span> head = free_lists[i].ptr();
         span_list_init(head);
     }
+
+    memset(&stat, 0x00, sizeof(stat));
+}
+
+void chunk_cache::report() {
+    INF("chunk cache => span allocation count: %lu, span deallocation count: %lu.",
+        stat.span_alloc_count, stat.span_free_count);
+    INF("chunk cache => allocation count: %lu, deallocation count: %lu.",
+        stat.alloc_count, stat.free_count);
 }
 
 shm_ptr<void> chunk_cache::allocate(size_t bytes) {
@@ -40,6 +49,7 @@ shm_ptr<void> chunk_cache::allocate(size_t bytes) {
         if (!sp)
             return SHM_NULL;
 
+        ++stat.span_alloc_count;
         mgr->page_heap->register_span(sp);
         sp->partition(bytes, sc);
         span_list_prepend(head, sp);
@@ -57,6 +67,8 @@ shm_ptr<void> chunk_cache::allocate(size_t bytes) {
     // the span is full
     if (!s->chunk_list)
         span_list_remove(sp);
+
+    ++stat.alloc_count;
 
     return ret;
 }
@@ -88,6 +100,7 @@ void chunk_cache::deallocate(shm_ptr<void> ptr) {
             span_list_remove(sp);
             sp->erase();
             shm_mgr::get()->page_heap->deallocate_span(sp);
+            ++stat.span_free_count;
         } else {
             // do nothing here
         }
@@ -95,10 +108,13 @@ void chunk_cache::deallocate(shm_ptr<void> ptr) {
         if (empty_after) {
             sp->erase();
             shm_mgr::get()->page_heap->deallocate_span(sp);
+            ++stat.span_free_count;
         } else {
             span_list_prepend(head, sp);
         }
     }
+
+    ++stat.free_count;
 }
 
 } // namespace detail
