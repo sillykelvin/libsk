@@ -7,8 +7,15 @@
 namespace sk {
 namespace detail {
 
+struct class_cache {
+    span free_list;
+    int span_count;
+
+    void init();
+};
+
 struct chunk_cache {
-    span free_lists[SIZE_CLASS_COUNT];
+    class_cache caches[SIZE_CLASS_COUNT];
 
     struct {
         size_t span_alloc_count; // how many span has allocated from heap

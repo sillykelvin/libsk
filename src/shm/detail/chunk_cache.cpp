@@ -7,11 +7,16 @@
 namespace sk {
 namespace detail {
 
+void class_cache::init() {
+    shm_ptr<span> head = free_list.ptr();
+    span_list_init(head);
+
+    span_count = 0;
+}
+
 void chunk_cache::init() {
-    for (int i = 0; i < SIZE_CLASS_COUNT; ++i) {
-        shm_ptr<span> head = free_lists[i].ptr();
-        span_list_init(head);
-    }
+    for (int i = 0; i < SIZE_CLASS_COUNT; ++i)
+        caches[i].init();
 
     memset(&stat, 0x00, sizeof(stat));
 }
@@ -33,7 +38,7 @@ shm_ptr<void> chunk_cache::allocate(size_t bytes) {
 
     bytes = mgr->size_map->class_to_size(sc);
 
-    shm_ptr<span> head = free_lists[sc].ptr();
+    shm_ptr<span> head = caches[sc].free_list.ptr();
     shm_ptr<span> sp = SHM_NULL;
 
     do {
@@ -53,6 +58,7 @@ shm_ptr<void> chunk_cache::allocate(size_t bytes) {
         mgr->page_heap->register_span(sp);
         sp->partition(bytes, sc);
         span_list_prepend(head, sp);
+        ++caches[sc].span_count;
 
     } while (0);
 
@@ -65,8 +71,10 @@ shm_ptr<void> chunk_cache::allocate(size_t bytes) {
     s->used_count += 1;
 
     // the span is full
-    if (!s->chunk_list)
+    if (!s->chunk_list) {
         span_list_remove(sp);
+        --caches[sc].span_count;
+    }
 
     ++stat.alloc_count;
 
@@ -79,13 +87,14 @@ void chunk_cache::deallocate(shm_ptr<void> ptr) {
     page_t page = shm_mgr::get()->ptr2page(ptr);
     shm_ptr<span> sp = shm_mgr::get()->page_heap->find_span(page);
     assert_retnone(sp);
-    assert_retnone(sp->used_count > 0);
 
     span *s = sp.get();
+    assert_retnone(s->used_count > 0);
+
     int sc = s->size_class;
     assert_retnone(sc >= 0 && sc < SIZE_CLASS_COUNT);
 
-    shm_ptr<span> head = free_lists[sc].ptr();
+    shm_ptr<span> head = caches[sc].free_list.ptr();
 
     bool full_before = !s->chunk_list;
 
@@ -97,20 +106,33 @@ void chunk_cache::deallocate(shm_ptr<void> ptr) {
 
     if (!full_before) {
         if (empty_after) {
-            span_list_remove(sp);
-            sp->erase();
-            shm_mgr::get()->page_heap->deallocate_span(sp);
-            ++stat.span_free_count;
+            // this span itself is still in the list, so we
+            // compare with 1 here
+            if (caches[sc].span_count > 1) {
+                span_list_remove(sp);
+                --caches[sc].span_count;
+                s->erase();
+                shm_mgr::get()->page_heap->deallocate_span(sp);
+                ++stat.span_free_count;
+            } else {
+                // do nothing here
+            }
         } else {
             // do nothing here
         }
     } else {
         if (empty_after) {
-            sp->erase();
-            shm_mgr::get()->page_heap->deallocate_span(sp);
-            ++stat.span_free_count;
+            if (caches[sc].span_count > 0) {
+                s->erase();
+                shm_mgr::get()->page_heap->deallocate_span(sp);
+                ++stat.span_free_count;
+            } else {
+                span_list_prepend(head, sp);
+                ++caches[sc].span_count;
+            }
         } else {
             span_list_prepend(head, sp);
+            ++caches[sc].span_count;
         }
     }
 
