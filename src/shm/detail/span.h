@@ -39,8 +39,9 @@ struct span {
 };
 
 inline void span_list_init(shm_ptr<span> list) {
-    list->prev = list;
-    list->next = list;
+    span *l = list.get();
+    l->prev = list;
+    l->next = list;
 }
 
 inline bool span_list_empty(shm_ptr<span> list) {
@@ -48,20 +49,24 @@ inline bool span_list_empty(shm_ptr<span> list) {
 }
 
 inline void span_list_remove(shm_ptr<span> node) {
-    node->prev->next = node->next;
-    node->next->prev = node->prev;
-    node->prev = SHM_NULL;
-    node->next = SHM_NULL;
+    span *n = node.get();
+    n->prev->next = n->next;
+    n->next->prev = n->prev;
+    n->prev = SHM_NULL;
+    n->next = SHM_NULL;
 }
 
 inline void span_list_prepend(shm_ptr<span> list, shm_ptr<span> node) {
-    assert_retnone(!node->prev);
-    assert_retnone(!node->next);
+    span *l = list.get();
+    span *n = node.get();
 
-    node->next = list->next;
-    node->prev = list;
-    list->next->prev = node;
-    list->next = node;
+    assert_retnone(!n->prev);
+    assert_retnone(!n->next);
+
+    n->next = l->next;
+    n->prev = list;
+    l->next->prev = node;
+    l->next = node;
 }
 
 } // namespace detail
