@@ -2,6 +2,8 @@
 #include <unistd.h>
 #include "libsk.h"
 
+#define SHM_SIZE 100000000
+
 // NOTE: LOOP_COUNT must be 100 * N
 #define LOOP_COUNT 10000 // 1000000
 
@@ -128,12 +130,12 @@ void parse_parameters(int argc, char **argv, size_t& shm_size) {
     }
 }
 
-int main(int argc, char **argv) {
+int main() {
     srand(time(NULL));
 
-    size_t shm_size = 0;
+    size_t shm_size = SHM_SIZE;
 
-    parse_parameters(argc, argv, shm_size);
+    // parse_parameters(argc, argv, shm_size);
 
     sk::shm_mgr_init(0x7777, shm_size, false);
 
@@ -175,6 +177,7 @@ int main(int argc, char **argv) {
         print_time_cost("shm_mgr,     fixed size", begin_time, end_time);
     }
 
+    sk::shm_mgr::get()->report();
     sk::shm_mgr_fini();
 
     return 0;
