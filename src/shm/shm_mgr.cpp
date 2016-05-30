@@ -248,7 +248,7 @@ void *shm_mgr::offset2ptr(offset_t offset) {
 offset_t shm_mgr::ptr2offset(void *ptr) {
     char *p = char_ptr(ptr);
     char *base = char_ptr(this);
-    assert_retval(p >= base + sizeof(this), OFFSET_NULL);
+    assert_retval(p >= base + sizeof(*this), OFFSET_NULL);
     assert_retval(p < base + used_size, OFFSET_NULL);
 
     return p - base;
