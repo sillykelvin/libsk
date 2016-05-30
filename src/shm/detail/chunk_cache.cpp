@@ -26,6 +26,8 @@ void chunk_cache::init() {
 void chunk_cache::report() {
     assert_noeffect(stat.used_size <= stat.total_size);
 
+    size_t used_size = 0;
+    size_t total_size = 0;
     for (int i = 0; i < SIZE_CLASS_COUNT; ++i) {
         const class_cache& cache = caches[i];
         if (cache.stat.total_size <= 0)
@@ -38,14 +40,20 @@ void chunk_cache::report() {
             cache.stat.alloc_count, cache.stat.free_count,
             cache.stat.total_size, cache.stat.used_size,
             cache.stat.used_size * 100.0 / cache.stat.total_size);
+
+        used_size += cache.stat.used_size;
+        total_size += cache.stat.total_size;
     }
+
+    assert_noeffect(used_size == stat.used_size);
+    assert_noeffect(total_size == stat.total_size);
 
     INF("chunk cache => span allocation count: %lu, span deallocation count: %lu.",
         stat.span_alloc_count, stat.span_free_count);
     INF("chunk cache => allocation count: %lu, deallocation count: %lu.",
         stat.alloc_count, stat.free_count);
-    INF("chunk cache => total bytes: %lu, used bytes: %lu (%.2lf%%).",
-        stat.total_size, stat.used_size, stat.total_size <= 0 ? 0.0 : stat.used_size * 100.0 / stat.total_size);
+    INF("chunk cache => total bytes: %lu (in page: %lu), used bytes: %lu (%.2lf%%).",
+        stat.total_size, stat.total_size >> PAGE_SHIFT, stat.used_size, stat.total_size <= 0 ? 0.0 : stat.used_size * 100.0 / stat.total_size);
 }
 
 shm_ptr<void> chunk_cache::allocate(size_t bytes) {
