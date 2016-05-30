@@ -50,12 +50,20 @@ void page_heap::init() {
 }
 
 void page_heap::report() {
+    assert_noeffect(stat.alloc_size >= stat.free_size);
+    assert_noeffect(stat.alloc_count >= stat.free_count);
+
     span_allocator.report();
 
-    INF("page heap => allocated page count: %lu, grow count: %lu.",
-        stat.total_count, stat.grow_count);
+    INF("page heap => page count, total: %lu, allocated: %lu, deallocated: %lu.",
+        stat.total_size, stat.alloc_size, stat.free_size);
     INF("page heap => allocation count: %lu, deallocation count: %lu.",
         stat.alloc_count, stat.free_count);
+    INF("page heap => grow count: %lu.", stat.grow_count);
+
+    size_t used_size = stat.alloc_size - stat.free_size;
+    INF("page heap => used page count: %lu, size: %lu, percentage: (%.2lf%%).",
+        used_size, used_size << PAGE_SHIFT, used_size * 100.0 / stat.total_size);
 }
 
 shm_ptr<span> page_heap::allocate_span(int page_count) {
@@ -64,13 +72,16 @@ shm_ptr<span> page_heap::allocate_span(int page_count) {
     shm_ptr<span> ret = __search_existing(page_count);
     if (ret) {
         ++stat.alloc_count;
+        stat.alloc_size += page_count;
         return ret;
     }
 
     if (__grow_heap(page_count)) {
         shm_ptr<span> ret = __search_existing(page_count);
-        if (ret)
+        if (ret) {
             ++stat.alloc_count;
+            stat.alloc_size += page_count;
+        }
 
         return ret;
     }
@@ -128,6 +139,7 @@ void page_heap::deallocate_span(shm_ptr<span> ptr) {
     __link(ptr);
 
     ++stat.free_count;
+    stat.free_size += orig_count;
 
     // TODO: may try to return some memory to shm_mgr here
     // if the top most block is empty
@@ -252,7 +264,7 @@ bool page_heap::__grow_heap(int page_count) {
     } while (0);
 
     stat.grow_count += 1;
-    stat.total_count += ask;
+    stat.total_size += ask;
 
     assert_noeffect(offset % PAGE_SIZE == 0);
     const page_t p = offset >> PAGE_SHIFT;
@@ -270,6 +282,14 @@ bool page_heap::__grow_heap(int page_count) {
         span_map.set(p + ask - 1, s);
 
     s->in_use = true;
+
+    // in fact, this is not an actual allocation here, however,
+    // in deallocate_span() stat.free_count & stat.free_size will
+    // be increased, to match that, we should also increase the
+    // stat.alloc_count & stat.alloc_size here
+    ++stat.alloc_count;
+    stat.alloc_size += ask;
+
     deallocate_span(s);
 
     return true;
