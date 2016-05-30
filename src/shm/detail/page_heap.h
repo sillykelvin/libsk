@@ -20,8 +20,7 @@ struct page_heap {
     metadata_allocator<span> span_allocator;
 
     struct {
-        size_t alloc_size;  // how many pages has been allocated
-        size_t free_size;   // how many pages has been freed
+        size_t used_size;   // how many pages has been used currently
         size_t total_size;  // total pages managed by page heap
         size_t grow_count;  // how many times has heap grown
         size_t alloc_count; // how many allocation has happened

@@ -11,6 +11,13 @@ struct class_cache {
     span free_list;
     int span_count;
 
+    struct {
+        size_t alloc_count; // how many allocation has happened
+        size_t free_count;  // how many deallocation has happened
+        size_t used_size;   // how many bytes has been used currently
+        size_t total_size;  // total bytes managed by this class cache
+    } stat;
+
     void init();
 };
 
@@ -22,6 +29,8 @@ struct chunk_cache {
         size_t span_free_count;  // how many span has returned to heap
         size_t alloc_count; // how many allocation has happened
         size_t free_count;  // how many deallocation has happened
+        size_t used_size;   // how many bytes has been used currently
+        size_t total_size;  // total bytes managed by chunk cache
     } stat;
 
     void init();

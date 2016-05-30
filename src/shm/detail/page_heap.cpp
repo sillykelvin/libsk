@@ -50,20 +50,16 @@ void page_heap::init() {
 }
 
 void page_heap::report() {
-    assert_noeffect(stat.alloc_size >= stat.free_size);
+    assert_noeffect(stat.used_size <= stat.total_size);
     assert_noeffect(stat.alloc_count >= stat.free_count);
 
     span_allocator.report();
 
-    INF("page heap => page count, total: %lu, allocated: %lu, deallocated: %lu.",
-        stat.total_size, stat.alloc_size, stat.free_size);
     INF("page heap => allocation count: %lu, deallocation count: %lu.",
         stat.alloc_count, stat.free_count);
     INF("page heap => grow count: %lu.", stat.grow_count);
-
-    size_t used_size = stat.alloc_size - stat.free_size;
-    INF("page heap => used page count: %lu, size: %lu, percentage: (%.2lf%%).",
-        used_size, used_size << PAGE_SHIFT, used_size * 100.0 / stat.total_size);
+    INF("page heap => page count, total: %lu, used: %lu (%.2lf%%).",
+        stat.total_size, stat.used_size, stat.total_size <= 0 ? 0.0 : stat.used_size * 100.0 / stat.total_size);
 }
 
 shm_ptr<span> page_heap::allocate_span(int page_count) {
@@ -72,7 +68,7 @@ shm_ptr<span> page_heap::allocate_span(int page_count) {
     shm_ptr<span> ret = __search_existing(page_count);
     if (ret) {
         ++stat.alloc_count;
-        stat.alloc_size += page_count;
+        stat.used_size += page_count;
         return ret;
     }
 
@@ -80,7 +76,7 @@ shm_ptr<span> page_heap::allocate_span(int page_count) {
         shm_ptr<span> ret = __search_existing(page_count);
         if (ret) {
             ++stat.alloc_count;
-            stat.alloc_size += page_count;
+            stat.used_size += page_count;
         }
 
         return ret;
@@ -139,7 +135,8 @@ void page_heap::deallocate_span(shm_ptr<span> ptr) {
     __link(ptr);
 
     ++stat.free_count;
-    stat.free_size += orig_count;
+    assert_noeffect(stat.used_size >= (size_t) orig_count);
+    stat.used_size -= orig_count;
 
     // TODO: may try to return some memory to shm_mgr here
     // if the top most block is empty
@@ -284,11 +281,11 @@ bool page_heap::__grow_heap(int page_count) {
     s->in_use = true;
 
     // in fact, this is not an actual allocation here, however,
-    // in deallocate_span() stat.free_count & stat.free_size will
-    // be increased, to match that, we should also increase the
-    // stat.alloc_count & stat.alloc_size here
+    // in deallocate_span() stat.free_count & stat.used_size will
+    // be changed, to match that, we should also change the
+    // stat.alloc_count & stat.used_size here
     ++stat.alloc_count;
-    stat.alloc_size += ask;
+    stat.used_size += ask;
 
     deallocate_span(s);
 
