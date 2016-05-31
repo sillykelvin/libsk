@@ -36,6 +36,8 @@ TEST(shm_ptr, shm_ptr) {
     ASSERT_TRUE((*ptr).a == 7);
     ASSERT_STREQ((*ptr).str, "hello world");
 
+    shm_del(ptr);
+
     ret = shm_mgr_fini();
     ASSERT_TRUE(ret == 0);
 }
