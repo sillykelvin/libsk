@@ -1,10 +1,12 @@
 #include <gtest/gtest.h>
 #include "libsk.h"
 #include "shm/detail/shm_segment.h"
+#include "shm/detail/page_map.h"
+#include "shm/detail/metadata_allocator.h"
 
 #define SHM_SEG_KEY         (0x77)
 #define SHM_MGR_KEY         (0x77777)
-#define SHM_SIZE            (100000)
+#define SHM_SIZE            (102400)
 
 using namespace sk;
 using namespace sk::detail;
@@ -41,48 +43,76 @@ TEST(shm_mgr, shm_segment) {
 }
 
 TEST(shm_mgr, page_map) {
-    // TODO: add test for page_map here
+    page_map m;
+    m.init();
+
+    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    ASSERT_TRUE(ret == 0);
+
+    shm_ptr<void> tmp = shm_malloc(1);
+
+    ASSERT_TRUE(m.get(0) == SHM_NULL);
+    m.set(0, tmp);
+    ASSERT_TRUE(m.get(0) == tmp);
+
+    ASSERT_TRUE(m.get(1) == SHM_NULL);
+    m.set(1, tmp);
+    ASSERT_TRUE(m.get(1) == tmp);
+
+    ASSERT_TRUE(m.get(222) == SHM_NULL);
+    m.set(222, tmp);
+    ASSERT_TRUE(m.get(222) == tmp);
+
+    ASSERT_TRUE(m.get(3333) == SHM_NULL);
+    m.set(3333, tmp);
+    ASSERT_TRUE(m.get(3333) == tmp);
+
+    ASSERT_TRUE(m.get(99999) == SHM_NULL);
+    m.set(99999, tmp);
+    ASSERT_TRUE(m.get(99999) == tmp);
+
+    shm_mgr_fini();
 }
 
 TEST(shm_mgr, metadata_allocator) {
-    // TODO: add test for metadata_allocator here
+    metadata_allocator<size_t> allocator;
+    allocator.init();
+
+    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    ASSERT_TRUE(ret == 0);
+
+    shm_ptr<size_t> ptr = allocator.allocate();
+    ASSERT_TRUE(ptr != SHM_NULL);
+    offset_t offset = ptr.offset;
+
+    allocator.deallocate(ptr);
+    ptr = allocator.allocate();
+    ASSERT_TRUE(ptr != SHM_NULL);
+    ASSERT_TRUE(ptr.offset == offset);
+
+    allocator.deallocate(ptr);
+    ASSERT_TRUE(allocator.stat.alloc_count == 2);
+    ASSERT_TRUE(allocator.stat.free_count == 2);
+
+    shm_mgr_fini();
 }
 
-struct size24 {
-    size_t a;
-    size_t b;
-    size_t c;
-};
-
-struct size1000 {
-    char str[1000];
-};
-
-struct size1024 {
-    char str1[256];
-    char str2[256];
-    char str3[256];
-    char str4[256];
-};
-
-struct size1032 {
-    char str[1024];
-    size_t i;
-};
-
-struct size2064 {
-    char str1[1024];
-    char str2[1024];
-    int a;
-    int b;
-    int c;
-    int d;
-};
-
-TEST(shm_mgr, shm_mgr) {
+TEST(shm_mgr, size_map) {
     // TODO: add test here
 }
 
-TEST(shm_mgr, metadata) {
-    // TODO: add test for shm_mgr::allocate_metadata(...)
+TEST(shm_mgr, span) {
+    // TODO: add test here
+}
+
+TEST(shm_mgr, page_heap) {
+    // TODO: add test here
+}
+
+TEST(shm_mgr, chunk_cache) {
+    // TODO: add test here
+}
+
+TEST(shm_mgr, shm_mgr) {
+    // TODO: add test here
 }
