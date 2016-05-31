@@ -767,7 +767,7 @@ struct fixed_rbtree {
 
     bool __check() {
         bool valid = true;
-#ifdef DEBUG
+#ifndef NDEBUG
         if (!__check_prop1(root)) { ERR("rbtree property 1 violence"); valid = false; }
         if (!__check_prop2())     { ERR("rbtree property 2 violence"); valid = false; }
         if (!__check_prop3())     { ERR("rbtree property 3 violence"); valid = false; }
