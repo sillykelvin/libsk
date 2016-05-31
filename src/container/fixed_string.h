@@ -63,7 +63,8 @@ struct fixed_string {
     size_t length()   const { return used_count; }
     size_t capacity() const { return N; }
 
-    bool full()  const { return used_count >= N; }
+    // we have a '\0' at the end, so used_count is compared to N - 1 here
+    bool full()  const { return used_count >= N - 1; }
     bool empty() const { return used_count <= 0; }
 
     static size_t copy(char *dst, size_t dst_capacity,
