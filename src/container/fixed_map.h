@@ -1,6 +1,9 @@
 #ifndef FIXED_MAP_H
 #define FIXED_MAP_H
 
+#include "utility/utility.h"
+#include "container/fixed_rbtree.h"
+
 namespace sk {
 
 template<typename K, typename V, size_t N>

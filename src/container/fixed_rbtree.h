@@ -1,6 +1,9 @@
 #ifndef FIXED_RBTREE_H
 #define FIXED_RBTREE_H
 
+#include "utility/assert_helper.h"
+#include "container/referable_array.h"
+
 namespace sk {
 namespace detail {
 
