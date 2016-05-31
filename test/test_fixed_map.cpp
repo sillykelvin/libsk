@@ -64,3 +64,38 @@ TEST(fixed_map, normal) {
         ASSERT_TRUE(i.it->second.i == i.c + 'h' - 'a');
     }
 }
+
+TEST(fixed_map, loop_erase) {
+    fixed_map<int, int, MAX_SIZE> m;
+
+    int ret = 0;
+    for (int i = 0; i < MAX_SIZE; ++i) {
+        ret = m.insert(i, i);
+        ASSERT_TRUE(ret == 0);
+    }
+    ASSERT_TRUE(m.full());
+    ret = m.insert(99, 99);
+    ASSERT_TRUE(ret != 0);
+
+    std::vector<int> vec;
+    vec.push_back(1);
+    vec.push_back(3);
+    vec.push_back(9);
+    vec.push_back(15);
+    vec.push_back(19);
+    for (fixed_map<int, int, MAX_SIZE>::iterator it = m.begin(), end = m.end(); it != end;) {
+        if (std::find(vec.begin(), vec.end(), it->first) != vec.end()) {
+            m.erase(it++);
+        } else {
+            ++it;
+        }
+    }
+
+    for (int i = 0; i < MAX_SIZE; ++i) {
+        fixed_map<int, int, MAX_SIZE>::iterator it = m.find(i);
+        if (std::find(vec.begin(), vec.end(), i) != vec.end())
+            ASSERT_TRUE(it == m.end());
+        else
+            ASSERT_TRUE(it != m.end());
+    }
+}

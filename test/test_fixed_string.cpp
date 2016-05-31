@@ -11,11 +11,14 @@ typedef fixed_string<BIG_SIZE> big_string;
 
 TEST(fixed_string, normal) {
     small_string s1;
-
     ASSERT_TRUE(s1.empty());
     ASSERT_TRUE(!s1.full());
     ASSERT_TRUE(s1.length() == 0);
     ASSERT_TRUE(s1.capacity() == SMALL_SIZE);
+    s1 = "abcdefghijklmn";
+    ASSERT_TRUE(s1.full());
+    ASSERT_TRUE(s1.length() == s1.capacity() - 1);
+    ASSERT_TRUE(s1 == "abcdefghi");
 
     small_string s2("abcde");
     ASSERT_TRUE(!s2.empty());
