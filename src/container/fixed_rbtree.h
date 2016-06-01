@@ -1,6 +1,8 @@
 #ifndef FIXED_RBTREE_H
 #define FIXED_RBTREE_H
 
+#include "utility/types.h"
+#include "utility/utility.h"
 #include "utility/assert_helper.h"
 #include "container/referable_array.h"
 
@@ -11,7 +13,7 @@ template<typename V>
 struct rbtree_node {
     static const size_t npos = static_cast<size_t>(-1);
     static const char  black = static_cast<char>(0);
-    static const char   red  = static_cast<char>(1);
+    static const char    red = static_cast<char>(1);
 
     char   color;
     size_t left;
@@ -244,17 +246,6 @@ struct fixed_rbtree {
             return __right(gp);
         else
             return __left(gp);
-    }
-
-    node *__sibling(node *n) {
-        node *p = __parent(n);
-        if (!p)
-            return NULL;
-
-        if (n == __left(p))
-            return __right(p);
-        else
-            return __left(p);
     }
 
     bool __red(node *n) {
@@ -805,7 +796,7 @@ struct fixed_rbtree {
         return !__red(NULL);
     }
 
-    // property 4: every node must have two black children
+    // property 4: every red node must have two black children
     bool __check_prop4(size_t index) {
         if (index == npos)
             return true;
