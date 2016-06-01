@@ -291,10 +291,7 @@ struct shm_rbtree {
         }
 
         int ret = __insert(p, value);
-        if (ret == 0) {
-            node_count += 1;
-            __check();
-        }
+        if (ret == 0) __check();
         return ret;
     }
 
@@ -307,7 +304,6 @@ struct shm_rbtree {
         while (n) {
             if (__eq(key, f(n->value))) {
                 __erase(n);
-                node_count -= 1;
                 break;
             }
 
@@ -323,6 +319,7 @@ struct shm_rbtree {
     int __insert(pointer parent, const V& value) {
         pointer n = __construct(value);
         assert_retval(n, -EFAULT);
+        node_count += 1;
 
         // if parent is null, the tree must be an empty tree
         if (!parent) {
@@ -489,6 +486,7 @@ struct shm_rbtree {
         }
 
         __destroy(z);
+        node_count -= 1;
     }
 
     void __rotate_left(pointer n) {
