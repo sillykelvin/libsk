@@ -40,5 +40,7 @@
 #include "container/shm_hash.h"
 #include "container/shm_list.h"
 #include "container/shm_rbtree.h"
+#include "container/shm_set.h"
+#include "container/shm_map.h"
 
 #endif // LIBSK_H
