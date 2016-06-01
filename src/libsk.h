@@ -39,5 +39,6 @@
 #include "container/fixed_string.h"
 #include "container/shm_hash.h"
 #include "container/shm_list.h"
+#include "container/shm_rbtree.h"
 
 #endif // LIBSK_H

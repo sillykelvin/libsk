@@ -107,8 +107,8 @@ TEST(fixed_rbtree, normal) {
     tree::const_iterator ced = ta.cend();
     ASSERT_TRUE(cit != ced);
     ASSERT_TRUE(cit == it);
-    // cit->i = 999;   // this should cannot compile
-    // (*cit).i = 999; // this should cannot compile
+    // cit->i = 999;   // this should not compile
+    // (*cit).i = 999; // this should not compile
     tree::const_iterator cit2 = cit++;
     ASSERT_TRUE(cit2 != cit);
     ASSERT_TRUE(cit2 == it);
