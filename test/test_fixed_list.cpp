@@ -66,3 +66,57 @@ TEST(fixed_list, normal) {
     l.clear();
     ASSERT_TRUE(l.empty());
 }
+
+TEST(fixed_list, loop_erase) {
+    fixed_list<int, MAX_SIZE> l;
+
+    int ret = 0;
+    for (int i = 0; i < MAX_SIZE; ++i) {
+        ret = l.push_back(i);
+        ASSERT_TRUE(ret == 0);
+    }
+    ASSERT_TRUE(l.full());
+
+    std::vector<int> vec;
+    vec.push_back(0);
+    vec.push_back(2);
+    vec.push_back(4);
+
+    for (fixed_list<int, MAX_SIZE>::iterator it = l.begin(), end = l.end(); it != end;) {
+        if (std::find(vec.begin(), vec.end(), *it) != vec.end())
+            it = l.erase(it);
+        else
+            ++it;
+    }
+
+    for (int i = 0; i < MAX_SIZE; ++i) {
+        fixed_list<int, MAX_SIZE>::iterator it = std::find(l.begin(), l.end(), i);
+        if (std::find(vec.begin(), vec.end(), i) != vec.end())
+            ASSERT_TRUE(it == l.end());
+        else
+            ASSERT_TRUE(it != l.end());
+    }
+
+    l.clear();
+    ASSERT_TRUE(l.empty());
+    for (int i = 0; i < MAX_SIZE; ++i) {
+        ret = l.push_back(i);
+        ASSERT_TRUE(ret == 0);
+    }
+    ASSERT_TRUE(l.full());
+
+    for (fixed_list<int, MAX_SIZE>::iterator it = l.begin(), end = l.end(); it != end;) {
+        if (std::find(vec.begin(), vec.end(), *it) != vec.end())
+            l.erase(it++);
+        else
+            ++it;
+    }
+
+    for (int i = 0; i < MAX_SIZE; ++i) {
+        fixed_list<int, MAX_SIZE>::iterator it = std::find(l.begin(), l.end(), i);
+        if (std::find(vec.begin(), vec.end(), i) != vec.end())
+            ASSERT_TRUE(it == l.end());
+        else
+            ASSERT_TRUE(it != l.end());
+    }
+}
