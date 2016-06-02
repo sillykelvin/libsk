@@ -242,11 +242,15 @@ struct fixed_list {
         __destroy(idx);
     }
 
-    void erase(iterator it) {
+    iterator erase(iterator it) {
         if (empty() || !it.n)
-            return;
+            return end();
 
+        node *next = __next(it.n);
         __erase(it.n);
+
+        // no matter next is null or not, this will always work
+        return iterator(this, next);
     }
 
     int push_back(const T& t) {
