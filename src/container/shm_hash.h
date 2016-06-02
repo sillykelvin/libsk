@@ -1,6 +1,8 @@
 #ifndef SHM_HASH_H
 #define SHM_HASH_H
 
+#include <iterator>
+
 namespace sk {
 namespace detail {
 
@@ -55,7 +57,9 @@ struct shm_hash_iterator {
     typedef T                                                     hash_type;
     typedef typename T::node                                      node_type;
     typedef typename T::value_type                                value_type;
+    typedef ptrdiff_t                                             difference_type;
     typedef shm_hash_iterator<T, C>                               self;
+    typedef std::bidirectional_iterator_tag                       iterator_category;
     typedef typename if_<C, const hash_type*, hash_type*>::type   hash_pointer;
     typedef typename if_<C, const node_type*, node_type*>::type   node_pointer;
     typedef typename if_<C, const value_type*, value_type*>::type pointer;

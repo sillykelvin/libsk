@@ -1,6 +1,7 @@
 #ifndef FIXED_RBTREE_H
 #define FIXED_RBTREE_H
 
+#include <iterator>
 #include "utility/types.h"
 #include "utility/utility.h"
 #include "utility/assert_helper.h"
@@ -34,7 +35,9 @@ struct rbtree_iterator {
     typedef T                                                     tree_type;
     typedef typename T::node                                      node_type;
     typedef typename T::value_type                                value_type;
+    typedef ptrdiff_t                                             difference_type;
     typedef rbtree_iterator<T, C>                                 self;
+    typedef std::bidirectional_iterator_tag                       iterator_category;
     typedef typename if_<C, const tree_type*, tree_type*>::type   tree_pointer;
     typedef typename if_<C, const node_type*, node_type*>::type   node_pointer;
     typedef typename if_<C, const value_type*, value_type*>::type pointer;

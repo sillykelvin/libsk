@@ -1,6 +1,8 @@
 #ifndef SHM_LIST_H
 #define SHM_LIST_H
 
+#include <iterator>
+
 namespace sk {
 namespace detail {
 
@@ -23,7 +25,9 @@ struct shm_list_iterator {
     typedef T                                                     list_type;
     typedef typename T::node                                      node_type;
     typedef typename T::value_type                                value_type;
+    typedef ptrdiff_t                                             difference_type;
     typedef shm_list_iterator<T, C>                               self;
+    typedef std::bidirectional_iterator_tag                       iterator_category;
     typedef typename if_<C, const list_type*, list_type*>::type   list_pointer;
     typedef typename if_<C, const node_type*, node_type*>::type   node_pointer;
     typedef typename if_<C, const value_type*, value_type*>::type pointer;

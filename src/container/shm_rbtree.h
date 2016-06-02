@@ -1,6 +1,7 @@
 #ifndef SHM_RBTREE_H
 #define SHM_RBTREE_H
 
+#include <iterator>
 #include "shm/shm_mgr.h"
 #include "shm/shm_ptr.h"
 #include "utility/types.h"
@@ -36,7 +37,9 @@ struct shm_rbtree_iterator {
     typedef T                                                                     tree_type;
     typedef typename T::node                                                      node_type;
     typedef typename T::value_type                                                value_type;
+    typedef ptrdiff_t                                                             difference_type;
     typedef shm_rbtree_iterator<T, C>                                             self;
+    typedef std::bidirectional_iterator_tag                                       iterator_category;
     typedef typename if_<C, const tree_type*, tree_type*>::type                   tree_pointer;
     typedef typename if_<C, typename T::const_pointer, typename T::pointer>::type node_pointer;
     typedef typename if_<C, const value_type*, value_type*>::type                 pointer;
