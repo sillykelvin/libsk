@@ -71,7 +71,7 @@ struct fixed_vector {
     }
 
     iterator at(size_t index) {
-        assert_retval(index < used_count, NULL);
+        assert_retval(index < used_count, end());
 
         return begin() + index;
     }
@@ -87,7 +87,7 @@ struct fixed_vector {
     }
 
     void erase(iterator it) {
-        assert_retnone(it);
+        assert_retnone(it != end());
 
         size_t index = it - begin();
         erase_at(index);
@@ -95,7 +95,7 @@ struct fixed_vector {
 
     void erase(const T& value) {
         iterator it = find(value);
-        if (!it)
+        if (it == end())
             return;
 
         erase(it);
@@ -104,7 +104,7 @@ struct fixed_vector {
     template<typename Pred>
     void erase_if(Pred p) {
         iterator it = find_if(p);
-        if (!it)
+        if (it == end())
             return;
 
         erase(it);
@@ -132,7 +132,7 @@ struct fixed_vector {
                 return it;
         }
 
-        return NULL;
+        return this->end();
     }
 
     template<typename Pred>
@@ -143,7 +143,7 @@ struct fixed_vector {
                 return it;
         }
 
-        return NULL;
+        return this->end();
     }
 
     iterator begin() { return cast_ptr(T, memory); }
