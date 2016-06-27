@@ -55,3 +55,34 @@ TEST(fixed_set, normal) {
     for (struct {int i; set::iterator it;} i = {1, s.begin()}; i.it != s.end(); ++i.it, ++i.i)
         ASSERT_TRUE(i.it->i == i.i);
 }
+
+TEST(fixed_set, loop_erase) {
+    set s;
+
+    for (int i = 0; i < MAX_SIZE; ++i) {
+        ASSERT_TRUE(s.insert(set_test(i)) == 0);
+    }
+
+    std::vector<int> vec;
+    vec.push_back(1);
+    vec.push_back(3);
+    vec.push_back(9);
+    vec.push_back(15);
+    vec.push_back(19);
+    for (set::iterator it = s.begin(), end = s.end(); it != end;) {
+        if (std::find(vec.begin(), vec.end(), it->i) != vec.end()) {
+            s.erase(it++);
+        } else {
+            ++it;
+        }
+    }
+
+    for (int i = 0; i < MAX_SIZE; ++i) {
+        set::iterator it = s.find(set_test(i));
+        if (std::find(vec.begin(), vec.end(), i) != vec.end()) {
+            ASSERT_TRUE(it == s.end());
+        } else {
+            ASSERT_TRUE(it != s.end());
+        }
+    }
+}

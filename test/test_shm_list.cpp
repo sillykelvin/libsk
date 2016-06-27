@@ -20,6 +20,10 @@ struct list_test {
     ~list_test() {
         cout << "list test destructor, a: " << a << endl;
     }
+
+    bool operator==(const list_test& that) const {
+        return this->a == that.a;
+    }
 };
 
 typedef shm_list<list_test> list;
@@ -109,6 +113,51 @@ TEST(shm_list, normal) {
 
     t.a = 111;
     l->push_front(t);
+
+    shm_del(l);
+
+    ret = shm_mgr_fini();
+    ASSERT_TRUE(ret == 0);
+}
+
+TEST(shm_list, loop_erase) {
+    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    ASSERT_TRUE(ret == 0);
+
+    shm_ptr<list> l = shm_new<list>();
+    ASSERT_TRUE(l);
+
+    const int max_size = 20;
+
+    for (int i = 0; i < max_size; ++i) {
+        list_test t;
+        t.a = i;
+        ASSERT_TRUE(l->push_back(t) == 0);
+    }
+
+    std::vector<int> vec;
+    vec.push_back(1);
+    vec.push_back(3);
+    vec.push_back(9);
+    vec.push_back(15);
+    vec.push_back(19);
+    for (list::iterator it = l->begin(), end = l->end(); it != end;) {
+        if (std::find(vec.begin(), vec.end(), it->a) != vec.end()) {
+            l->erase(it++);
+        } else {
+            ++it;
+        }
+    }
+
+    for (int i = 0; i < max_size; ++i) {
+        list_test t;
+        t.a = i;
+        list::iterator it = std::find(l->begin(), l->end(), t);
+        if (std::find(vec.begin(), vec.end(), i) != vec.end())
+            ASSERT_TRUE(it == l->end());
+        else
+            ASSERT_TRUE(it != l->end());
+    }
 
     shm_del(l);
 

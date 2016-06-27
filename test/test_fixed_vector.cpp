@@ -106,3 +106,35 @@ TEST(fixed_vector, normal) {
     ASSERT_TRUE(ta3[0].i == 10);
     ASSERT_TRUE(ta3[9].i == 10);
 }
+
+TEST(fixed_vector, loop_erase) {
+    vector v;
+
+    for (int i = 0; i < MAX_SIZE; ++i) {
+        vector_test *t = v.emplace(i);
+        ASSERT_TRUE(t);
+    }
+
+    std::vector<int> vec;
+    vec.push_back(0);
+    vec.push_back(2);
+    vec.push_back(6);
+    vec.push_back(8);
+    vec.push_back(9);
+
+    for (vector::iterator it = v.begin(); it != v.end();) {
+        if (std::find(vec.begin(), vec.end(), it->i) != vec.end()) {
+            v.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    for (int i = 0; i < MAX_SIZE; ++i) {
+        vector::iterator it = v.find(vector_test(i));
+        if (std::find(vec.begin(), vec.end(), i) != vec.end())
+            ASSERT_TRUE(it == v.end());
+        else
+            ASSERT_TRUE(it != v.end());
+    }
+}

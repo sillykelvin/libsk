@@ -61,3 +61,42 @@ TEST(shm_set, normal) {
 
     shm_mgr_fini();
 }
+
+TEST(shm_set, loop_erase) {
+    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    ASSERT_TRUE(ret == 0);
+
+    {
+        set s;
+
+        const int max_size = 20;
+
+        for (int i = 0; i < max_size; ++i) {
+            ASSERT_TRUE(s.insert(set_test(i)) == 0);
+        }
+
+        std::vector<int> vec;
+        vec.push_back(1);
+        vec.push_back(3);
+        vec.push_back(9);
+        vec.push_back(15);
+        vec.push_back(19);
+        for (set::iterator it = s.begin(), end = s.end(); it != end;) {
+            if (std::find(vec.begin(), vec.end(), it->i) != vec.end()) {
+                s.erase(it++);
+            } else {
+                ++it;
+            }
+        }
+
+        for (int i = 0; i < max_size; ++i) {
+            set::iterator it = s.find(set_test(i));
+            if (std::find(vec.begin(), vec.end(), i) != vec.end())
+                ASSERT_TRUE(it == s.end());
+            else
+                ASSERT_TRUE(it != s.end());
+        }
+    }
+
+    shm_mgr_fini();
+}
