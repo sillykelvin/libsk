@@ -46,6 +46,7 @@ struct rbtree_iterator {
     tree_pointer t;
     node_pointer n;
 
+    rbtree_iterator() : t(NULL), n(NULL) {}
     explicit rbtree_iterator(tree_pointer t) : t(t), n(NULL) {}
     rbtree_iterator(tree_pointer t, node_pointer n) : t(t), n(n) {}
 
@@ -71,8 +72,17 @@ struct rbtree_iterator {
 
     self& operator++()   { n = t->__next(n); return *this; }
     self operator++(int) { self tmp(*this); n = t->__next(n); return tmp; }
-    self& operator--()   { n = t->__prev(n); return *this; }
-    self operator--(int) { self tmp(*this); n = t->__prev(n); return tmp; }
+    self& operator--()   {
+        if (n) n = t->__prev(n);
+        else n = t->max(); // treat NULL as end iterator
+        return *this;
+    }
+    self operator--(int) {
+        self tmp(*this);
+        if (n) n = t->__prev(n);
+        else n = t->max(); // treat NULL as end iterator
+        return tmp;
+    }
 
     bool operator==(const self& x) const { return n == x.n && t == x.t; }
     bool operator!=(const self& x) const { return !(*this == x); }

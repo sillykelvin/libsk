@@ -12,6 +12,8 @@ struct fixed_map {
     typedef fixed_rbtree<K, value_type, select1st<value_type>, N> impl_type;
     typedef typename impl_type::iterator                          iterator;
     typedef typename impl_type::const_iterator                    const_iterator;
+    typedef std::reverse_iterator<iterator>                       reverse_iterator;
+    typedef std::reverse_iterator<const_iterator>                 const_reverse_iterator;
 
     impl_type tree;
 
@@ -24,6 +26,19 @@ struct fixed_map {
     size_t capacity() const { return tree.capacity(); }
 
     void clear() { tree.clear(); }
+
+    V& operator[](const K& k) {
+        iterator it = find(k);
+        if (it == end()) {
+            int ret = insert(k, V());
+            assert_retval(ret == 0, *((V*) NULL)); // I am sorry :(
+
+            it = find(k);
+            assert_retval(it != end(), *((V*) NULL)); // I am sorry too :(
+        }
+
+        return it->second;
+    }
 
     int insert(const K& k, const V& v) { return tree.insert(value_type(k, v)); }
 
@@ -41,6 +56,11 @@ struct fixed_map {
     iterator end()   { return tree.end(); }
     const_iterator begin() const { return tree.begin(); }
     const_iterator end() const   { return tree.end(); }
+
+    reverse_iterator rbegin() { return reverse_iterator(end()); }
+    reverse_iterator rend()   { return reverse_iterator(begin()); }
+    const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
+    const_reverse_iterator rend() const   { return const_reverse_iterator(begin()); }
 };
 
 } // namespace sk
