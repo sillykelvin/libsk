@@ -53,31 +53,31 @@ TEST(fixed_vector, normal) {
 
     vector_test value(5);
     vector_test *t = ta.find(value);
-    ASSERT_TRUE(t);
+    ASSERT_TRUE(t != ta.end());
     ASSERT_TRUE(t->i == 5);
 
     t = ta.find_if(finder(6));
-    ASSERT_TRUE(t);
+    ASSERT_TRUE(t != ta.end());
     ASSERT_TRUE(t->i == 5);
 
     ta.erase(value);
-    ASSERT_TRUE(ta.find(value) == NULL);
+    ASSERT_TRUE(ta.find(value) == ta.end());
 
     ta.erase_if(finder(7));
-    ASSERT_TRUE(ta.find(vector_test(6)) == NULL);
+    ASSERT_TRUE(ta.find(vector_test(6)) == ta.end());
 
     for (vector::iterator it = ta.begin(); it != ta.end(); ++it)
         std::cout << it->i << std::endl;
 
     t = ta.find_if(finder(10));
-    ASSERT_TRUE(t);
+    ASSERT_TRUE(t != ta.end());
     ta.erase(t);
 
     ta.clear();
     ASSERT_TRUE(ta.empty());
 
     t = ta.find(value);
-    ASSERT_TRUE(!t);
+    ASSERT_TRUE(t == ta.end());
 
     ta.fill(7, vector_test(7));
     ASSERT_TRUE(ta.size() == 7);

@@ -10,6 +10,8 @@ struct map_test {
     char c;
     int  i;
 
+    map_test() : c(0), i(0) {}
+
     map_test(char c, int i) : c(c), i(i) {}
 
     bool operator<(const map_test& that) const { return this->c < that.c; }
@@ -62,6 +64,19 @@ TEST(fixed_map, normal) {
         ASSERT_TRUE(i.it->first == i.c);
         ASSERT_TRUE(i.it->second.c == i.c + 'h' - 'a');
         ASSERT_TRUE(i.it->second.i == i.c + 'h' - 'a');
+    }
+
+    m.clear();
+    for (int i = 0; i < MAX_SIZE; ++i) {
+        char c = 'a' + i;
+        m[c] = map_test(c, c);
+        ASSERT_TRUE(m.find(c) != m.end());
+    }
+
+    for (struct {char c; map::const_reverse_iterator it;} i = {'a' + MAX_SIZE - 1, m.rbegin()}; i.it != m.rend(); ++i.it, --i.c) {
+        ASSERT_TRUE(i.it->first == i.c);
+        ASSERT_TRUE(i.it->second.c == i.c);
+        ASSERT_TRUE(i.it->second.i == i.c);
     }
 }
 
