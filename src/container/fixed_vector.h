@@ -76,6 +76,12 @@ struct fixed_vector {
         return begin() + index;
     }
 
+	const_iterator at(size_t index) const {
+		assert_retval(index < used_count, end());
+
+		return begin() + index;
+	}
+
     void erase_at(size_t index) {
         assert_retnone(index < used_count);
 
@@ -124,6 +130,10 @@ struct fixed_vector {
     T& operator[](size_t index) {
         return *at(index);
     }
+
+	const T& operator[](size_t index) const {
+		return *at(index);
+	}
 
     iterator find(const T& value) {
         iterator it, end;
