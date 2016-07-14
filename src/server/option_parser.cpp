@@ -14,7 +14,7 @@ option_parser::~option_parser() {
     conf_list_.clear();
 }
 
-int option_parser::parse(int argc, char **argv) {
+int option_parser::parse(int argc, const char **argv) {
     // start from 1, as we consider argv[0] as the program name
     int i = 1;
     while (i < argc) {
@@ -62,7 +62,7 @@ int option_parser::parse_long(const std::string& arg) {
     if (eq_pos == arg.npos) {
         lopt = arg.substr(2);
     } else {
-        lopt = arg.substr(2, eq_pos);
+        lopt = arg.substr(2, eq_pos - 2);
     }
 
     // 0. long option must have at least 2 letters
@@ -125,7 +125,7 @@ int option_parser::parse_short(int argc, const char **argv, const std::string& a
     // set next to the next arg by default
     next = curr + 1;
 
-    int i = 1; // arg[0] is '-', so we start from 1
+    std::string::size_type i = 1; // arg[0] is '-', so we start from 1
     while (i < arg.length()) {
         char sopt = arg[i];
         auto it = sopt2conf_.find(sopt);
@@ -178,27 +178,27 @@ int option_parser::parse_short(int argc, const char **argv, const std::string& a
     return 0;
 }
 
-void option_parser::determine_value_type(option_config *conf, bool *value) {
+void option_parser::determine_value_type(option_config *conf, bool *) {
     conf->vtype = option_config::VALUE_TYPE_BOOL;
 }
 
-void option_parser::determine_value_type(option_config *conf, s32 *value) {
+void option_parser::determine_value_type(option_config *conf, s32 *) {
     conf->vtype = option_config::VALUE_TYPE_S32;
 }
 
-void option_parser::determine_value_type(option_config *conf, u32 *value) {
+void option_parser::determine_value_type(option_config *conf, u32 *) {
     conf->vtype = option_config::VALUE_TYPE_U32;
 }
 
-void option_parser::determine_value_type(option_config *conf, s64 *value) {
+void option_parser::determine_value_type(option_config *conf, s64 *) {
     conf->vtype = option_config::VALUE_TYPE_S64;
 }
 
-void option_parser::determine_value_type(option_config *conf, u64 *value) {
+void option_parser::determine_value_type(option_config *conf, u64 *) {
     conf->vtype = option_config::VALUE_TYPE_U64;
 }
 
-void option_parser::determine_value_type(option_config *conf, std::string *value) {
+void option_parser::determine_value_type(option_config *conf, std::string *) {
     conf->vtype = option_config::VALUE_TYPE_STRING;
 }
 

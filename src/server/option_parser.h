@@ -31,6 +31,7 @@ struct option_config {
 
 class option_parser {
 public:
+    option_parser() {}
     ~option_parser();
 
     option_parser(const option_parser&) = delete;
@@ -88,18 +89,18 @@ public:
     /*
      * argc & argv should be the two parameters passed to main()
      */
-    int parse(int argc, char **argv);
+    int parse(int argc, const char **argv);
 
 private:
     int parse_long(const std::string& arg);
     int parse_short(int argc, const char **argv, const std::string& arg, int curr, int& next);
 
-    void determine_value_type(option_config *conf, bool *value);
-    void determine_value_type(option_config *conf, s32 *value);
-    void determine_value_type(option_config *conf, u32 *value);
-    void determine_value_type(option_config *conf, s64 *value);
-    void determine_value_type(option_config *conf, u64 *value);
-    void determine_value_type(option_config *conf, std::string *value);
+    void determine_value_type(option_config *conf, bool *);
+    void determine_value_type(option_config *conf, s32 *);
+    void determine_value_type(option_config *conf, u32 *);
+    void determine_value_type(option_config *conf, s64 *);
+    void determine_value_type(option_config *conf, u64 *);
+    void determine_value_type(option_config *conf, std::string *);
 
     int determine_value(option_config *conf, const char *arg);
 
