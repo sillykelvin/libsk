@@ -43,5 +43,6 @@
 #include "container/shm_rbtree.h"
 #include "container/shm_set.h"
 #include "container/shm_map.h"
+#include "server/option_parser.h"
 
 #endif // LIBSK_H
