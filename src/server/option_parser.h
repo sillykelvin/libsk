@@ -96,14 +96,14 @@ private:
     int parse_long(const std::string& arg);
     int parse_short(int argc, const char **argv, const std::string& arg, int curr, int& next);
 
-    void determine_value_type(option_config *conf, bool *);
-    void determine_value_type(option_config *conf, s32 *);
-    void determine_value_type(option_config *conf, u32 *);
-    void determine_value_type(option_config *conf, s64 *);
-    void determine_value_type(option_config *conf, u64 *);
-    void determine_value_type(option_config *conf, std::string *);
+    void set_value_type(option_config *conf, bool *);
+    void set_value_type(option_config *conf, s32 *);
+    void set_value_type(option_config *conf, u32 *);
+    void set_value_type(option_config *conf, s64 *);
+    void set_value_type(option_config *conf, u64 *);
+    void set_value_type(option_config *conf, std::string *);
 
-    int determine_value(option_config *conf, const char *arg);
+    int set_value(option_config *conf, const char *arg);
 
     void remove_option(option_config *conf);
 
