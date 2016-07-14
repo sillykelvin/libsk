@@ -36,7 +36,7 @@ public:
         if (sopt != 0) {
             auto it = sopt2conf_.find(sopt);
             if (it != sopt2conf_.end()) {
-                error("short option '%c' exists.", sopt);
+                print_error("short option '%c' exists.", sopt);
                 return -EEXIST;
             }
         }
@@ -45,7 +45,7 @@ public:
         if (lopt) {
             auto it = lopt2conf_.find(lopt);
             if (it != lopt2conf_.end()) {
-                error("long option '%s' exists.", lopt);
+                print_error("long option '%s' exists.", lopt);
                 return -EEXIST;
             }
         }
@@ -58,7 +58,7 @@ public:
         conf->required = required;
         conf->desc = desc;
         conf->value = void_ptr(value);
-        determine_value_type(conf, value);
+        set_value_type(conf, value);
 
         conf_list_.insert(conf);
         if (sopt != 0) sopt2conf_[conf->sopt] = conf;
@@ -107,8 +107,8 @@ private:
 
     void remove_option(option_config *conf);
 
-    void warning(const char *format, ...);
-    void error(const char *format, ...);
+    void print_warning(const char *format, ...);
+    void print_error(const char *format, ...);
 
 private:
     std::map<char, option_config*> sopt2conf_;        // short option -> config

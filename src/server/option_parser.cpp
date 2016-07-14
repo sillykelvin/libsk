@@ -20,7 +20,7 @@ int option_parser::parse(int argc, const char **argv) {
     while (i < argc) {
         std::string arg(argv[i]);
         if (arg.length() < 2 || arg[0] != '-') {
-            warning("invalid arg \"%s\".", arg.c_str());
+            print_warning("invalid arg \"%s\".", arg.c_str());
             ++i;
             continue;
         }
@@ -47,7 +47,7 @@ int option_parser::parse(int argc, const char **argv) {
     for (auto it = conf_list_.begin(), end = conf_list_.end(); it != end; ++it) {
         option_config *conf = *it;
         if (conf->required) {
-            error("missing required option %c(%s).", conf->sopt, conf->lopt.c_str());
+            print_error("missing required option %c(%s).", conf->sopt, conf->lopt.c_str());
             return -EINVAL;
         }
     }
@@ -67,14 +67,14 @@ int option_parser::parse_long(const std::string& arg) {
 
     // 0. long option must have at least 2 letters
     if (lopt.length() < 2) {
-        warning("invalid long option \"%s\".", arg.c_str());
+        print_warning("invalid long option \"%s\".", arg.c_str());
         return 0;
     }
 
     // 1. option not registered, ignore
     auto it = lopt2conf_.find(lopt);
     if (it == lopt2conf_.end()) {
-        warning("unknown option \"%s\".", lopt.c_str());
+        print_warning("unknown option \"%s\".", lopt.c_str());
         return 0;
     }
 
@@ -84,7 +84,7 @@ int option_parser::parse_long(const std::string& arg) {
     if (conf->vtype == option_config::VALUE_TYPE_BOOL) {
         // 3.1 value type is bool, but there is = sign in arg
         if (eq_pos != arg.npos) {
-            error("invalid arg \"%s\".", arg.c_str());
+            print_error("invalid arg \"%s\".", arg.c_str());
             return -EINVAL;
         }
 
@@ -99,7 +99,7 @@ int option_parser::parse_long(const std::string& arg) {
 
     // 4. value type is not bool, but there is no = sign in arg
     if (eq_pos == arg.npos) {
-        error("option \"%s\" does not have a value.", lopt.c_str());
+        print_error("option \"%s\" does not have a value.", lopt.c_str());
         return -EINVAL;
     }
 
@@ -107,7 +107,7 @@ int option_parser::parse_long(const std::string& arg) {
 
     // 5. value is required, but it is empty
     if (value.empty()) {
-        error("invalid arg \"%s\".", arg.c_str());
+        print_error("invalid arg \"%s\".", arg.c_str());
         return -EINVAL;
     }
 
@@ -132,7 +132,7 @@ int option_parser::parse_short(int argc, const char **argv, const std::string& a
 
         // 0. option not registered, ignore
         if (it == sopt2conf_.end()) {
-            warning("unknown option '%c'.", sopt);
+            print_warning("unknown option '%c'.", sopt);
             ++i;
             continue;
         }
@@ -153,13 +153,13 @@ int option_parser::parse_short(int argc, const char **argv, const std::string& a
 
         // 2. value type is not bool, but it is not the last option
         if (i != arg.length() - 1) {
-            error("invalid arg \"%s\".", arg.c_str());
+            print_error("invalid arg \"%s\".", arg.c_str());
             return -EINVAL;
         }
 
         // 3. value type is not bool and it is the last option, but there is no more arg
         if (curr + 1 >= argc) {
-            error("option '%c' does not have a value.", sopt);
+            print_error("option '%c' does not have a value.", sopt);
             return -EINVAL;
         }
 
@@ -250,7 +250,7 @@ void option_parser::remove_option(option_parser::option_config *conf) {
     delete conf;
 }
 
-void option_parser::warning(const char *format, ...) {
+void option_parser::print_warning(const char *format, ...) {
     printf("warning: ");
 
     va_list ap;
@@ -261,7 +261,7 @@ void option_parser::warning(const char *format, ...) {
     printf("\n");
 }
 
-void option_parser::error(const char *format, ...) {
+void option_parser::print_error(const char *format, ...) {
     printf("error: ");
 
     va_list ap;
