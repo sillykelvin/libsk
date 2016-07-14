@@ -4,6 +4,22 @@
 
 namespace sk {
 
+option_parser::option_parser() {
+    option_config *conf = new option_config();
+    sk_assert(conf);
+
+    conf->sopt = 'h';
+    conf->lopt = "help";
+    conf->required = false;
+    conf->desc = "print this message";
+    conf->value = NULL;
+    conf->vtype = option_config::VALUE_TYPE_HELP;
+
+    conf_list_.insert(conf);
+    sopt2conf_[conf->sopt] = conf;
+    lopt2conf_[conf->lopt] = conf;
+}
+
 option_parser::~option_parser() {
     sopt2conf_.clear();
     lopt2conf_.clear();
@@ -19,6 +35,12 @@ int option_parser::parse(int argc, const char **argv) {
     int i = 1;
     while (i < argc) {
         std::string arg(argv[i]);
+
+        if (arg == "-h" || arg == "--help") {
+            print_usage(argv[0]);
+            exit(0);
+        }
+
         if (arg.length() < 2 || arg[0] != '-') {
             print_warning("invalid arg \"%s\".", arg.c_str());
             ++i;
@@ -53,6 +75,12 @@ int option_parser::parse(int argc, const char **argv) {
     }
 
     return 0;
+}
+
+void option_parser::print_usage(const char *program) {
+    printf("usage: %s [<options>]...\n\n", program);
+
+    // TODO: finish this function
 }
 
 int option_parser::parse_long(const std::string& arg) {

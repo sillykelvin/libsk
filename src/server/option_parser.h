@@ -12,7 +12,7 @@ namespace sk {
 
 class option_parser {
 public:
-    option_parser() {}
+    option_parser();
     ~option_parser();
 
     option_parser(const option_parser&) = delete;
@@ -75,7 +75,8 @@ public:
 private:
     struct option_config {
         enum value_type {
-            VALUE_TYPE_BOOL = 1,
+            VALUE_TYPE_HELP,
+            VALUE_TYPE_BOOL,
             VALUE_TYPE_S32,
             VALUE_TYPE_U32,
             VALUE_TYPE_S64,
@@ -109,6 +110,8 @@ private:
 
     void print_warning(const char *format, ...);
     void print_error(const char *format, ...);
+    void print_usage(const char *program);
+
 
 private:
     std::map<char, option_config*> sopt2conf_;        // short option -> config
