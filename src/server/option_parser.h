@@ -10,25 +10,6 @@
 
 namespace sk {
 
-struct option_config {
-    enum value_type {
-        VALUE_TYPE_BOOL = 1,
-        VALUE_TYPE_S32,
-        VALUE_TYPE_U32,
-        VALUE_TYPE_S64,
-        VALUE_TYPE_U64,
-        VALUE_TYPE_STRING
-    };
-
-    char sopt;        // short option
-    std::string lopt; // long option
-    std::string desc; // option description
-    bool required;    // if this option must be provided
-    value_type vtype; // value type
-
-    void *value;      // pointer to the potential value
-};
-
 class option_parser {
 public:
     option_parser() {}
@@ -90,6 +71,26 @@ public:
      * argc & argv should be the two parameters passed to main()
      */
     int parse(int argc, const char **argv);
+
+private:
+    struct option_config {
+        enum value_type {
+            VALUE_TYPE_BOOL = 1,
+            VALUE_TYPE_S32,
+            VALUE_TYPE_U32,
+            VALUE_TYPE_S64,
+            VALUE_TYPE_U64,
+            VALUE_TYPE_STRING
+        };
+
+        char sopt;        // short option
+        std::string lopt; // long option
+        std::string desc; // option description
+        bool required;    // if this option must be provided
+        value_type vtype; // value type
+
+        void *value;      // pointer to the potential value
+    };
 
 private:
     int parse_long(const std::string& arg);

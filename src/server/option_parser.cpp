@@ -178,31 +178,31 @@ int option_parser::parse_short(int argc, const char **argv, const std::string& a
     return 0;
 }
 
-void option_parser::determine_value_type(option_config *conf, bool *) {
+void option_parser::determine_value_type(option_parser::option_config *conf, bool *) {
     conf->vtype = option_config::VALUE_TYPE_BOOL;
 }
 
-void option_parser::determine_value_type(option_config *conf, s32 *) {
+void option_parser::determine_value_type(option_parser::option_config *conf, s32 *) {
     conf->vtype = option_config::VALUE_TYPE_S32;
 }
 
-void option_parser::determine_value_type(option_config *conf, u32 *) {
+void option_parser::determine_value_type(option_parser::option_config *conf, u32 *) {
     conf->vtype = option_config::VALUE_TYPE_U32;
 }
 
-void option_parser::determine_value_type(option_config *conf, s64 *) {
+void option_parser::determine_value_type(option_parser::option_config *conf, s64 *) {
     conf->vtype = option_config::VALUE_TYPE_S64;
 }
 
-void option_parser::determine_value_type(option_config *conf, u64 *) {
+void option_parser::determine_value_type(option_parser::option_config *conf, u64 *) {
     conf->vtype = option_config::VALUE_TYPE_U64;
 }
 
-void option_parser::determine_value_type(option_config *conf, std::string *) {
+void option_parser::determine_value_type(option_parser::option_config *conf, std::string *) {
     conf->vtype = option_config::VALUE_TYPE_STRING;
 }
 
-int option_parser::determine_value(option_config *conf, const char *arg) {
+int option_parser::determine_value(option_parser::option_config *conf, const char *arg) {
     int ret = 0;
 
     switch (conf->vtype) {
@@ -242,7 +242,7 @@ int option_parser::determine_value(option_config *conf, const char *arg) {
     return ret;
 }
 
-void option_parser::remove_option(option_config *conf) {
+void option_parser::remove_option(option_parser::option_config *conf) {
     if (conf->sopt != 0) sopt2conf_.erase(conf->sopt);
     if (!conf->lopt.empty()) lopt2conf_.erase(conf->lopt);
     conf_list_.erase(conf);
