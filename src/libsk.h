@@ -20,6 +20,7 @@
 // common headers
 #include "utility/assert_helper.h"
 #include "utility/types.h"
+#include "utility/string_helper.h"
 #include "utility/config.h"
 #include "utility/log.h"
 
