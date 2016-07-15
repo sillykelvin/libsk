@@ -1,4 +1,5 @@
 #include <stdarg.h>
+#include <string.h>
 #include "option_parser.h"
 #include "utility/string_helper.h"
 
@@ -11,7 +12,8 @@ option_parser::option_parser() {
     conf->sopt = 'h';
     conf->lopt = "help";
     conf->required = false;
-    conf->desc = "print this message";
+    conf->desc = "display this help";
+    conf->vname = "";
     conf->value = NULL;
     conf->vtype = option_config::VALUE_TYPE_HELP;
 
@@ -30,16 +32,26 @@ option_parser::~option_parser() {
     conf_list_.clear();
 }
 
-int option_parser::parse(int argc, const char **argv) {
+int option_parser::parse(int argc, const char **argv, void(*help_handler)()) {
+    // search if there is help flag in options first
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_usage(argv[0]);
+
+            if (help_handler) {
+                help_handler();
+                return 0;
+            }
+
+            // no help handler provided, just exit
+            exit(0);
+        }
+    }
+
     // start from 1, as we consider argv[0] as the program name
     int i = 1;
     while (i < argc) {
         std::string arg(argv[i]);
-
-        if (arg == "-h" || arg == "--help") {
-            print_usage(argv[0]);
-            exit(0);
-        }
 
         if (arg.length() < 2 || arg[0] != '-') {
             print_warning("invalid arg \"%s\".", arg.c_str());
@@ -80,7 +92,48 @@ int option_parser::parse(int argc, const char **argv) {
 void option_parser::print_usage(const char *program) {
     printf("usage: %s [<options>]...\n\n", program);
 
-    // TODO: finish this function
+    const size_t max_width = 30;
+    std::string help;
+    help.reserve(1024);
+    for (auto it = conf_list_.begin(), end = conf_list_.end(); it != end; ++it) {
+        option_config *conf = *it;
+        help.append(4, ' ');
+
+        if (conf->sopt != 0)
+            help.append(1, '-').append(1, conf->sopt);
+        else
+            help.append(2, ' ');
+
+        if (!conf->lopt.empty()) {
+            if (conf->sopt != 0)
+                help.append(", ");
+            else
+                help.append(2, ' ');
+
+            help.append("--").append(conf->lopt);
+            auto len = 4 + conf->lopt.length();
+            if (!conf->vname.empty()) {
+                help.append(1, '=').append(conf->vname);
+                len = len + 1 + conf->vname.length();
+            }
+
+            if (len < max_width)
+                help.append(max_width - len, ' ');
+        } else {
+            help.append(max_width, ' ');
+        }
+
+        if (conf->required)
+            help.append("<required>  ");
+        else
+            help.append("[optional]  ");
+
+        help.append(conf->desc);
+        help.append(1, '\n');
+
+        printf("%s", help.c_str());
+        help.clear();
+    }
 }
 
 int option_parser::parse_long(const std::string& arg) {
