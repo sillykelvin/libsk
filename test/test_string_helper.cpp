@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "utility/string_helper.h"
+#include "libsk.h"
 
 using namespace sk;
 
