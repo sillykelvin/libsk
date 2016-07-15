@@ -9,11 +9,14 @@ LIBSK_SRC  = $(LIBSK_HOME)/src
 LIBSK_PERF = $(LIBSK_HOME)/perf
 LIBSK_TEST = $(LIBSK_HOME)/test
 LIBSK_LIB  = $(LIBSK_HOME)/lib
+LIBSK_DEPS = $(LIBSK_HOME)/deps
 
 #
 # includes
 #
 CXXINC     = -I $(LIBSK_SRC)
+CXXINC    += -I $(LIBSK_DEPS)/pugixml/include
+CXXINC    += -I $(LIBSK_DEPS)/spdlog/include
 
 #
 # libs
