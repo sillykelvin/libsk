@@ -18,6 +18,7 @@
 #include <new>
 
 // common headers
+#include "pugixml.hpp"
 #include "utility/assert_helper.h"
 #include "utility/types.h"
 #include "utility/string_helper.h"

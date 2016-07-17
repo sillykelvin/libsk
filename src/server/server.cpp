@@ -16,7 +16,7 @@ static_assert(sizeof(busid_format) == sizeof(u64), "invalid type: busid_format")
 namespace sk {
 
 template<typename Config>
-int server<Config>::init(int argc, char **argv) {
+int server<Config>::init(int argc, const char **argv) {
     int ret = 0;
 
     ret = init_parser();

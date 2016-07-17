@@ -19,7 +19,7 @@ class server {
 public:
     virtual ~server() {}
 
-    int init(int argc, char **argv);
+    int init(int argc, const char **argv);
     int fini();
     int stop();
     int run();
