@@ -163,7 +163,7 @@ def parse_content(content):
 
     return def_list
 
-def build_field_src(field, conf_name):
+def write_string_field(field, conf_name):
     template = '''
     pugi::xml_node $field_name = $conf_name.child("$field_name");
     if (!$field_name) {
@@ -176,11 +176,70 @@ def build_field_src(field, conf_name):
     t = string.Template(template)
     return t.substitute(conf_name = conf_name, field_name = field.field_name)
 
+def write_integral_field(field, conf_name):
+    template = '''
+    pugi::xml_node $field_name = $conf_name.child("$field_name");
+    if (!$field_name) {
+        fprintf(stderr, "node $field_name not found.", $field_name);
+        return -EINVAL;
+    }
+    ret = sk::$func_name($field_name.text().get(), conf.$field_name);
+    if (ret != 0) {
+        fprintf(stderr, "cannot convert node $field_name.", $field_name);
+        return ret;
+    }
+'''
+    func = 'string2%s' % (field.field_type)
+    t = string.Template(template)
+    return t.substitute(conf_name = conf_name,
+                        field_name = field.field_name,
+                        func_name = func)
+
+def write_vector_field(field, conf_name):
+    template = '''
+    auto ${field_name}_set = $conf_name.children("$field_name");
+    for (auto it = ${field_name}_set.begin(), end = ${field_name}_set.end(); it != end; ++it) {
+        const xml_node n = *it;
+        $field_type obj;
+        ret = load_node(obj, n);
+        if (ret != 0)
+            return ret;
+
+        conf.$field_name.push_back(obj);
+    }
+    if (conf.$field_name.size() <= 0) {
+        fprintf(stderr, "node $field_name not found.", $field_name);
+        return -EINVAL;
+    }
+'''
+
+    t = string.Template(template)
+    return t.substitute(conf_name = conf_name,
+                        field_name = field.field_name,
+                        field_type = field.sub_type)
+
+def write_custom_field(field, conf_name):
+    template = '''
+    auto ${field_name} = $conf_name.child("$field_name");
+    if (!$field_name) {
+        fprintf(stderr, "node $field_name not found.", $field_name);
+        return -EINVAL;
+    }
+    ret = load_node(conf.$field_name, $field_name);
+    if (ret != 0)
+        return ret;
+'''
+
+    t = string.Template(template)
+    return t.substitute(conf_name = conf_name,
+                        field_name = field.field_name)
+
 def write_source(def_list, filename):
     template = '''
 int load_file($conf_name& conf, const char *file) {
     assert_retval(file, -1);
 
+    int ret = 0;
     pugi::xml_document doc;
     auto ok = doc.load_file(file);
     if (!ok) {
@@ -208,7 +267,21 @@ $fields_src
         for _def in def_list:
             fields_src = ''
             for field in _def.fields:
-                fields_src += build_field_src(field, _def.name)
+                if field.field_type == field_type.s32:
+                    fields_src += write_integral_field(field, _def.name)
+                elif field.field_type == field_type.u32:
+                    fields_src += write_integral_field(field, _def.name)
+                elif field.field_type == field_type.s64:
+                    fields_src += write_integral_field(field, _def.name)
+                elif field.field_type == field_type.u64:
+                    fields_src += write_integral_field(field, _def.name)
+                elif field.field_type == field_type.string:
+                    fields_src += write_string_field(field, _def.name)
+                elif field.field_type == field_type.vector:
+                    fields_src += write_vector_field(field, _def.name)
+                elif field.field_type == field_type.custom:
+                    fields_src += write_custom_field(field, _def.name)
+
             f.write(t.substitute(conf_name = _def.name, fields_src = fields_src))
 
 
