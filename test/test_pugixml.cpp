@@ -26,5 +26,12 @@ TEST(pugixml, normal) {
 
     pugi::xml_node log_config = doc.child("log_config");
     ASSERT_TRUE(log_config);
-    ASSERT_TRUE(log_config.name());
+    ASSERT_STREQ(log_config.name(), "log_config");
+
+    pugi::xml_node name = log_config.child("name");
+    ASSERT_TRUE(name);
+    ASSERT_STREQ(name.name(), "name");
+    ASSERT_STREQ(name.value(), "");
+    ASSERT_STREQ(name.child_value(), "world");
+    ASSERT_STREQ(name.text().as_string(), "world");
 }
