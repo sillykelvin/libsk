@@ -55,4 +55,30 @@ int string2u64(const char *str, u64& val) {
     return 0;
 }
 
+int string2float(const char *str, float &val) {
+    if (!str) return -EINVAL;
+
+    errno = 0;
+    char *end = NULL;
+    val = strtof(str, &end);
+
+    if (errno || *end != '\0' || end == str)
+        return -EINVAL;
+
+    return 0;
+}
+
+int string2double(const char *str, double &val) {
+    if (!str) return -EINVAL;
+
+    errno = 0;
+    char *end = NULL;
+    val = strtod(str, &end);
+
+    if (errno || *end != '\0' || end == str)
+        return -EINVAL;
+
+    return 0;
+}
+
 } // namespace sk
