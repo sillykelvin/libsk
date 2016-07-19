@@ -6,10 +6,12 @@ import string
 
 
 FIELD_DEFS = {
-    's32'    : {'type': 's32', 'conv_func': 'sk::string2s32'},
-    'u32'    : {'type': 'u32', 'conv_func': 'sk::string2u32'},
-    's64'    : {'type': 's64', 'conv_func': 'sk::string2s64'},
-    'u64'    : {'type': 'u64', 'conv_func': 'sk::string2u64'},
+    's32'    : {'type': 's32',    'conv_func': 'sk::string2s32'},
+    'u32'    : {'type': 'u32',    'conv_func': 'sk::string2u32'},
+    's64'    : {'type': 's64',    'conv_func': 'sk::string2s64'},
+    'u64'    : {'type': 'u64',    'conv_func': 'sk::string2u64'},
+    'float'  : {'type': 'float',  'conv_func': 'sk::string2float'},
+    'double' : {'type': 'double', 'conv_func': 'sk::string2double'},
     'string' : {'type': 'string', 'conv_func': None},
     'vector' : {'type': 'vector', 'conv_func': None},
     'custom' : {'type': 'custom', 'conv_func': None},
@@ -102,18 +104,17 @@ def build_field_info(root_defs, sup_def, type_str, name):
     if type_str == 'int':
         type_str = 's32'
 
-    if len(type_str) == 3 and type_str in FIELD_DEFS.keys():
+    if type_str in FIELD_DEFS.keys():
         field._type = FIELD_DEFS[type_str]
     elif type_str == 'std::string':
         field._type = FIELD_DEFS['string']
     elif type_str.startswith('std::vector<'):
         field._type = FIELD_DEFS['vector']
-        ret = re.search('^std::vector< *([_a-zA-Z0-9]+) *>$', type_str)
+        ret = re.search('^std::vector< *([_a-zA-Z0-9:]+) *>$', type_str)
         assert ret
         real_type = ret.group(1)
-        if real_type in ('int', 's32', 'u32', 's64', 'u64', 'std::string'):
-            if real_type == 'int':
-                real_type = 's32'
+        if real_type == 'int': real_type = 's32'
+        if real_type in ('s32', 'u32', 's64', 'u64', 'float', 'double', 'std::string'):
             field.real_type = real_type
         else:
             field.real_type = find_config_def(root_defs, sup_def, ret.group(1))
@@ -213,7 +214,6 @@ static int load_from_xml_node(std::string& value, const pugi::xml_node& node, co
 '''
 
 def write_integral_load_func(type_str):
-    assert len(type_str) == 3
     assert type_str in FIELD_DEFS.keys()
     template = '''
 static int load_from_xml_node(${type_name}& value, const pugi::xml_node& node, const char *node_name) {
@@ -307,7 +307,7 @@ def extract_all_types(def_list):
             elif f._type['type'] == 'vector':
                 assert f.real_type
                 if isinstance(f.real_type, str):
-                    assert f.real_type in ('s32', 'u32', 's64', 'u64', 'std::string')
+                    assert f.real_type in ('s32', 'u32', 's64', 'u64', 'float', 'double', 'std::string')
                     inner_type = f.real_type
                     if f.real_type == 'std::string':
                         inner_type = 'string'
