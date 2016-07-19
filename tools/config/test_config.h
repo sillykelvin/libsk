@@ -13,6 +13,8 @@ DEF_CONFIG category {
         std::string type;
         std::string pattern;
         int buffer_size;
+
+        std::vector<u64> guid_list;
     };
 
     std::string name; // test comment
@@ -21,7 +23,8 @@ DEF_CONFIG category {
     /*
      * multiline comments here
      */
-    device dev;
+    device main_dev;
+    std::vector<device> backup_devs;
 };
 
 DEF_CONFIG log_conf    
