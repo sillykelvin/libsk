@@ -13,18 +13,29 @@ DEF_CONFIG category {
         std::string type;
         std::string pattern;
         int buffer_size;
-
         std::vector<u64> guid_list;
+        std::vector<std::string> paths;
+        std::vector<double> precisions;
+    };
+
+    DEF_CONFIG   filter    {
+        std::string type;
+        int count;
+
+        std::vector<device> ref_devs;
+        std::vector<float> averages;
     };
 
     std::string name; // test comment
     int level;
-    int max_size;
+    u32 max_size;
+    double precision;
     /*
      * multiline comments here
      */
     device main_dev;
     std::vector<device> backup_devs;
+    std::vector<filter> filters;
 };
 
 DEF_CONFIG log_conf    
