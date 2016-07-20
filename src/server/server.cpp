@@ -115,4 +115,27 @@ int server<Config>::init_logger() {
     return 0;
 }
 
+template<typename Config>
+int server<Config>::lock_pid() {
+    int fd = open(ctx_.pid_file.c_str(), O_CREAT | O_EXCL | O_CLOEXEC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if (fd == -1) {
+        error("cannot open pid file %s, error: %d.", ctx_.pid_file.c_str(), errno);
+        return -1;
+    }
+
+    int ret = flock(fd, LOCK_EX | LOCK_NB);
+    if (ret == 0)
+        return ret;
+
+    close(fd);
+    error("cannot lock pid file %s.", ctx_.pid_file.c_str());
+    return -1;
+}
+
+template<typename Config>
+int server<Config>::write_pid() {
+    // TODO: implement this function
+    return 0;
+}
+
 } // namespace sk

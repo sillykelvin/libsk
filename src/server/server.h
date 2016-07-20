@@ -92,6 +92,9 @@ private:
         return conf_->load_from_xml_file(ctx_.proc_conf.c_str());
     }
 
+    bool lock_pid();
+    int write_pid();
+
 private:
     Config conf_;
     server_context ctx_;
