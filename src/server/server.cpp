@@ -31,6 +31,9 @@ int server<Config>::init(int argc, const char **argv) {
     ret = init_logger();
     if (ret != 0) return ret;
 
+    ret = init_conf();
+    if (ret != 0) return ret;
+
     // TODO: add more initialization here
 
     ret = on_init();
@@ -49,10 +52,13 @@ int server<Config>::init_parser() {
     ret = parser_.register_option(0, "pid-file", "pid file location", "PID", false, &ctx_.pid_file);
     if (ret != 0) return ret;
 
-    ret = parser_.register_option(0, "log-conf", "log config location", "LOG_CONF", false, &ctx_.log_conf);
+    ret = parser_.register_option(0, "log-conf", "log config location", "CONF", false, &ctx_.log_conf);
     if (ret != 0) return ret;
 
-    ret = parser_.register_option(0, "resume", "process start in resume mode or not", NULL, true, &ctx_.resume_mode);
+    ret = parser_.register_option(0, "proc-conf", "process config location", "CONF", false, &ctx_.proc_conf);
+    if (ret != 0) return ret;
+
+    ret = parser_.register_option(0, "resume", "process start in resume mode or not", NULL, false, &ctx_.resume_mode);
     if (ret != 0) return ret;
 
     return 0;
@@ -85,6 +91,13 @@ int server<Config>::init_ctx(const char *program) {
         char buf[256] = {0};
         snprintf(buf, sizeof(buf), "../cfg/log_conf.xml_%s", ctx_.str_id.c_str());
         ctx_.log_conf = buf;
+    }
+
+    // the command line option does not provide a process config
+    if (ctx_.proc_conf.empty()) {
+        char buf[256] = {0};
+        snprintf(buf, sizeof(buf), "../cfg/%s_conf.xml_%s", program, ctx_.str_id.c_str());
+        ctx_.proc_conf = buf;
     }
 
     return 0;

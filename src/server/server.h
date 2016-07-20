@@ -8,11 +8,12 @@
 namespace sk {
 
 struct server_context {
-    u64 id;               // id of this server, it is also the bus id
-    std::string str_id;   // string id of this server, like "x.x.x.x"
-    std::string pid_file; // pid file location
-    std::string log_conf; // log config location
-    bool resume_mode;     // if the process is running under resume mode
+    u64 id;                // id of this server, it is also the bus id
+    std::string str_id;    // string id of this server, like "x.x.x.x"
+    std::string pid_file;  // pid file location
+    std::string log_conf;  // log config location
+    std::string proc_conf; // process config location
+    bool resume_mode;      // if the process is running under resume mode
 
     server_context() : id(0), resume_mode(false) {}
 };
@@ -20,6 +21,7 @@ struct server_context {
 template<typename Config>
 class server {
 public:
+    server() {}
     virtual ~server() {}
 
     server(const server&) = delete;
@@ -86,6 +88,9 @@ private:
     int init_parser();
     int init_ctx(const char *program);
     int init_logger();
+    int init_conf() {
+        return conf_->load_from_xml_file(ctx_.proc_conf.c_str());
+    }
 
 private:
     Config conf_;
