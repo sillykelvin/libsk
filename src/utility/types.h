@@ -15,6 +15,9 @@
 #define IDX_NULL    (-1)
 #define OFFSET_NULL 0
 
+#define NS_BEGIN(name) namespace name {
+#define NS_END(name) }
+
 typedef int8_t   s8;
 typedef uint8_t  u8;
 typedef int16_t  s16;

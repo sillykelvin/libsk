@@ -1,4 +1,5 @@
 #include <libgen.h>
+#include <signal.h>
 #include "server.h"
 #include "server/option_parser.h"
 
@@ -13,10 +14,22 @@ union busid_format {
 };
 static_assert(sizeof(busid_format) == sizeof(u64), "invalid type: busid_format");
 
-namespace sk {
+NS_BEGIN(sk)
 
-template<typename Config>
-int server<Config>::init(int argc, const char **argv) {
+template<typename C, typename D>
+static server<C, D> *instance_ = NULL;
+
+template<typename C, typename D>
+int server<C, D>::get() {
+    if (instance_)
+        return *instance_;
+
+    instance_ = new D();
+    return *instance_;
+}
+
+template<typename C, typename D>
+int server<C, D>::init(int argc, const char **argv) {
     int ret = 0;
 
     ret = init_parser();
@@ -42,8 +55,8 @@ int server<Config>::init(int argc, const char **argv) {
     return 0;
 }
 
-template<typename Config>
-int server<Config>::init_parser() {
+template<typename C, typename D>
+int server<C, D>::init_parser() {
     int ret = 0;
 
     ret = parser_.register_option(0, "id", "id of this process", "x.x.x.x", true, &ctx_.str_id);
@@ -64,8 +77,8 @@ int server<Config>::init_parser() {
     return 0;
 }
 
-template<typename Config>
-int server<Config>::init_ctx(const char *program) {
+template<typename C, typename D>
+int server<C, D>::init_ctx(const char *program) {
     assert_retval(!ctx_.str_id.empty(), -1);
 
     busid_format f;
@@ -103,8 +116,8 @@ int server<Config>::init_ctx(const char *program) {
     return 0;
 }
 
-template<typename Config>
-int server<Config>::init_logger() {
+template<typename C, typename D>
+int server<C, D>::init_logger() {
     // TODO: rewrite this function
 
     std::vector<spdlog::sink_ptr> sinks;
@@ -115,8 +128,8 @@ int server<Config>::init_logger() {
     return 0;
 }
 
-template<typename Config>
-int server<Config>::lock_pid() {
+template<typename C, typename D>
+int server<C, D>::lock_pid() {
     int fd = open(ctx_.pid_file.c_str(), O_CREAT | O_EXCL | O_CLOEXEC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (fd == -1) {
         error("cannot open pid file %s, error: %d.", ctx_.pid_file.c_str(), errno);
@@ -132,10 +145,39 @@ int server<Config>::lock_pid() {
     return -1;
 }
 
-template<typename Config>
-int server<Config>::write_pid() {
+template<typename C, typename D>
+int server<C, D>::write_pid() {
     // TODO: implement this function
     return 0;
 }
 
-} // namespace sk
+template<typename C, typename D>
+void server<C, D>::set_signal_handler() {
+    struct sigaction act;
+
+    info("setting signal handler...");
+
+    memset(&act, 0x00, sizeof(act));
+    sigfillset(&act.sa_mask);
+
+    act.sa_handler = sig_on_stop;
+    sigaction(SIGTERM, &act, NULL);
+    info("signal: SIGTERM(%d), action: call server::stop", SIGTERM);
+
+    sigaction(SIGQUIT, &act, NULL);
+    info("signal: SIGQUIT(%d), action: call server::stop", SIGQUIT);
+
+    sigaction(SIGINT, &act, NULL);
+    info("signal: SIGINT(%d), action: call server::stop", SIGINT);
+
+    sigaction(SIGABRT, &act, NULL);
+    info("signal: SIGABRT(%d), action: call server::stop", SIGABRT);
+
+    act.sa_handler = sig_on_reload;
+    sigaction(SIGUSR1, &act, NULL);
+    info("signal: SIGUSR1(%d), action: call server::reload", SIGUSR1);
+
+    info("signal hander set.");
+}
+
+NS_END(sk)

@@ -5,7 +5,7 @@
 #include "spdlog/spdlog.h"
 #include "server/option_parser.h"
 
-namespace sk {
+NS_BEGIN(sk)
 
 struct server_context {
     u64 id;                // id of this server, it is also the bus id
@@ -18,12 +18,21 @@ struct server_context {
     server_context() : id(0), resume_mode(false) {}
 };
 
-template<typename Config>
+/**
+ * @brief The server class represents a server process
+ * Note:
+ *     1. Config is a configuration type, must have a
+ * function load_from_xml_file(const char *filename)
+ *     2. Derived must be the derived type from server
+ * class
+ */
+template<typename Config, typename Derived>
 class server {
 public:
-    server() {}
-    virtual ~server() {}
+    static server& get();
 
+    server() = default;
+    virtual ~server() = default;
     server(const server&) = delete;
     server& operator=(const server&) = delete;
 
@@ -95,6 +104,8 @@ private:
     bool lock_pid();
     int write_pid();
 
+    void set_signal_handler();
+
 private:
     Config conf_;
     server_context ctx_;
@@ -102,6 +113,6 @@ private:
     std::shared_ptr<spdlog::logger> logger_;
 };
 
-} // namespace sk
+NS_END(sk)
 
 #endif // SERVER_H
