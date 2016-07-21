@@ -1,7 +1,9 @@
 #include <libgen.h>
 #include <signal.h>
+#include <fcntl.h>
 #include "server.h"
 #include "server/option_parser.h"
+#include "utility/types.h"
 
 union busid_format {
     u64 busid;
@@ -17,10 +19,20 @@ static_assert(sizeof(busid_format) == sizeof(u64), "invalid type: busid_format")
 NS_BEGIN(sk)
 
 template<typename C, typename D>
-static server<C, D> *instance_ = NULL;
+server<C, D> *server<C, D>::instance_ = NULL;
 
 template<typename C, typename D>
-int server<C, D>::get() {
+static void sig_on_stop() {
+    server<C, D>::get().stop();
+}
+
+template<typename C, typename D>
+static void sig_on_reload() {
+    server<C, D>::get().reload();
+}
+
+template<typename C, typename D>
+server<C, D>& server<C, D>::get() {
     if (instance_)
         return *instance_;
 
@@ -32,20 +44,28 @@ template<typename C, typename D>
 int server<C, D>::init(int argc, const char **argv) {
     int ret = 0;
 
-    ret = init_parser();
+    option_parser p;
+    ret = init_parser(p);
     if (ret != 0) return ret;
 
-    ret = parser_.parse(argc, argv, NULL);
+    ret = p.parse(argc, argv, NULL);
     if (ret != 0) return ret;
 
-    ret = init_ctx(basename(argv[0]));
+    ret = init_context(basename(argv[0]));
     if (ret != 0) return ret;
 
     ret = init_logger();
     if (ret != 0) return ret;
 
+    /* from now we can use logging functions */
+
     ret = init_conf();
     if (ret != 0) return ret;
+
+    ret = lock_pid();
+    if (ret != 0) return ret;
+
+    set_signal_handler();
 
     // TODO: add more initialization here
 
@@ -56,29 +76,29 @@ int server<C, D>::init(int argc, const char **argv) {
 }
 
 template<typename C, typename D>
-int server<C, D>::init_parser() {
+int server<C, D>::init_parser(option_parser& p) {
     int ret = 0;
 
-    ret = parser_.register_option(0, "id", "id of this process", "x.x.x.x", true, &ctx_.str_id);
+    ret = p.register_option(0, "id", "id of this process", "x.x.x.x", true, &ctx_.str_id);
     if (ret != 0) return ret;
 
-    ret = parser_.register_option(0, "pid-file", "pid file location", "PID", false, &ctx_.pid_file);
+    ret = p.register_option(0, "pid-file", "pid file location", "PID", false, &ctx_.pid_file);
     if (ret != 0) return ret;
 
-    ret = parser_.register_option(0, "log-conf", "log config location", "CONF", false, &ctx_.log_conf);
+    ret = p.register_option(0, "log-conf", "log config location", "CONF", false, &ctx_.log_conf);
     if (ret != 0) return ret;
 
-    ret = parser_.register_option(0, "proc-conf", "process config location", "CONF", false, &ctx_.proc_conf);
+    ret = p.register_option(0, "proc-conf", "process config location", "CONF", false, &ctx_.proc_conf);
     if (ret != 0) return ret;
 
-    ret = parser_.register_option(0, "resume", "process start in resume mode or not", NULL, false, &ctx_.resume_mode);
+    ret = p.register_option(0, "resume", "process start in resume mode or not", NULL, false, &ctx_.resume_mode);
     if (ret != 0) return ret;
 
     return 0;
 }
 
 template<typename C, typename D>
-int server<C, D>::init_ctx(const char *program) {
+int server<C, D>::init_context(const char *program) {
     assert_retval(!ctx_.str_id.empty(), -1);
 
     busid_format f;
@@ -132,22 +152,36 @@ template<typename C, typename D>
 int server<C, D>::lock_pid() {
     int fd = open(ctx_.pid_file.c_str(), O_CREAT | O_EXCL | O_CLOEXEC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (fd == -1) {
-        error("cannot open pid file %s, error: %d.", ctx_.pid_file.c_str(), errno);
-        return -1;
+        error("cannot open pid file %s, error: %s.", ctx_.pid_file.c_str(), strerror(errno));
+        return -errno;
     }
 
     int ret = flock(fd, LOCK_EX | LOCK_NB);
-    if (ret == 0)
-        return ret;
+    if (ret != 0) {
+        close(fd);
+        error("cannot lock pid file %s, error: %s.", ctx_.pid_file.c_str(), strerror(errno));
+        return -errno;
+    }
 
-    close(fd);
-    error("cannot lock pid file %s.", ctx_.pid_file.c_str());
-    return -1;
+    // do NOT close(fd) here
+    return 0;
 }
 
 template<typename C, typename D>
 int server<C, D>::write_pid() {
-    // TODO: implement this function
+    int fd = open(ctx_.pid_file.c_str(), O_RDWR);
+    if (fd == -1) {
+        error("cannot open pid file %s, error: %s.", ctx_.pid_file.c_str(), strerror(errno));
+        return -errno;
+    }
+
+    pid_t pid = getpid();
+    ssize_t len = write(fd, &pid, sizeof(pid));
+    if (len != sizeof(pid)) {
+        error("cannot write pid, error: %s.", strerror(errno));
+        return -errno;
+    }
+
     return 0;
 }
 

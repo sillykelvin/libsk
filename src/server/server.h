@@ -94,22 +94,23 @@ protected:
     virtual int on_reload() = 0;
 
 private:
-    int init_parser();
-    int init_ctx(const char *program);
+    int init_parser(option_parser& p);
+    int init_context(const char *program);
     int init_logger();
     int init_conf() {
         return conf_->load_from_xml_file(ctx_.proc_conf.c_str());
     }
 
-    bool lock_pid();
+    int lock_pid();
     int write_pid();
 
     void set_signal_handler();
 
 private:
+    static server *instance_;
+
     Config conf_;
     server_context ctx_;
-    option_parser parser_;
     std::shared_ptr<spdlog::logger> logger_;
 };
 
