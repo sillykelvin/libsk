@@ -30,9 +30,32 @@ struct server_context {
     std::string pid_file;  // pid file location
     std::string log_conf;  // log config location
     std::string proc_conf; // process config location
+    int max_idle_count;    // max idle count allowed
+    int idle_sleep_sec;    // how long server will sleep when idle
     bool resume_mode;      // if the process is running under resume mode
 
-    server_context() : id(0), resume_mode(false) {}
+    // do NOT touch the following fields unless you know what you are doing
+
+    // if reloading is true, reload() will be called in next loop
+    bool reloading;
+    // if stopping is true, stop() will be called in main loop regularly,
+    // to do clean up job
+    bool stopping;
+    // if clean up job is done, set exiting to true to break the main loop
+    bool exiting;
+
+    int idle_count; // current idle count
+
+    server_context() :
+        id(0),
+        max_idle_count(0),
+        idle_sleep_sec(0),
+        resume_mode(false),
+        reloading(false),
+        stopping(false),
+        exiting(false),
+        idle_count(0)
+    {}
 };
 
 /**
@@ -74,12 +97,18 @@ public:
         ret = init_logger();
         if (ret != 0) return ret;
 
+        ret = make_daemon();
+        if (ret != 0) return ret;
+
         /* from now we can use logging functions */
 
         ret = init_conf();
         if (ret != 0) return ret;
 
         ret = lock_pid();
+        if (ret != 0) return ret;
+
+        ret = write_pid();
         if (ret != 0) return ret;
 
         set_signal_handler();
@@ -92,15 +121,53 @@ public:
         return 0;
     }
 
-    int fini();
+    int fini() {
+        return on_fini();
+    }
+
     int stop() {
-        // TODO: implementation
+        int ret = on_stop();
+        if (ret == 0) {
+            ctx_.exiting = true;
+            return 0;
+        }
+
+        info("on_stop() returns {}, continue running.", ret);
         return 0;
     }
-    int run();
-    int reload() {
-        // TODO: implementation
+
+    int run() {
+        info("enter run()");
+
+        while (!ctx_.exiting) {
+            if (ctx_.stopping)
+                stop();
+
+            if (ctx_.reloading)
+                reload();
+
+            int ret = on_run();
+            if (ret == 0) {
+                ++ctx_.idle_count;
+                if (ctx_.idle_count >= ctx_.max_idle_count) {
+                    ctx_.idle_count = 0;
+                    usleep(ctx_.idle_sleep_sec * 1000);
+                }
+            }
+        }
+
+        info("exit run()");
         return 0;
+    }
+
+    int reload() {
+        // TODO: reload config here
+        int ret = on_reload();
+        if (ret != 0)
+            error("on_reload returns error: {}", ret);
+
+        ctx_.reloading = false;
+        return ret;
     }
 
     const Config& config() const { return conf_; }
@@ -151,17 +218,31 @@ protected:
 
     virtual int on_init() = 0;
     virtual int on_fini() = 0;
+
+    /**
+     * @brief on_stop will be called when server receives a stop signal
+     * @return 0 means server can shutdown, otherwise server will continue
+     * to run and call on_stop() until it returns 0
+     */
     virtual int on_stop() = 0;
+
+    /**
+     * @brief on_run will be called in every main loop
+     * @return 0 means it is an idle run, server will increase idle count,
+     * if idle count reaches the configured count, server will sleep for
+     * some time until next run, otherwise server will call on_run() again
+     * without any pause
+     */
     virtual int on_run() = 0;
     virtual int on_reload() = 0;
 
 private:
     static void sig_on_stop(int) {
-        instance_->stop();
+        instance_->ctx_.stopping = true;
     }
 
     static void sig_on_reload(int) {
-        instance_->reload();
+        instance_->ctx_.reloading = true;
     }
 
     int init_parser(option_parser& p) {
@@ -177,6 +258,12 @@ private:
         if (ret != 0) return ret;
 
         ret = p.register_option(0, "proc-conf", "process config location", "CONF", false, &ctx_.proc_conf);
+        if (ret != 0) return ret;
+
+        ret = p.register_option(0, "idle-count", "how many idle count will be counted before a sleep", "COUNT", false, &ctx_.max_idle_count);
+        if (ret != 0) return ret;
+
+        ret = p.register_option(0, "idle-sleep", "how long server will sleep when idle, in sec", "SEC", false, &ctx_.idle_sleep_sec);
         if (ret != 0) return ret;
 
         ret = p.register_option(0, "resume", "process start in resume mode or not", NULL, false, &ctx_.resume_mode);
@@ -222,6 +309,16 @@ private:
             ctx_.proc_conf = buf;
         }
 
+        // the command line option does not provide an idle count
+        if (ctx_.max_idle_count == 0) {
+            ctx_.max_idle_count = 10;
+        }
+
+        // the command line option does not provide an idle sleep
+        if (ctx_.idle_sleep_sec == 0) {
+            ctx_.idle_sleep_sec = 3;
+        }
+
         return 0;
     }
 
@@ -236,12 +333,16 @@ private:
         return 0;
     }
 
+    int make_daemon() {
+        return daemon(1, 0);
+    }
+
     int init_conf() {
         return conf_.load_from_xml_file(ctx_.proc_conf.c_str());
     }
 
     int lock_pid() {
-        int fd = open(ctx_.pid_file.c_str(), O_CREAT | O_EXCL | O_CLOEXEC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        int fd = open(ctx_.pid_file.c_str(), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         if (fd == -1) {
             error("cannot open pid file %s, error: %s.", ctx_.pid_file.c_str(), strerror(errno));
             return -errno;
