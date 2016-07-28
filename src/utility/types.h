@@ -18,6 +18,8 @@
 #define NS_BEGIN(name) namespace name {
 #define NS_END(name) }
 
+#define MAKE_NONCOPYABLE(T) T(const T&) = delete; T& operator=(const T&) = delete
+
 typedef int8_t   s8;
 typedef uint8_t  u8;
 typedef int16_t  s16;
