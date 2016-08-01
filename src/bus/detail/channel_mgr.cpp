@@ -1,12 +1,12 @@
 #include <errno.h>
-#include "bus.h"
+#include "channel_mgr.h"
 #include "shm/detail/shm_segment.h"
 #include "utility/assert_helper.h"
 #include "utility/config.h"
 #include "common/lock_guard.h"
 
-NS_BEGIN(sk)
-NS_BEGIN(detail)
+namespace sk {
+namespace detail {
 
 int channel::init(key_t shm_key, size_t node_size, size_t node_count, bool resume) {
     shm_segment seg;
@@ -59,8 +59,6 @@ bool channel::empty() const {
     // TODO: implement this function
     return 0;
 }
-
-NS_END(detail)
 
 int channel_mgr::init(int shmid, size_t node_size, size_t node_count, bool resume) {
     if (resume) {
@@ -166,4 +164,5 @@ int channel_mgr::register_channel(key_t shm_key, size_t& handle) {
     return 0;
 }
 
-NS_END(sk)
+} // namespace detail
+} // namespace sk

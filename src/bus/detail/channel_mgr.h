@@ -1,11 +1,11 @@
-#ifndef BUS_H
-#define BUS_H
+#ifndef CHANNEL_MGR_H
+#define CHANNEL_MGR_H
 
 #include "common/spin_lock.h"
 #include "utility/types.h"
 
-NS_BEGIN(sk)
-NS_BEGIN(detail)
+namespace sk {
+namespace detail {
 
 struct channel_message {
     size_t node_count; // how many nodes this message occupies
@@ -29,8 +29,6 @@ struct channel {
     bool empty() const;
 };
 
-NS_END(detail)
-
 struct channel_mgr {
     static const int MAX_CHANNEL_COUNT = 128;
 
@@ -52,6 +50,7 @@ struct channel_mgr {
     int register_channel(key_t shm_key, size_t& handle);
 };
 
-NS_END(sk)
+} // namespace detail
+} // namespace sk
 
-#endif // BUS_H
+#endif // CHANNEL_MGR_H
