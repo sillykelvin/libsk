@@ -2,6 +2,12 @@
 #define CONFIG_H
 
 /*
+ * sometimes, we need a magic code to identify something
+ * "code feed" :-)
+ */
+static const int MAGIC = 0xC0DEFEED;
+
+/*
  * page size, 8KB
  */
 static const int PAGE_SHIFT = 13;
@@ -67,22 +73,5 @@ static const size_t MIN_METADATA_SPACE = 2 * 1024 * 1024;
  * minimum space should a shm_mgr manage, 3MB
  */
 static const size_t MIN_SHM_SPACE = 3 * 1024 * 1024;
-
-
-// static const int MAGIC      = 0xC0DEFEED;     // "code feed" :-)
-// static const int ALIGN_SIZE = 8;              // memory align size, 8 bytes
-// static const int ALIGN_MASK = ALIGN_SIZE - 1;
-//
-// /*
-//  * mata data alignment, 8 bytes
-//  */
-// static const int META_ALIGN_SHIFT = 3;
-// static const int META_ALIGN_SIZE  = 1 << META_ALIGN_SHIFT;
-//
-// /*
-//  * allocation size for metadata once, 8KB
-//  * note: make sure this size is aligned by META_ALIGN_SIZE
-//  */
-// static const size_t META_ALLOC_SIZE = 8 * 1024;
 
 #endif // CONFIG_H

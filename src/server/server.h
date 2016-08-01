@@ -69,6 +69,8 @@ struct server_context {
 template<typename Config, typename Derived>
 class server {
 public:
+    MAKE_NONCOPYABLE(server);
+
     static server& get() {
         if (instance_)
             return *instance_;
@@ -78,8 +80,6 @@ public:
     }
 
     virtual ~server() = default;
-    server(const server&) = delete;
-    server& operator=(const server&) = delete;
 
     int init(int argc, const char **argv) {
         int ret = 0;
@@ -171,7 +171,7 @@ public:
     }
 
     const Config& config() const { return conf_; }
-    const server_context& ctx() const { return ctx_; }
+    const server_context& context() const { return ctx_; }
 
     template <typename... Args>
     void log(spdlog::level::level_enum lvl, const char* fmt, const Args&... args) {
