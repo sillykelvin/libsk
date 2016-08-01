@@ -6,15 +6,24 @@
 namespace sk {
 namespace detail {
 
-int channel::init(size_t node_count) {
+int channel::init(size_t node_size, size_t node_count) {
+    assert_retval(node_size > 0, -1);
     assert_retval(node_count > 0, -1);
+    assert_retval(node_size & (node_size - 1) == 0, -1);
 
     this->magic = MAGIC;
     this->node_count = node_count;
+    this->node_size = node_size;
     this->read_pos = 0;
     this->write_pos = 0;
     // TODO: may do some alignment job here
     this->node_offset = sizeof(channel);
+
+    this->node_size_shift = 0;
+    while (node_size > 1) {
+        node_size = node_size >> 1;
+        ++this->node_size_shift;
+    }
 
     return 0;
 }
