@@ -7,28 +7,6 @@
 namespace sk {
 namespace detail {
 
-struct channel_message {
-    size_t node_count; // how many nodes this message occupies
-    char data[0];      // real message follows this struct
-};
-
-struct channel {
-    int shmid;         // id of this shm segment
-    key_t shm_key;     // shm key to this channel
-    size_t node_count; // total node count of this channel
-    size_t read_pos;   // current read position
-    size_t write_pos;  // current write position
-    void *addr;        // the start address of this channel
-
-    int init(key_t shm_key, size_t node_size, size_t node_count, bool resume);
-    int fini();
-
-    int push(const void *data, size_t length);
-    int pop(void *data, size_t max_length, size_t *real_length);
-
-    bool empty() const;
-};
-
 struct channel_descriptor {
     int owner;         // owner bus id of this channel
     offset_t r_offset; // offset of read channel

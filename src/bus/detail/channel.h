@@ -6,6 +6,13 @@
 namespace sk {
 namespace detail {
 
+struct channel_message {
+    int src_busid;     // which process this message comes from
+    int dst_busid;     // which process this message goes to
+    size_t node_count; // how many nodes this message occupies
+    char data[0];      // real message follows this struct
+};
+
 struct channel {
     int magic;
     size_t node_count;      // total node count of this channel

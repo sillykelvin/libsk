@@ -9,58 +9,6 @@
 namespace sk {
 namespace detail {
 
-int channel::init(key_t shm_key, size_t node_size, size_t node_count, bool resume) {
-    shm_segment seg;
-    int ret = seg.init(shm_key, node_size * node_count, resume);
-    if (ret != 0) return ret;
-
-    if (resume) {
-        assert_retval(shmid == seg.shmid, -1);
-        assert_retval(this->shm_key == shm_key, -1);
-        assert_retval(this->node_count == node_count, -1);
-        assert_retval(addr, -1); // however, addr is an invalid address here
-
-        addr = seg.address();
-    } else {
-        shmid = seg.shmid;
-        this->shm_key = shm_key;
-        this->node_count = node_count;
-        assert_retval(node_count > 0, -1);
-
-        read_pos = 0;
-        write_pos = 0;
-
-        addr = seg.address();
-    }
-
-    seg.release();
-    return 0;
-}
-
-int channel::fini() {
-    if (addr) {
-        shmctl(shmid, IPC_RMID, 0);
-        addr = NULL;
-    }
-
-    return 0;
-}
-
-int channel::push(const void *data, size_t length) {
-    // TODO: implement this function
-    return 0;
-}
-
-int channel::pop(void *data, size_t max_length, size_t *real_length) {
-    // TODO: implement this function
-    return 0;
-}
-
-bool channel::empty() const {
-    // TODO: implement this function
-    return 0;
-}
-
 int channel_mgr::init(int shmid, size_t shm_size, bool resume) {
     if (resume) {
         assert_retval(this->magic == MAGIC, -1);
