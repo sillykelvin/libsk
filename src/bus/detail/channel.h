@@ -24,8 +24,27 @@ struct channel {
 
     int init(size_t node_size, size_t node_count);
 
-    int push(const void *data, size_t length);
-    int pop(void *data, size_t max_length, size_t *real_length);
+    /**
+     * @brief push a message into the channel
+     * @param src_busid: from which bus this message is sent
+     * @param dst_busid: which bus this message is sent to
+     * @param data: the message data
+     * @param length: the length of the message
+     * @return 0 if succeeds, error code otherwise
+     */
+    int push(int src_busid, int dst_busid, const void *data, size_t length);
+
+    /**
+     * @brief pop a message from the channel
+     * @param data: buffer to store the popped message, if it's NULL, channel
+     *              will drop this message
+     * @param length: length of the buffer, also stores the length of the
+     *                message, if data is NULL, this field is discarded
+     * @param src_busid: store source bus id, can be NULL
+     * @param dst_busid: store destination bus id, can be NULL
+     * @return 0 if succeeds, error code otherwise
+     */
+    int pop(void *data, size_t& length, int *src_busid, int *dst_busid);
 
     bool empty() const;
 };

@@ -38,6 +38,7 @@ struct channel_mgr {
 
     channel *get_read_channel(int fd);
     channel *get_write_channel(int fd);
+    int get_owner_busid(int fd);
 };
 
 } // namespace detail

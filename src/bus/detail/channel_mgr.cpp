@@ -119,5 +119,10 @@ channel *channel_mgr::get_write_channel(int fd) {
     return wc;
 }
 
+int channel_mgr::get_owner_busid(int fd) {
+    assert_retval(fd >= 0 && fd < descriptor_count, -1);
+    return descriptors[fd].owner;
+}
+
 } // namespace detail
 } // namespace sk
