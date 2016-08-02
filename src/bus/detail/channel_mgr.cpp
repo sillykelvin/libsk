@@ -4,6 +4,7 @@
 #include "utility/assert_helper.h"
 #include "utility/config.h"
 #include "common/lock_guard.h"
+#include "bus/detail/channel.h"
 
 namespace sk {
 namespace detail {
@@ -128,10 +129,46 @@ int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count
         used_size += channel_size;
     }
 
+    int ret = 0;
+
+    channel *rc = cast_ptr(channel, char_ptr(this) + desc->r_offset);
+    ret = rc->init(node_size, node_count);
+    if (ret != 0) {
+        error("failed to init read channel, bus id<%x>, ret<%d>.", busid, ret);
+        return ret;
+    }
+
+    channel *wc = cast_ptr(channel, char_ptr(this) + desc->w_offset);
+    ret = wc->init(node_size, node_count);
+    if (ret != 0) {
+        error("failed to init write channel, bus id<%x>, ret<%d>.", busid, ret);
+        return ret;
+    }
+
     info("new channel, fd<%d>, owner<%x>, read offset<%lu>, write offset<%lu>.",
          fd, desc->owner, desc->r_offset, desc->w_offset);
 
     return 0;
+}
+
+channel *channel_mgr::get_read_channel(int fd) {
+    assert_retval(fd >= 0 && fd < descriptor_count, NULL);
+
+    channel_descriptor& desc = descriptors[fd];
+    channel *rc = cast_ptr(channel, char_ptr(this) + desc->r_offset);
+    assert_retval(rc->magic == MAGIC, NULL);
+
+    return rc;
+}
+
+channel *channel_mgr::get_write_channel(int fd) {
+    assert_retval(fd >= 0 && fd < descriptor_count, NULL);
+
+    channel_descriptor& desc = descriptors[fd];
+    channel *wc = cast_ptr(channel, char_ptr(this) + desc->w_offset);
+    assert_retval(wc->magic == MAGIC, NULL);
+
+    return wc;
 }
 
 } // namespace detail

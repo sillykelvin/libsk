@@ -57,6 +57,9 @@ struct channel_mgr {
      * ensure synchronization
      */
     int register_channel(int busid, size_t node_size, size_t node_count, int& fd);
+
+    channel *get_read_channel(int fd);
+    channel *get_write_channel(int fd);
 };
 
 } // namespace detail
