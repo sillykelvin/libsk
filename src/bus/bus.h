@@ -9,13 +9,14 @@ static const size_t DEFAULT_BUS_NODE_COUNT = 102400;
 
 /**
  * @brief register bus for process whose bus id is busid
+ * @param bus_key: shm key of bus
  * @param busid: bus id of current process
  * @param fd: stores file descriptor of registered bus
  * @param node_size: size of a single data node
  * @param node_count: total count of data nodes
  * @return 0 if succeeds, error code otherwise
  */
-int register_bus(int busid, int& fd,
+int register_bus(key_t bus_key, int busid, int& fd,
                  size_t node_size = DEFAULT_BUS_NODE_SIZE,
                  size_t node_count = DEFAULT_BUS_NODE_COUNT);
 
