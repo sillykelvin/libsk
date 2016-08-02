@@ -29,25 +29,34 @@ struct channel {
     bool empty() const;
 };
 
+struct channel_descriptor {
+    int owner;         // owner bus id of this channel
+    offset_t r_offset; // offset of read channel
+    offset_t w_offset; // offset of write channel
+};
+
 struct channel_mgr {
-    static const int MAX_CHANNEL_COUNT = 128;
+    static const int MAX_DESCRIPTOR_COUNT = 128;
 
     int magic;
-    int shmid;              // id of this shm segment
-    size_t node_count;      // how many nodes a channel owns
-    size_t node_size;       // the size of a node
-    size_t node_size_shift; // 2 ^ node_size_shift = node_size
+    int shmid;               // id of this shm segment
+    size_t shm_size;         // total size of this shm segment
+    size_t used_size;        // allocated space size
 
-    spin_lock lock; // lock channel_count for multi process registration
-    size_t channel_count;
-    detail::channel channel_list[MAX_CHANNEL_COUNT];
+    spin_lock lock; // lock for multi process registration
+    int descriptor_count;
+    channel_descriptor descriptors[MAX_DESCRIPTOR_COUNT];
 
-    int init(int shmid, size_t node_size, size_t node_count, bool resume);
-    int fini();
+    /*
+     * this function will be called and only be called in busd process
+     */
+    int init(int shmid, size_t shm_size, bool resume);
 
-    size_t calc_node_count(size_t length);
-
-    int register_channel(key_t shm_key, size_t& handle);
+    /*
+     * this function will be called in each process, thus we need to lock to
+     * ensure synchronization
+     */
+    int register_channel(int busid, size_t node_size, size_t node_count, int& fd);
 };
 
 } // namespace detail

@@ -60,107 +60,77 @@ bool channel::empty() const {
     return 0;
 }
 
-int channel_mgr::init(int shmid, size_t node_size, size_t node_count, bool resume) {
+int channel_mgr::init(int shmid, size_t shm_size, bool resume) {
     if (resume) {
-        assert_retval(magic == MAGIC, -1);
+        assert_retval(this->magic == MAGIC, -1);
         assert_retval(this->shmid == shmid, -1);
-        assert_retval(this->node_count == node_count, -1);
-        assert_retval(this->node_size == node_size, -1);
-
-        // it's better to lock the operation, to ensure there is no other
-        // processes doing registration
-        lock_guard(lock);
-        for (size_t i = 0; i < channel_count; ++i) {
-            detail::channel& c = channel_list[i];
-
-            // because this is resume mode, so we just use shm_key stored in channel
-            int ret = c.init(c.shm_key, node_size, node_count, resume);
-            if (ret != 0) {
-                // TODO: error log here
-                return ret;
-            }
-        }
+        assert_retval(this->shm_size == shm_size, -1);
     } else {
         this->shmid = shmid;
-        this->node_count = node_count;
-        assert_retval(node_count > 0, -1);
-        this->node_size = node_size;
-        assert_retval(node_size > 0, -1);
-        assert_retval(node_size & (node_size - 1) == 0, -1);
-
-        node_size_shift = 0;
-        while (node_size > 1) {
-            node_size = node_size >> 1;
-            ++node_size_shift;
-        }
+        this->shm_size = shm_size;
+        // TODO: may do some alignment job here
+        this->used_size = sizeof(channel_mgr);
 
         lock.init();
-        channel_count = 0;
-        memset(channel_list, 0x00, sizeof(channel_list));
+        descriptor_count = 0;
+        memset(descriptors, 0x00, sizeof(descriptors));
 
         // we set magic at the last, to ensure all fields are initialized
-        magic = MAGIC;
+        this->magic = MAGIC;
     }
 
     return 0;
 }
 
-int channel_mgr::fini() {
-    lock_guard(lock);
-    for (size_t i = 0; i < channel_count; ++i) {
-        detail::channel& c = channel_list[i];
-        int ret = c.fini();
-        if (ret != 0) {
-            // TODO: error log here
-        }
-    }
-
-    // ignore those fini failed channels
-    return 0;
-}
-
-size_t channel_mgr::calc_node_count(size_t length) {
-    if (length == 0) return 1;
-
-    return ((length - 1) / node_size) + 1;
-}
-
-int channel_mgr::register_channel(key_t shm_key, size_t& handle) {
+int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count, int& fd) {
     if (magic != MAGIC) {
         error("channel mgr has not been initialized.");
         return -EINVAL;
     }
 
-    size_t idx = -1;
+    if (node_size & (node_size - 1) != 0) {
+        error("node size %lu must be 2 ^ N.", node_size);
+        return -EINVAL;
+    }
+
+    fd = -1;
+    channel_descriptor *desc = NULL;
 
     {
         lock_guard(lock);
-        for (size_t i = 0; i < channel_count; ++i) {
-            if (channel_list[i].shm_key == shm_key) {
-                info("channel already exists, key<%d>.", shm_key);
-                handle = i;
+        for (int i = 0; i < descriptor_count; ++i) {
+            if (descriptors[i].owner == busid) {
+                info("channel already exists, bus<%x>.", busid);
+                fd = i;
                 return 0;
             }
         }
 
-        if (channel_count >= array_len(channel_list)) {
-            error("channel list is full.");
+        size_t channel_size = node_size * node_count;
+        assert_retval(channel_size > 0, -1);
+
+        size_t left_size = 0;
+        if (shm_size > used_size)
+            left_size = shm_size - used_size;
+
+        // mulitple 2 here because there are two channels, one for read & another for write
+        if (left_size < channel_size * 2) {
+            error("left size %lu is not enough, required: %lu.", left_size, channel_size * 2);
             return -ENOMEM;
         }
 
-        idx = channel_count;
-        ++channel_count;
+        fd = descriptor_count++;
+        desc = &descriptors[fd];
+        desc->owner = busid;
+        desc->r_offset = used_size;
+        used_size += channel_size;
+        desc->w_offset = used_size;
+        used_size += channel_size;
     }
 
-    assert_retval(idx != -1, -1);
+    info("new channel, fd<%d>, owner<%x>, read offset<%lu>, write offset<%lu>.",
+         fd, desc->owner, desc->r_offset, desc->w_offset);
 
-    int ret = channel_list[idx].init(shm_key, node_size, node_count, false);
-    if (ret != 0) {
-        error("channel initialize error, ret<%d>, key<%d>.", ert, shm_key);
-        return ret;
-    }
-
-    handle = idx;
     return 0;
 }
 
