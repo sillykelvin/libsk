@@ -1,6 +1,8 @@
 #include "bus.h"
-#include "channel_mgr.h"
+#include "bus/detail/channel_mgr.h"
+#include "bus/detail/channel.h"
 #include "shm/detail/shm_segment.h"
+#include "utility/assert_helper.h"
 
 namespace sk {
 namespace bus {
@@ -38,17 +40,18 @@ int send(int fd, int dst_busid, const void *data, size_t length) {
     int src_busid = mgr->get_owner_busid(fd);
     assert_retval(src_busid > 0, -1);
 
-    int ret = wc->push(src_busid, dst_busid, data, length);
-    // TODO: should retry here
-    if (ret != 0) {
-        error("failed to write data to bus, ret<%d>.", ret);
-        return ret;
+    int retry = 3;
+    while (retry-- > 0) {
+        int ret = wc->push(src_busid, dst_busid, data, length);
+        if (ret == 0) break;
+
+        error("failed to write data to bus, ret<%d>, retry<%d>.", ret, retry);
     }
 
     return 0;
 }
 
-int recv(int fd, int *src_busid, void *data, size_t& length) {
+int recv(int fd, int& src_busid, void *data, size_t& length) {
     assert_retval(mgr, -1);
     assert_retval(data, -1);
 
@@ -56,14 +59,12 @@ int recv(int fd, int *src_busid, void *data, size_t& length) {
     assert_retval(rc, -1);
 
     int dst_busid = 0;
-    int ret = rc->pop(data, length, src_busid, &dst_busid);
-    // TODO: ret that indicates empty channel should not be treated as error
-    if (ret != 0) {
-        error("failed to read data from bus, ret<%d>.", ret);
-        return ret;
-    }
+    int count = rc->pop(data, length, &src_busid, &dst_busid);
+    if (count == 0 || count == 1)
+        return count;
 
-    return 0;
+    error("failed to read data from bus, error<%d>.", count);
+    return count;
 }
 
 } // namespace bus

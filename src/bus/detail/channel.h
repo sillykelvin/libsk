@@ -42,7 +42,7 @@ struct channel {
      *                message, if data is NULL, this field is discarded
      * @param src_busid: store source bus id, can be NULL
      * @param dst_busid: store destination bus id, can be NULL
-     * @return 0 if succeeds, error code otherwise
+     * @return count of popped message, should be 0 or 1, or negative error code
      */
     int pop(void *data, size_t& length, int *src_busid, int *dst_busid);
 

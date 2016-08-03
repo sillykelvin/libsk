@@ -33,12 +33,12 @@ int send(int fd, int dst_busid, const void *data, size_t length);
 /**
  * @brief recv one message from bus
  * @param fd: file descriptor returned by register_bus(...)
- * @param src_busid: stores the source bus id of this message, can be NULL
+ * @param src_busid: stores the source bus id of this message
  * @param data: buffer to store message, must NOT be NULL
  * @param length: length of the buffer, also stores the length of the message
- * @return 0 if succeeds, error code otherwise
+ * @return count of received message, should be 0 or 1, or negative error code
  */
-int recv(int fd, int *src_busid, void *data, size_t& length);
+int recv(int fd, int& src_busid, void *data, size_t& length);
 
 } // namespace bus
 } // namespace sk
