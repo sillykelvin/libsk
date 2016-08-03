@@ -28,12 +28,12 @@ int channel::init(size_t node_size, size_t node_count) {
     return 0;
 }
 
-int channel::push(const void *data, size_t length) {
+int channel::push(int src_busid, int dst_busid, const void *data, size_t length) {
     // TODO: implementation
     return 0;
 }
 
-int channel::pop(void *data, size_t max_length, size_t *real_length) {
+int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid) {
     // TODO: implementation
     return 0;
 }
@@ -41,6 +41,11 @@ int channel::pop(void *data, size_t max_length, size_t *real_length) {
 bool channel::empty() const {
     // TODO: implementation
     return 0;
+}
+
+size_t channel::__calc_node_count(size_t data_len) const {
+    size_t total_len = sizeof(channel_message) + data_len;
+    return (total_len - 1) / node_size + 1;
 }
 
 } // namespace detail

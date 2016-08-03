@@ -22,6 +22,11 @@ struct channel {
     size_t write_pos;       // current write position
     offset_t node_offset;   // offset of the first node
 
+    static size_t calc_space(size_t node_size, size_t node_count) {
+        // TODO: if TODO in init(...) is fixed, please also fix this one
+        return sizeof(channel) + node_size * node_count;
+    }
+
     int init(size_t node_size, size_t node_count);
 
     /**
@@ -45,6 +50,8 @@ struct channel {
      * @return count of popped message, should be 0 or 1, or negative error code
      */
     int pop(void *data, size_t& length, int *src_busid, int *dst_busid);
+
+    size_t __calc_node_count(size_t data_len) const;
 
     bool empty() const;
 };

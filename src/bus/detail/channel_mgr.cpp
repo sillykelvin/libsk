@@ -55,7 +55,7 @@ int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count
             }
         }
 
-        size_t channel_size = node_size * node_count;
+        size_t channel_size = channel::calc_space(node_size, node_count);
         assert_retval(channel_size > 0, -1);
 
         size_t left_size = 0;
