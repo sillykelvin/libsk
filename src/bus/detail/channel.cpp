@@ -149,7 +149,7 @@ int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid) {
     __sync_synchronize();
 
     read_pos = new_read_pos;
-    return 0;
+    return 1;
 }
 
 size_t channel::__calc_node_count(size_t data_len) const {
