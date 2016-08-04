@@ -24,6 +24,9 @@ int channel_mgr::init(int shmid, size_t shm_size, bool resume) {
         descriptor_count = 0;
         memset(descriptors, 0x00, sizeof(descriptors));
 
+        // start a full memory barrier to make sure magic is set at the last step
+        __sync_synchronize();
+
         // we set magic at the last, to ensure all fields are initialized
         this->magic = MAGIC;
     }
