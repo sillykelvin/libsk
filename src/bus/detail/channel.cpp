@@ -11,8 +11,11 @@ namespace sk {
 namespace detail {
 
 int channel::init(size_t node_size, size_t node_count) {
-    assert_retval(node_size > 0, -1);
-    assert_retval(node_count > 0, -1);
+    // node_count should > 1 because there will be an empty
+    // node to distinguish a full channel or an empty channel:
+    // 1. if it's an empty channel, then read_pos == write_pos
+    // 2. if it's a full channel, then write_pos + 1 == read_pos
+    assert_retval(node_count > 1, -1);
     assert_retval(node_size & (node_size - 1) == 0, -1);
     assert_retval(node_size >= sizeof(channel_message), -1);
 
