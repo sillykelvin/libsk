@@ -7,11 +7,11 @@ namespace sk {
 namespace detail {
 
 struct channel_message {
-    int src_busid;          // which process this message comes from
-    int dst_busid;          // which process this message goes to
-    size_t node_count : 63; // how many nodes this message occupies
-    size_t writing : 1;     // if the message is writing
-    char data[0];           // real message follows this struct
+    u32 hash;       // hash value of the data block, for verification
+    int src_busid;  // which process this message comes from
+    int dst_busid;  // which process this message goes to
+    int node_count; // how many nodes this message occupies
+    char data[0];   // real message follows this struct
 };
 
 struct channel {
@@ -48,13 +48,15 @@ struct channel {
      *                message, if data is NULL, this field is discarded
      * @param src_busid: store source bus id, can be NULL
      * @param dst_busid: store destination bus id, can be NULL
-     * @return count of popped message, should be 0 or 1, or negative error code
+     * @return count of popped message, should be 0 or 1, or negative error code:
+     *         1. -E2BIG: the message is too big to store in provided buffer
+     *         2. -1: assert error
      */
     int pop(void *data, size_t& length, int *src_busid, int *dst_busid);
 
     size_t __calc_node_count(size_t data_len) const;
 
-    bool empty() const;
+    size_t __available_node_count() const;
 };
 
 } // namespace detail
