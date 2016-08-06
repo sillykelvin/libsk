@@ -2,6 +2,8 @@
 #include "server/server.h"
 #include "shm/detail/shm_segment.h"
 #include "bus/detail/channel_mgr.h"
+#include "bus/detail/channel.h"
+#include "lock_guard.h"
 
 struct busd_config {
     int shm_key;     // where channel_mgr to be stored
@@ -49,6 +51,18 @@ protected:
     }
 
     virtual int on_run() {
+        sk::lock_guard(mgr_->lock);
+
+        // process 200 messages in one run
+        const int total_count = 200;
+        int count = 0;
+        for (int i = 0; i < mgr_->descriptor_count; ++i) {
+            if (count >= total_count) break;
+
+            sk::detail::channel_descriptor& desc = mgr_->descriptors[i];
+            sk::detail::channel *wc = mgr_->get_write_channel(i);
+        }
+
         // TODO: peek message, send message, again and again...
         return 0;
     }
