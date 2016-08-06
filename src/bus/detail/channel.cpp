@@ -47,7 +47,10 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
     const size_t required_count = __calc_node_count(length);
     assert_retval(length + sizeof(channel_message) <= required_count * node_size, -1);
 
-    const size_t available_count = __available_node_count();
+    // reserve a node to distinguish a full channel from an empty channel, so minus 1 here
+    const size_t available_count = (read_pos - write_pos + node_count - 1) % node_count;
+    const size_t new_write_pos = (write_pos + required_count) % node_count;
+
     // TODO: retry or wait here?
     if (required_count > available_count) {
         error("no enough space for incoming message, required<%lu>, available<%lu>.",
@@ -55,10 +58,8 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
         return -ENOMEM;
     }
 
-    channel_message *head = cast_ptr(channel_message, char_ptr(this) + node_offset + write_pos * node_size);
-    memset(head, 0x00, sizeof(*head));
-
-    size_t new_write_pos = (write_pos + required_count) % node_count;
+    channel_message *head = __channel_message(write_pos);
+    // memset(head, 0x00, sizeof(*head));
 
     // loop back
     if (new_write_pos > 0 && new_write_pos < write_pos) {
@@ -82,9 +83,10 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
         memcpy(addr, data, length);
     }
 
+    head->magic = MAGIC;
     head->src_busid = src_busid;
     head->dst_busid = dst_busid;
-    head->node_count = required_count;
+    head->length = length;
     sk::murmurhash3_x86_32(data, length, MURMURHASH_SEED, head->hash);
 
     // start a full memory barrier here
@@ -102,18 +104,23 @@ int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid) {
     // no data
     if (read_pos == write_pos) return 0;
 
-    const channel_message *head = cast_ptr(channel_message, char_ptr(this) + node_offset + read_pos * node_size);
-    assert_retval(head->node_count > 0, -1);
+    const channel_message *head = __channel_message(read_pos);
+    assert_retval(head->magic == MAGIC, -1);
+    assert_retval(head->length > 0, -1);
 
-    size_t new_read_pos = (read_pos + head->node_count) % node_count;
-    assert_retval(new_read_pos <= write_pos, -1);
+    const size_t used_count = __calc_node_count(head->length);
+    const size_t new_read_pos = (read_pos + used_count) % node_count;
+    if (new_read_pos != write_pos) {
+        const channel_message *h = __channel_message(new_read_pos);
+        sk_assert(h->magic == MAGIC);
+        sk_assert(h->length > 0);
+    }
 
     if (data) {
-        size_t msg_size = head->node_count * node_size - sizeof(*head);
-        if (msg_size > length) {
-            length = msg_size;
+        if (head->length > length) {
+            length = head->length;
 
-            error("buffer too small, required size<%lu>.", msg_size);
+            error("buffer too small, required size<%lu>.", head->length);
             return -E2BIG;
         }
 
@@ -125,20 +132,20 @@ int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid) {
             size_t sz1 = new_read_pos * node_size;
 
             // this should NOT happen
-            if (sz0 >= msg_size) {
+            if (sz0 >= head->length) {
                 sk_assert(0);
-                memcpy(data, addr0, msg_size);
+                memcpy(data, addr0, head->length);
             } else {
-                sk_assert(msg_size - sz0 <= sz1);
+                sk_assert(head->length - sz0 <= sz1);
                 memcpy(data, addr0, sz0);
-                memcpy(void_ptr(char_ptr(data) + sz0), addr1, msg_size - sz0);
+                memcpy(void_ptr(char_ptr(data) + sz0), addr1, head->length - sz0);
             }
         } else {
             void *addr = void_ptr(head->data);
-            memcpy(data, addr, msg_size);
+            memcpy(data, addr, head->length);
         }
 
-        length = msg_size;
+        length = head->length;
 
         u32 hash = 0;
         sk::murmurhash3_x86_32(data, length, MURMURHASH_SEED, hash);
@@ -160,12 +167,12 @@ size_t channel::__calc_node_count(size_t data_len) const {
     return ((total_len - 1) >> node_size_shift) + 1;
 }
 
-size_t channel::__available_node_count() const {
-    return (read_pos - write_pos + node_count) % node_count;
-    // if (write_pos >= read_pos)
-    //     return node_count - write_pos + read_pos;
-    // else
-    //     return read_pos - write_pos;
+channel_message *channel::__channel_message(size_t pos) {
+    if (pos >= node_count) return NULL;
+
+    char *base_addr = char_ptr(this) + node_offset;
+    char *addr = base_addr + node_size * pos;
+    return cast_ptr(channel_message, addr);
 }
 
 } // namespace detail

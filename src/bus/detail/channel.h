@@ -7,10 +7,11 @@ namespace sk {
 namespace detail {
 
 struct channel_message {
+    int magic;
     u32 hash;       // hash value of the data block, for verification
     int src_busid;  // which process this message comes from
     int dst_busid;  // which process this message goes to
-    int node_count; // how many nodes this message occupies
+    size_t length;  // message length
     char data[0];   // real message follows this struct
 };
 
@@ -56,7 +57,7 @@ struct channel {
 
     size_t __calc_node_count(size_t data_len) const;
 
-    size_t __available_node_count() const;
+    channel_message *__channel_message(size_t pos);
 };
 
 } // namespace detail
