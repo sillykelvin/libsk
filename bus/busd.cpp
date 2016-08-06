@@ -1,10 +1,11 @@
 #include "busd.h"
 #include "server/server.h"
 #include "shm/detail/shm_segment.h"
+#include "bus/detail/channel_mgr.h"
 
 struct busd_config {
-    int shm_key;  // where channel_mgr to be stored
-    size_t node_size; // node size of bus channel
+    int shm_key;     // where channel_mgr to be stored
+    size_t shm_size; // size of the shm segment
 
     int load_from_xml_file(const char *filename) {
         // TODO: generate this function automatically
@@ -22,12 +23,11 @@ protected:
         const sk::server_context& ctx = context();
 
         sk::detail::shm_segment seg;
-        size_t shm_size = sizeof(sk::channel_mgr);
-        ret = seg.init(conf.shm_key, shm_size, ctx.resume_mode);
+        ret = seg.init(conf.shm_key, conf.shm_size, ctx.resume_mode);
         if (ret != 0) return ret;
 
         mgr_ = seg.address();
-        ret = mgr_->init(seg.shmid, conf.node_size);
+        ret = mgr_->init(seg.shmid, conf.shm_size, ctx.resume_mode);
         if (ret != 0) return ret;
 
         seg.release();
@@ -36,10 +36,6 @@ protected:
 
     virtual int on_fini() {
         if (mgr_) {
-            int ret = mgr_->fini();
-            if (ret != 0)
-                error("channel mgr fini error<%d>.", ret);
-
             shmctl(mgr_->shmid, IPC_RMID, 0);
             mgr_ = NULL;
         }
@@ -62,7 +58,7 @@ protected:
     }
 
 private:
-    sk::channel_mgr *mgr_;
+    sk::detail::channel_mgr *mgr_;
 };
 
 
