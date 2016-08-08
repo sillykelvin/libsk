@@ -127,5 +127,14 @@ int channel_mgr::get_owner_busid(int fd) {
     return descriptors[fd].owner;
 }
 
+channel *channel_mgr::find_read_channel(int busid) {
+    for (int i = 0; i < descriptor_count; ++i) {
+        if (descriptors[i].owner == busid)
+            return get_read_channel(i);
+    }
+
+    return NULL;
+}
+
 } // namespace detail
 } // namespace sk

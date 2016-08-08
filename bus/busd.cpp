@@ -32,6 +32,10 @@ protected:
         ret = mgr_->init(seg.shmid, conf.shm_size, ctx.resume_mode);
         if (ret != 0) return ret;
 
+        buffer_len_ = 2 * 1024 * 1024;
+        buffer_ = malloc(buffer_len_);
+        if (!buffer_) return -ENOMEM;
+
         seg.release();
         return 0;
     }
@@ -40,6 +44,11 @@ protected:
         if (mgr_) {
             shmctl(mgr_->shmid, IPC_RMID, 0);
             mgr_ = NULL;
+        }
+
+        if (buffer_) {
+            free(buffer_);
+            buffer_ = NULL;
         }
 
         return 0;
@@ -59,12 +68,53 @@ protected:
         for (int i = 0; i < mgr_->descriptor_count; ++i) {
             if (count >= total_count) break;
 
-            sk::detail::channel_descriptor& desc = mgr_->descriptors[i];
+            const sk::detail::channel_descriptor& desc = mgr_->descriptors[i];
             sk::detail::channel *wc = mgr_->get_write_channel(i);
+
+            size_t len = buffer_len_;
+            int src_busid = 0;
+            int dst_busid = 0;
+            int ret = wc->pop(buffer_, len, &src_busid, &dst_busid);
+            if (ret < 0) {
+                // TODO: more robust handling here, check the return code
+                // if it is because the buffer is too small, then enlarge
+                // the buffer should work
+                error("pop message error, ret<%d>, fd<%d>.", ret, i);
+                continue;
+            }
+
+            if (ret == 0) continue; // no message in this channel
+
+            if (ret == 1) {
+                count += 1;
+
+                if (src_busid != desc.owner)
+                    warn("message bus<%x>, channel bus<%x> mismatch.", src_busid, desc.owner);
+
+                sk::detail::channel *rc = mgr_->find_read_channel(dst_busid);
+                if (!rc) {
+                    // TODO: add relay feature later if the destination
+                    // process is not on the same host
+                    error("cannot find channel, bus<%x>.", dst_busid);
+                    continue;
+                }
+
+                int ret2 = rc->push(src_busid, dst_busid, buffer_, len);
+                if (ret2 != 0) {
+                    // TODO: more robust handling here if the channel is full
+                    error("push message error, ret<%d>, bus<%x>.", ret2, dst_busid);
+                }
+
+                continue;
+            }
+
+            // it should NOT get here
+            sk_assert(0);
         }
 
-        // TODO: peek message, send message, again and again...
-        return 0;
+        // if count < total_count, then all messages have been processed, so
+        // return 0 to increase the idle count
+        return count < total_count ? 0 : 1;
     }
 
     virtual int on_reload() {
@@ -73,6 +123,8 @@ protected:
 
 private:
     sk::detail::channel_mgr *mgr_;
+    void *buffer_;
+    size_t buffer_len_;
 };
 
 

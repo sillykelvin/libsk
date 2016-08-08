@@ -3,6 +3,7 @@
 
 #include "common/spin_lock.h"
 #include "utility/types.h"
+#include "bus/detail/channel.h"
 
 namespace sk {
 namespace detail {
@@ -39,6 +40,8 @@ struct channel_mgr {
     channel *get_read_channel(int fd);
     channel *get_write_channel(int fd);
     int get_owner_busid(int fd);
+
+    channel *find_read_channel(int busid);
 };
 
 } // namespace detail
