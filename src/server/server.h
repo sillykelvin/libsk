@@ -71,7 +71,7 @@ class server {
 public:
     MAKE_NONCOPYABLE(server);
 
-    static server& get() {
+    static Derived& get() {
         if (instance_)
             return *instance_;
 
@@ -405,7 +405,7 @@ private:
     }
 
 private:
-    static server *instance_;
+    static Derived *instance_;
 
     Config conf_;
     server_context ctx_;
@@ -413,7 +413,7 @@ private:
 };
 
 template<typename C, typename D>
-server<C, D> *server<C, D>::instance_ = NULL;
+D *server<C, D>::instance_ = NULL;
 
 NS_END(sk)
 

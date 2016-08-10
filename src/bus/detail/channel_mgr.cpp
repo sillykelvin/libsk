@@ -1,5 +1,7 @@
+#include <string.h>
 #include <errno.h>
 #include "channel_mgr.h"
+#include "utility/log.h"
 #include "shm/detail/shm_segment.h"
 #include "utility/assert_helper.h"
 #include "utility/config.h"
@@ -36,12 +38,12 @@ int channel_mgr::init(int shmid, size_t shm_size, bool resume) {
 
 int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count, int& fd) {
     if (magic != MAGIC) {
-        error("channel mgr has not been initialized.");
+        sk_error("channel mgr has not been initialized.");
         return -EINVAL;
     }
 
-    if (node_size & (node_size - 1) != 0) {
-        error("node size %lu must be 2 ^ N.", node_size);
+    if ((node_size & (node_size - 1)) != 0) {
+        sk_error("node size %lu must be 2 ^ N.", node_size);
         return -EINVAL;
     }
 
@@ -49,10 +51,10 @@ int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count
     channel_descriptor *desc = NULL;
 
     {
-        lock_guard(lock);
+        lock_guard<spin_lock> guard(lock);
         for (int i = 0; i < descriptor_count; ++i) {
             if (descriptors[i].owner == busid) {
-                info("channel already exists, bus<%x>.", busid);
+                sk_info("channel already exists, bus<%x>.", busid);
                 fd = i;
                 return 0;
             }
@@ -67,7 +69,7 @@ int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count
 
         // mulitple 2 here because there are two channels, one for read & another for write
         if (left_size < channel_size * 2) {
-            error("left size %lu is not enough, required: %lu.", left_size, channel_size * 2);
+            sk_error("left size %lu is not enough, required: %lu.", left_size, channel_size * 2);
             return -ENOMEM;
         }
 
@@ -85,19 +87,19 @@ int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count
     channel *rc = cast_ptr(channel, char_ptr(this) + desc->r_offset);
     ret = rc->init(node_size, node_count);
     if (ret != 0) {
-        error("failed to init read channel, bus id<%x>, ret<%d>.", busid, ret);
+        sk_error("failed to init read channel, bus id<%x>, ret<%d>.", busid, ret);
         return ret;
     }
 
     channel *wc = cast_ptr(channel, char_ptr(this) + desc->w_offset);
     ret = wc->init(node_size, node_count);
     if (ret != 0) {
-        error("failed to init write channel, bus id<%x>, ret<%d>.", busid, ret);
+        sk_error("failed to init write channel, bus id<%x>, ret<%d>.", busid, ret);
         return ret;
     }
 
-    info("new channel, fd<%d>, owner<%x>, read offset<%lu>, write offset<%lu>.",
-         fd, desc->owner, desc->r_offset, desc->w_offset);
+    sk_info("new channel, fd<%d>, owner<%x>, read offset<%lu>, write offset<%lu>.",
+            fd, desc->owner, desc->r_offset, desc->w_offset);
 
     return 0;
 }
@@ -106,7 +108,7 @@ channel *channel_mgr::get_read_channel(int fd) {
     assert_retval(fd >= 0 && fd < descriptor_count, NULL);
 
     channel_descriptor& desc = descriptors[fd];
-    channel *rc = cast_ptr(channel, char_ptr(this) + desc->r_offset);
+    channel *rc = cast_ptr(channel, char_ptr(this) + desc.r_offset);
     assert_retval(rc->magic == MAGIC, NULL);
 
     return rc;
@@ -116,7 +118,7 @@ channel *channel_mgr::get_write_channel(int fd) {
     assert_retval(fd >= 0 && fd < descriptor_count, NULL);
 
     channel_descriptor& desc = descriptors[fd];
-    channel *wc = cast_ptr(channel, char_ptr(this) + desc->w_offset);
+    channel *wc = cast_ptr(channel, char_ptr(this) + desc.w_offset);
     assert_retval(wc->magic == MAGIC, NULL);
 
     return wc;

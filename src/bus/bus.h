@@ -1,6 +1,8 @@
 #ifndef BUS_H
 #define BUS_H
 
+#include "utility/types.h"
+
 namespace sk {
 namespace bus {
 

@@ -1,5 +1,7 @@
 #include <errno.h>
+#include <string.h>
 #include "channel.h"
+#include "utility/log.h"
 #include "shm/detail/shm_segment.h"
 #include "utility/assert_helper.h"
 #include "utility/config.h"
@@ -16,7 +18,7 @@ int channel::init(size_t node_size, size_t node_count) {
     // 1. if it's an empty channel, then read_pos == write_pos
     // 2. if it's a full channel, then write_pos + 1 == read_pos
     assert_retval(node_count > 1, -1);
-    assert_retval(node_size & (node_size - 1) == 0, -1);
+    assert_retval((node_size & (node_size - 1)) == 0, -1);
     assert_retval(node_size >= sizeof(channel_message), -1);
 
     this->magic = MAGIC;
@@ -53,8 +55,8 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
 
     // TODO: retry or wait here?
     if (required_count > available_count) {
-        error("no enough space for incoming message, required<%lu>, available<%lu>.",
-              required_count, available_count);
+        sk_error("no enough space for incoming message, required<%lu>, available<%lu>.",
+                 required_count, available_count);
         return -ENOMEM;
     }
 
@@ -76,7 +78,7 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
         } else {
             sk_assert(length - sz0 <= sz1);
             memcpy(addr0, data, sz0);
-            memcpy(addr1, void_ptr(char_ptr(data) + sz0), length - sz0);
+            memcpy(addr1, void_ptr(char_ptr(const_cast<void*>(data)) + sz0), length - sz0);
         }
     } else {
         void *addr = void_ptr(head->data);
@@ -87,7 +89,7 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
     head->src_busid = src_busid;
     head->dst_busid = dst_busid;
     head->length = length;
-    sk::murmurhash3_x86_32(data, length, MURMURHASH_SEED, head->hash);
+    sk::murmurhash3_x86_32(data, length, MURMURHASH_SEED, &head->hash);
 
     // start a full memory barrier here
     __sync_synchronize();
@@ -120,13 +122,13 @@ int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid) {
         if (head->length > length) {
             length = head->length;
 
-            error("buffer too small, required size<%lu>.", head->length);
+            sk_error("buffer too small, required size<%lu>.", head->length);
             return -E2BIG;
         }
 
         // loop back
         if (new_read_pos > 0 && new_read_pos < read_pos) {
-            void *addr0 = void_ptr(head->data);
+            void *addr0 = void_ptr(const_cast<char*>(head->data));
             size_t sz0 = (node_count - read_pos) * node_size - sizeof(*head);
             void *addr1 = void_ptr(char_ptr(this) + node_offset);
             size_t sz1 = new_read_pos * node_size;
@@ -141,14 +143,14 @@ int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid) {
                 memcpy(void_ptr(char_ptr(data) + sz0), addr1, head->length - sz0);
             }
         } else {
-            void *addr = void_ptr(head->data);
+            void *addr = void_ptr(const_cast<char*>(head->data));
             memcpy(data, addr, head->length);
         }
 
         length = head->length;
 
         u32 hash = 0;
-        sk::murmurhash3_x86_32(data, length, MURMURHASH_SEED, hash);
+        sk::murmurhash3_x86_32(data, length, MURMURHASH_SEED, &hash);
         assert_retval(hash == head->hash, -1);
     }
 

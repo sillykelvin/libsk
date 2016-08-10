@@ -1,4 +1,5 @@
 #include "bus.h"
+#include "utility/log.h"
 #include "bus/detail/channel_mgr.h"
 #include "bus/detail/channel.h"
 #include "shm/detail/shm_segment.h"
@@ -26,7 +27,7 @@ int register_bus(key_t bus_key, int busid, int& fd, size_t node_size, size_t nod
     ret = mgr->register_channel(busid, node_size, node_count, fd);
     if (ret != 0) return ret;
 
-    info("bus registered, bus id<%x>, fd<%d>.", busid, fd);
+    sk_info("bus registered, bus id<%x>, fd<%d>.", busid, fd);
     return 0;
 }
 
@@ -45,7 +46,7 @@ int send(int fd, int dst_busid, const void *data, size_t length) {
         int ret = wc->push(src_busid, dst_busid, data, length);
         if (ret == 0) break;
 
-        error("failed to write data to bus, ret<%d>, retry<%d>.", ret, retry);
+        sk_error("failed to write data to bus, ret<%d>, retry<%d>.", ret, retry);
     }
 
     return 0;
@@ -63,7 +64,7 @@ int recv(int fd, int& src_busid, void *data, size_t& length) {
     if (count == 0 || count == 1)
         return count;
 
-    error("failed to read data from bus, error<%d>.", count);
+    sk_error("failed to read data from bus, error<%d>.", count);
     return count;
 }
 

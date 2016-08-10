@@ -6,20 +6,20 @@
 NS_BEGIN(sk)
 
 struct spin_lock {
-    volatile int lock;
+    volatile int lock_;
 
-    void init() { lock = 0; }
+    void init() { lock_ = 0; }
 
     void lock() {
-        while (__sync_lock_test_and_set(&lock, 1));
+        while (__sync_lock_test_and_set(&lock_, 1));
     }
 
     bool try_lock() {
-        return __sync_lock_test_and_set(&lock, 1) == 0;
+        return __sync_lock_test_and_set(&lock_, 1) == 0;
     }
 
     void unlock() {
-        __sync_lock_release(&lock);
+        __sync_lock_release(&lock_);
     }
 };
 
