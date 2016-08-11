@@ -26,6 +26,7 @@ static_assert(sizeof(busid_format) == sizeof(u64), "invalid type: busid_format")
 NS_END(detail)
 
 struct server_context {
+    // TODO: change the u64 id to u32
     u64 id;                // id of this server, it is also the bus id
     std::string str_id;    // string id of this server, like "x.x.x.x"
     std::string pid_file;  // pid file location
