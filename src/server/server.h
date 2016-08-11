@@ -124,13 +124,18 @@ public:
     }
 
     int fini() {
-        return on_fini();
+        sk_info("enter fini()");
+        int ret = on_fini();
+        sk_info("exit fini()");
+        return ret;
     }
 
     int stop() {
+        sk_info("enter stop()");
         int ret = on_stop();
         if (ret == 0) {
             ctx_.exiting = true;
+            sk_info("exit stop()");
             return 0;
         }
 
@@ -163,12 +168,16 @@ public:
     }
 
     int reload() {
+        sk_info("enter reload()");
+
         // TODO: reload config here
         int ret = on_reload();
         if (ret != 0)
             sk_error("on_reload returns error: %d", ret);
 
         ctx_.reloading = false;
+
+        sk_info("exit reload()");
         return ret;
     }
 
