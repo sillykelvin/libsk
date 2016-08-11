@@ -1,4 +1,5 @@
 #include "log.h"
+#include "utility/assert_helper.h"
 
 namespace sk {
 
@@ -56,6 +57,8 @@ void logger::log(const std::string& name, spdlog::level::level_enum level,
 
     auto l = spdlog::get(name);
     if (!l) {
+        assert_retnone(spdlog::get(DEFAULT_LOGGER));
+
         log(DEFAULT_LOGGER, spdlog::level::warn, "logger %s not found.", file, line, function, name.c_str());
         return;
     }

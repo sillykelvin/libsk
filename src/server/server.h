@@ -7,6 +7,7 @@
 #include <sys/file.h>
 #include "spdlog/spdlog.h"
 #include "server/option_parser.h"
+#include "utility/log.h"
 
 NS_BEGIN(sk)
 NS_BEGIN(detail)
@@ -132,12 +133,12 @@ public:
             return 0;
         }
 
-        info("on_stop() returns {}, continue running.", ret);
+        sk_info("on_stop() returns %d, continue running.", ret);
         return 0;
     }
 
     int run() {
-        info("enter run()");
+        sk_info("enter run()");
 
         while (!ctx_.exiting) {
             if (ctx_.stopping)
@@ -156,7 +157,7 @@ public:
             }
         }
 
-        info("exit run()");
+        sk_info("exit run()");
         return 0;
     }
 
@@ -164,7 +165,7 @@ public:
         // TODO: reload config here
         int ret = on_reload();
         if (ret != 0)
-            error("on_reload returns error: {}", ret);
+            sk_error("on_reload returns error: %d", ret);
 
         ctx_.reloading = false;
         return ret;
@@ -172,46 +173,6 @@ public:
 
     const Config& config() const { return conf_; }
     const server_context& context() const { return ctx_; }
-
-    template <typename... Args>
-    void log(spdlog::level::level_enum lvl, const char* fmt, const Args&... args) {
-        logger_->log(lvl, fmt, args...);
-    }
-
-    template <typename... Args>
-    void log(spdlog::level::level_enum lvl, const char* msg) {
-        logger_->log(lvl, msg);
-    }
-
-    template <typename... Args>
-    void trace(const char* fmt, const Args&... args) {
-        logger_->trace(fmt, args...);
-    }
-
-    template <typename... Args>
-    void debug(const char* fmt, const Args&... args) {
-        logger_->debug(fmt, args...);
-    }
-
-    template <typename... Args>
-    void info(const char* fmt, const Args&... args) {
-        logger_->info(fmt, args...);
-    }
-
-    template <typename... Args>
-    void warn(const char* fmt, const Args&... args) {
-        logger_->warn(fmt, args...);
-    }
-
-    template <typename... Args>
-    void error(const char* fmt, const Args&... args) {
-        logger_->error(fmt, args...);
-    }
-
-    template <typename... Args>
-    void critical(const char* fmt, const Args&... args) {
-        logger_->critical(fmt, args...);
-    }
 
 protected:
     server() = default;
@@ -323,14 +284,7 @@ private:
     }
 
     int init_logger() {
-        // TODO: rewrite this function
-
-        std::vector<spdlog::sink_ptr> sinks;
-        sinks.push_back(std::make_shared<spdlog::sinks::stdout_sink_st>());
-        sinks.push_back(std::make_shared<spdlog::sinks::daily_file_sink_st>("server.log", "txt", 23, 59));
-        logger_ = std::make_shared<spdlog::logger>("server", sinks.begin(), sinks.end());
-
-        return 0;
+        return sk::logger::init(ctx_.log_conf);
     }
 
     int make_daemon() {
@@ -344,14 +298,14 @@ private:
     int lock_pid() {
         int fd = open(ctx_.pid_file.c_str(), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         if (fd == -1) {
-            error("cannot open pid file %s, error: %s.", ctx_.pid_file.c_str(), strerror(errno));
+            sk_error("cannot open pid file %s, error: %s.", ctx_.pid_file.c_str(), strerror(errno));
             return -errno;
         }
 
         int ret = flock(fd, LOCK_EX | LOCK_NB);
         if (ret != 0) {
             close(fd);
-            error("cannot lock pid file %s, error: %s.", ctx_.pid_file.c_str(), strerror(errno));
+            sk_error("cannot lock pid file %s, error: %s.", ctx_.pid_file.c_str(), strerror(errno));
             return -errno;
         }
 
@@ -362,14 +316,14 @@ private:
     int write_pid() {
         int fd = open(ctx_.pid_file.c_str(), O_RDWR);
         if (fd == -1) {
-            error("cannot open pid file %s, error: %s.", ctx_.pid_file.c_str(), strerror(errno));
+            sk_error("cannot open pid file %s, error: %s.", ctx_.pid_file.c_str(), strerror(errno));
             return -errno;
         }
 
         pid_t pid = getpid();
         ssize_t len = write(fd, &pid, sizeof(pid));
         if (len != sizeof(pid)) {
-            error("cannot write pid, error: %s.", strerror(errno));
+            sk_error("cannot write pid, error: %s.", strerror(errno));
             return -errno;
         }
 
@@ -379,29 +333,29 @@ private:
     void set_signal_handler() {
         struct sigaction act;
 
-        info("setting signal handler...");
+        sk_info("setting signal handler...");
 
         memset(&act, 0x00, sizeof(act));
         sigfillset(&act.sa_mask);
 
         act.sa_handler = server::sig_on_stop;
         sigaction(SIGTERM, &act, NULL);
-        info("signal: SIGTERM(%d), action: call server::stop", SIGTERM);
+        sk_info("signal: SIGTERM(%d), action: call server::stop", SIGTERM);
 
         sigaction(SIGQUIT, &act, NULL);
-        info("signal: SIGQUIT(%d), action: call server::stop", SIGQUIT);
+        sk_info("signal: SIGQUIT(%d), action: call server::stop", SIGQUIT);
 
         sigaction(SIGINT, &act, NULL);
-        info("signal: SIGINT(%d), action: call server::stop", SIGINT);
+        sk_info("signal: SIGINT(%d), action: call server::stop", SIGINT);
 
         sigaction(SIGABRT, &act, NULL);
-        info("signal: SIGABRT(%d), action: call server::stop", SIGABRT);
+        sk_info("signal: SIGABRT(%d), action: call server::stop", SIGABRT);
 
         act.sa_handler = server::sig_on_reload;
         sigaction(SIGUSR1, &act, NULL);
-        info("signal: SIGUSR1(%d), action: call server::reload", SIGUSR1);
+        sk_info("signal: SIGUSR1(%d), action: call server::reload", SIGUSR1);
 
-        info("signal hander set.");
+        sk_info("signal hander set.");
     }
 
 private:
