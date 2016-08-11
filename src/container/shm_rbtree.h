@@ -4,6 +4,7 @@
 #include <iterator>
 #include "shm/shm_mgr.h"
 #include "shm/shm_ptr.h"
+#include "utility/log.h"
 #include "utility/types.h"
 #include "utility/utility.h"
 #include "utility/assert_helper.h"
@@ -688,13 +689,13 @@ struct shm_rbtree {
     bool __check() {
         bool valid = true;
 #ifndef NDEBUG
-        if (!__check_prop1(root)) { ERR("rbtree property 1 violence"); valid = false; }
-        if (!__check_prop2())     { ERR("rbtree property 2 violence"); valid = false; }
-        if (!__check_prop3())     { ERR("rbtree property 3 violence"); valid = false; }
-        if (!__check_prop4(root)) { ERR("rbtree property 4 violence"); valid = false; }
+        if (!__check_prop1(root)) { sk_error("rbtree property 1 violence"); valid = false; }
+        if (!__check_prop2())     { sk_error("rbtree property 2 violence"); valid = false; }
+        if (!__check_prop3())     { sk_error("rbtree property 3 violence"); valid = false; }
+        if (!__check_prop4(root)) { sk_error("rbtree property 4 violence"); valid = false; }
 
         size_t pbc = -1;
-        if (!__check_prop5(root, 0, pbc)) { ERR("rbtree property 5 violence"); valid = false; }
+        if (!__check_prop5(root, 0, pbc)) { sk_error("rbtree property 5 violence"); valid = false; }
 
         assert_noeffect(valid);
 #endif

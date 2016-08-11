@@ -46,7 +46,7 @@ int shm_mgr::init(bool resume) {
         if (!resume) {
             int ret = size_map->init();
             if (ret != 0) {
-                ERR("size map init failure: %d.", ret);
+                sk_error("size map init failure: %d.", ret);
                 return ret;
             }
         }
@@ -81,17 +81,17 @@ int shm_mgr::init(bool resume) {
 }
 
 void shm_mgr::report() {
-    INF("=============================================================================");
+    sk_info("=============================================================================");
     chunk_cache->report();
     page_heap->report();
 
-    INF("shm mgr => total: %lu, used: %lu (%.2lf%%), meta left: %lu.",
-        total_size, used_size, (used_size * 100.0 / total_size), metadata_left);
-    INF("shm mgr => allocation count: %lu, deallocation count: %lu.",
-        stat.alloc_count, stat.free_count);
-    INF("shm mgr => raw memory allocation count: %lu, meta data allocation count: %lu.",
-        stat.raw_alloc_count, stat.meta_alloc_count);
-    INF("=============================================================================");
+    sk_info("shm mgr => total: %lu, used: %lu (%.2lf%%), meta left: %lu.",
+            total_size, used_size, (used_size * 100.0 / total_size), metadata_left);
+    sk_info("shm mgr => allocation count: %lu, deallocation count: %lu.",
+            stat.alloc_count, stat.free_count);
+    sk_info("shm mgr => raw memory allocation count: %lu, meta data allocation count: %lu.",
+            stat.raw_alloc_count, stat.meta_alloc_count);
+    sk_info("=============================================================================");
 }
 
 shm_mgr *shm_mgr::create(key_t key, size_t size_hint, bool resume) {
@@ -113,12 +113,12 @@ shm_mgr *shm_mgr::create(key_t key, size_t size_hint, bool resume) {
     shm_size += metadata_size;
     shm_size += size_hint;
 
-    INF("shm mgr creation, size_hint: %lu, fixed size: %lu.", size_hint, shm_size);
+    sk_info("shm mgr creation, size_hint: %lu, fixed size: %lu.", size_hint, shm_size);
 
     detail::shm_segment seg;
     int ret = seg.init(key, shm_size, resume);
     if (ret != 0) {
-        ERR("cannot create shm_mgr, key<%d>, size<%lu>.", key, shm_size);
+        sk_error("cannot create shm_mgr, key<%d>, size<%lu>.", key, shm_size);
         return NULL;
     }
 
@@ -197,7 +197,7 @@ void shm_mgr::free(shm_ptr<void> ptr) {
 offset_t shm_mgr::__sbrk(size_t bytes) {
     // no enough memory, return
     if (used_size + bytes > total_size) {
-        ERR("no enough memory, used: %lu, total: %lu, needed: %lu.", used_size, total_size, bytes);
+        sk_error("no enough memory, used: %lu, total: %lu, needed: %lu.", used_size, total_size, bytes);
         return OFFSET_NULL;
     }
 
@@ -209,7 +209,7 @@ offset_t shm_mgr::__sbrk(size_t bytes) {
 
 offset_t shm_mgr::allocate(size_t bytes) {
     if (bytes % PAGE_SIZE != 0) {
-        INF("bytes: %lu to be fixed.", bytes);
+        sk_info("bytes: %lu to be fixed.", bytes);
         bytes = ((bytes + PAGE_SIZE - 1) >> PAGE_SHIFT) << PAGE_SHIFT;
     }
 
@@ -220,12 +220,12 @@ offset_t shm_mgr::allocate(size_t bytes) {
 
 offset_t shm_mgr::allocate_metadata(size_t bytes) {
     if (bytes % PAGE_SIZE != 0) {
-        INF("bytes: %lu to be fixed.", bytes);
+        sk_info("bytes: %lu to be fixed.", bytes);
         bytes = ((bytes + PAGE_SIZE - 1) >> PAGE_SHIFT) << PAGE_SHIFT;
     }
 
     if (bytes > metadata_left) {
-        INF("metadata block used up.");
+        sk_info("metadata block used up.");
         return allocate(bytes);
     }
 

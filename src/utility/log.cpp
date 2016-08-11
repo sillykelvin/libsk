@@ -3,12 +3,16 @@
 
 namespace sk {
 
+const char *logger::DEFAULT_LOGGER = "default";
+logger logger::_;
+
 int logger::init(const std::string& conf_file) {
     // TODO: load conf from conf file here
+    (void) conf_file;
 
     bool found = false;
     for (auto it : _.conf_.categories) {
-        if (it->name == DEFAULT_LOGGER) {
+        if (it.name == DEFAULT_LOGGER) {
             found = true;
             break;
         }
@@ -26,7 +30,7 @@ int logger::init(const std::string& conf_file) {
 
     try {
         for (auto it : _.conf_.categories) {
-            auto ptr = make_logger(*it);
+            auto ptr = make_logger(it);
             if (ptr) {
                 count += 1;
                 spdlog::register_logger(ptr);
@@ -52,14 +56,14 @@ int logger::init(const std::string& conf_file) {
 }
 
 void logger::log(const std::string& name, spdlog::level::level_enum level,
-                 const char *fmt, const char *file, int line, const char *function, ...) {
+                 const char *file, int line, const char *function, const char *fmt, ...) {
     static char buffer[40960]; // 40KB
 
     auto l = spdlog::get(name);
     if (!l) {
         assert_retnone(spdlog::get(DEFAULT_LOGGER));
 
-        log(DEFAULT_LOGGER, spdlog::level::warn, "logger %s not found.", file, line, function, name.c_str());
+        log(DEFAULT_LOGGER, spdlog::level::warn, file, line, function, "logger %s not found.", name.c_str());
         return;
     }
 
@@ -84,12 +88,12 @@ std::shared_ptr<spdlog::logger> logger::make_logger(const log_config::category& 
     std::vector<spdlog::sink_ptr> sinks;
 
     for (auto it : cat.fdev_list) {
-        auto ptr = make_sink(*it);
+        auto ptr = make_sink(it);
         if (ptr) sinks.push_back(ptr);
     }
 
     for (auto it : cat.ndev_list) {
-        auto ptr = make_sink(*it);
+        auto ptr = make_sink(it);
         if (ptr) sinks.push_back(ptr);
     }
 

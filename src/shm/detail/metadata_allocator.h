@@ -37,11 +37,11 @@ struct metadata_allocator {
     }
 
     void report() {
-        INF("metadata allocator => sizeof(T): %lu.", sizeof(T));
-        INF("metadata allocator => allocated size: %lu, wasted size: %lu.",
-            stat.total_size, stat.waste_size);
-        INF("metadata allocator => allocation count: %lu, deallocation count: %lu.",
-            stat.alloc_count, stat.free_count);
+        sk_info("metadata allocator => sizeof(T): %lu.", sizeof(T));
+        sk_info("metadata allocator => allocated size: %lu, wasted size: %lu.",
+                stat.total_size, stat.waste_size);
+        sk_info("metadata allocator => allocation count: %lu, deallocation count: %lu.",
+                stat.alloc_count, stat.free_count);
     }
 
     shm_ptr<T> allocate() {

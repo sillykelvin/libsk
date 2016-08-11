@@ -2,6 +2,7 @@
 #define SHM_HASH_H
 
 #include <iterator>
+#include "utility/log.h"
 
 namespace sk {
 namespace detail {
@@ -133,7 +134,7 @@ struct shm_hash {
 
         buckets = shm_malloc(bucket_memory);
         if (!buckets) {
-            ERR("memory allocation failure, bucket_size<%lu>.", bucket_size);
+            sk_error("memory allocation failure, bucket_size<%lu>.", bucket_size);
             assert_retnone(0);
         }
 
@@ -334,7 +335,7 @@ struct shm_hash {
 
         p = shm_new<node>(k, v);
         if (!p) {
-            ERR("cannot allocate hash node.");
+            sk_error("cannot allocate hash node.");
             return -ENOMEM;
         }
 
