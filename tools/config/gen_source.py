@@ -214,7 +214,7 @@ def write_string_load_func():
 static int load_from_xml_node(std::string& value, const pugi::xml_node& node, const char *node_name) {
     value.clear();
     if (!node) {
-        fprintf(stderr, "node %s not found.", node_name);
+        fprintf(stderr, "node %s not found.\n", node_name);
         return -EINVAL;
     }
     value = node.text().get();
@@ -229,13 +229,13 @@ def write_integral_load_func(type_str):
 static int load_from_xml_node(${type_name}& value, const pugi::xml_node& node, const char *node_name) {
     value = 0;
     if (!node) {
-        fprintf(stderr, "node %s not found.", node_name);
+        fprintf(stderr, "node %s not found.\n", node_name);
         return -EINVAL;
     }
 
     int ret = $func_name(node.text().get(), value);
     if (ret != 0) {
-        fprintf(stderr, "cannot convert node %s to integer.", node_name);
+        fprintf(stderr, "cannot convert node %s to integer.\n", node_name);
         return ret;
     }
 
@@ -259,7 +259,7 @@ static int load_from_xml_node(std::vector<$type_name>& value, const pugi::xml_ob
         value.push_back(obj);
     }
     if (value.size() <= 0) {
-        fprintf(stderr, "node %s not found.", node_name);
+        fprintf(stderr, "node %s not found.\n", node_name);
         return -EINVAL;
     }
 
@@ -281,7 +281,7 @@ def write_custom_load_func(_def):
 static int load_from_xml_node($type_name& value, const pugi::xml_node& node, const char *node_name) {
     int ret = 0;
     if (!node) {
-        fprintf(stderr, "node %s not found.", node_name);
+        fprintf(stderr, "node %s not found.\n", node_name);
         return -EINVAL;
     }
 
@@ -362,13 +362,13 @@ int $conf_name::load_from_xml_file(const char *filename) {
     pugi::xml_document doc;
     auto ok = doc.load_file(filename);
     if (!ok) {
-        fprintf(stderr, "load file %s error: %s.", filename, ok.description());
+        fprintf(stderr, "load file %s error: %s.\n", filename, ok.description());
         return -EINVAL;
     }
 
     pugi::xml_node root = doc.child("$conf_name");
     if (!root) {
-        fprintf(stderr, "root node <$conf_name> not found.");
+        fprintf(stderr, "root node <$conf_name> not found.\n");
         return -EINVAL;
     }
 
