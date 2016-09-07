@@ -11,6 +11,7 @@ FIELD_DEFS = {
     'u32'    : {'type': 'u32',    'conv_func': 'sk::string2u32'},
     's64'    : {'type': 's64',    'conv_func': 'sk::string2s64'},
     'u64'    : {'type': 'u64',    'conv_func': 'sk::string2u64'},
+    'size_t' : {'type': 'size_t', 'conv_func': 'sk::string2size_t'},
     'float'  : {'type': 'float',  'conv_func': 'sk::string2float'},
     'double' : {'type': 'double', 'conv_func': 'sk::string2double'},
     'string' : {'type': 'string', 'conv_func': None},
@@ -21,10 +22,11 @@ FIELD_DEFS = {
 class ConfigDef:
     def __init__(self):
         self.name    = None
-        self.prefix  = None  # prefix namespace
+        self.prefix  = None    # prefix namespace
         self.fields  = []
-        self.sub_def = []    # children definitions
-        self.sup_def = None  # parent definition
+        self.sub_def = []      # children definitions
+        self.sup_def = None    # parent definition
+        self.load_func = False # has load_from_xml_file function or not
 
     def __str__(self):
         return self.info(0)
@@ -115,7 +117,7 @@ def build_field_info(root_defs, sup_def, type_str, name):
         assert ret
         real_type = ret.group(1)
         if real_type == 'int': real_type = 's32'
-        if real_type in ('s32', 'u32', 's64', 'u64', 'float', 'double', 'std::string'):
+        if real_type in ('s32', 'u32', 's64', 'u64', 'float', 'double', 'size_t', 'std::string'):
             field.real_type = real_type
         else:
             field.real_type = find_config_def(root_defs, sup_def, ret.group(1))
@@ -184,6 +186,13 @@ def parse_content(content):
         if ret:
             assert curr_def
             curr_def = curr_def.sup_def
+            continue
+
+        # the load_from_xml_file function
+        ret = re.search('^ *int +load_from_xml_file\(const char +\* *[_a-zA-Z0-9]+ *\);$', line)
+        if ret:
+            assert curr_def
+            curr_def.load_func = True
             continue
 
         # the field line
@@ -308,7 +317,7 @@ def extract_all_types(def_list):
             elif f._type['type'] == 'vector':
                 assert f.real_type
                 if isinstance(f.real_type, str):
-                    assert f.real_type in ('s32', 'u32', 's64', 'u64', 'float', 'double', 'std::string')
+                    assert f.real_type in ('s32', 'u32', 's64', 'u64', 'float', 'double', 'size_t', 'std::string')
                     inner_type = f.real_type
                     if f.real_type == 'std::string':
                         inner_type = 'string'
@@ -347,13 +356,13 @@ def write_declarations(type_dict):
 
 def write_source(def_list, header_name, filename):
     template = '''
-int load_from_xml_file($conf_name& conf, const char *file) {
-    assert_retval(file, -1);
+int $conf_name::load_from_xml_file(const char *filename) {
+    assert_retval(filename, -1);
 
     pugi::xml_document doc;
-    auto ok = doc.load_file(file);
+    auto ok = doc.load_file(filename);
     if (!ok) {
-        fprintf(stderr, "load file %s error: %s.", file, ok.description());
+        fprintf(stderr, "load file %s error: %s.", filename, ok.description());
         return -EINVAL;
     }
 
@@ -363,7 +372,7 @@ int load_from_xml_file($conf_name& conf, const char *file) {
         return -EINVAL;
     }
 
-    return load_from_xml_node(conf, root, "$conf_name");
+    return load_from_xml_node(*this, root, "$conf_name");
 }
 '''
 
@@ -397,7 +406,8 @@ int load_from_xml_file($conf_name& conf, const char *file) {
 
         # only first level definitions can be loaded from file
         for _def in def_list:
-            f.write(string.Template(template).substitute(conf_name = _def.name))
+            if _def.load_func:
+                f.write(string.Template(template).substitute(conf_name = _def.name))
 
 if __name__ == '__main__':
     argc = len(sys.argv)
