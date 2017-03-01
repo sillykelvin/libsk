@@ -6,13 +6,17 @@
 
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 
+#define likely(x)   __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
 #define cast_ptr(type, ptr) static_cast<type*>(static_cast<void*>(ptr))
 #define void_ptr(ptr)       static_cast<void*>(ptr)
 #define char_ptr(ptr)       cast_ptr(char, ptr)
 #define array_len(array)    (sizeof(array) / sizeof(array[0]))
 
-#define SHM_NULL    shm_ptr<void>()
+#define SHM_NULL    sk::shm_ptr<void>()
 #define IDX_NULL    (-1)
+#define MID_NULL    0
 #define OFFSET_NULL 0
 
 #define NS_BEGIN(name) namespace name {

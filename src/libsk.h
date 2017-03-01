@@ -19,11 +19,13 @@
 
 // common headers
 #include "pugixml.hpp"
+#include "utility/error_info.h"
 #include "utility/assert_helper.h"
 #include "utility/types.h"
 #include "utility/string_helper.h"
 #include "utility/config.h"
-#include "utility/log.h"
+#include "utility/guid.h"
+#include "log/log.h"
 
 // concrete headers
 #include "utility/utility.h"
@@ -31,6 +33,7 @@
 #include "container/referable_array.h"
 #include "container/extensible_stack.h"
 #include "container/extensible_hash.h"
+#include "time/timer.h"
 #include "shm/shm_mgr.h"
 #include "shm/shm_ptr.h"
 #include "container/fixed_stack.h"
@@ -44,6 +47,7 @@
 #include "container/shm_rbtree.h"
 #include "container/shm_set.h"
 #include "container/shm_map.h"
+#include "bus/bus.h"
 #include "server/option_parser.h"
 #include "server/server.h"
 

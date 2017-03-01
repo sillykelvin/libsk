@@ -1,9 +1,9 @@
 #ifndef PAGE_HEAP_H
 #define PAGE_HEAP_H
 
-#include "shm/shm_ptr.h"
 #include "shm/detail/span.h"
 #include "shm/detail/page_map.h"
+#include "shm/detail/offset_ptr.h"
 #include "shm/detail/metadata_allocator.h"
 #include "utility/config.h"
 
@@ -36,19 +36,19 @@ struct page_heap {
 
     void report();
 
-    shm_ptr<span> allocate_span(int page_count);
-    void deallocate_span(shm_ptr<span> ptr);
-    shm_ptr<span> find_span(page_t page);
-    void register_span(shm_ptr<span> ptr);
+    offset_ptr<span> allocate_span(int page_count);
+    void deallocate_span(offset_ptr<span> ptr);
+    offset_ptr<span> find_span(page_t page);
+    void register_span(offset_ptr<span> ptr);
 
-    shm_ptr<span> __search_existing(int page_count);
-    shm_ptr<span> __allocate_large(int page_count);
+    offset_ptr<span> __search_existing(int page_count);
+    offset_ptr<span> __allocate_large(int page_count);
 
-    shm_ptr<span> __carve(shm_ptr<span> ptr, int page_count);
-    void __link(shm_ptr<span> ptr);
+    offset_ptr<span> __carve(offset_ptr<span> ptr, int page_count);
+    void __link(offset_ptr<span> ptr);
 
-    shm_ptr<span> __new_span();
-    void __del_span(shm_ptr<span> ptr);
+    offset_ptr<span> __new_span();
+    void __del_span(offset_ptr<span> ptr);
 
     bool __grow_heap(int page_count);
 };

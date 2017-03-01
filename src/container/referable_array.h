@@ -124,7 +124,7 @@ struct referable_array {
 
     bool full()  const {
         if (used_count >= N) {
-            assert_noeffect(free_head == npos);
+            sk_assert(free_head == npos);
             return true;
         }
         return false;
@@ -208,10 +208,10 @@ struct referable_array {
         assert_retval(t, npos);
 
         node *n = cast_ptr(node, char_ptr(const_cast<T*>(t)) - offsetof(node, data));
-        assert_noeffect(n->used);
+        sk_assert(n->used);
 
         size_t offset = char_ptr(n) - memory;
-        assert_noeffect(offset % sizeof(node) == 0);
+        sk_assert(offset % sizeof(node) == 0);
 
         size_t index = offset / sizeof(node);
         assert_retval(index < N, npos);

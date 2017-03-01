@@ -2,7 +2,9 @@
 #define SHM_HASH_H
 
 #include <iterator>
-#include "utility/log.h"
+#include "log/log.h"
+#include "shm/shm_ptr.h"
+#include "utility/utility.h"
 
 namespace sk {
 namespace detail {
@@ -111,7 +113,7 @@ struct shm_hash_iterator {
  * V: hash value type
  * F: the function to calculate hashcode for type K
  */
-template<typename K, typename V, size_t(*F)(const K& k)>
+template<typename K, typename V, size_t(*F)(const K& k) = sk::detail::hashfunc>
 struct shm_hash {
     typedef detail::shm_hash_node<K, V>            node;
     typedef typename node::value_type              value_type;
@@ -152,6 +154,14 @@ struct shm_hash {
 
     bool empty() const {
         return used_node_count <= 0;
+    }
+
+    size_t size() const {
+        return used_node_count;
+    }
+
+    size_t capacity() const {
+        return total_node_count;
     }
 
     pointer __search(const K& k) {
@@ -371,10 +381,10 @@ struct shm_hash {
         check_retnone(found);
 
         if (!prev) {
-            assert_noeffect(base_addr[idx] == p);
+            sk_assert(base_addr[idx] == p);
             base_addr[idx] = p->next;
         } else {
-            assert_noeffect(prev->next == p);
+            sk_assert(prev->next == p);
             prev->next = p->next;
         }
 

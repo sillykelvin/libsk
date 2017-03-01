@@ -148,7 +148,7 @@ struct fixed_list {
         return n->next == npos ? NULL : __node(n->next);
     }
 
-    const node *__next(node *n) const {
+    const node *__next(const node *n) const {
         if (!n)
             return NULL;
 
@@ -159,7 +159,15 @@ struct fixed_list {
         return head == npos ? NULL : __node(head);
     }
 
+    const node *__head() const {
+        return head == npos ? NULL : __node(head);
+    }
+
     node *__tail() {
+        return tail == npos ? NULL : __node(tail);
+    }
+
+    const node *__tail() const {
         return tail == npos ? NULL : __node(tail);
     }
 
@@ -191,7 +199,11 @@ struct fixed_list {
         return empty() ? NULL : &list.at(tail)->data;
     }
 
-    void clear() { list.clear(); }
+    void clear() {
+        list.clear();
+        head = npos;
+        tail = npos;
+    }
 
     int insert(iterator it, const T& t) {
         if (full())
@@ -214,7 +226,7 @@ struct fixed_list {
         if (!prev)
             head = new_idx;
         else {
-            assert_noeffect(prev->next == old_idx);
+            sk_assert(prev->next == old_idx);
             prev->next = new_idx;
         }
         old_node->prev = new_idx;
@@ -233,14 +245,14 @@ struct fixed_list {
         if (prev)
             prev->next = n->next;
         else {
-            assert_noeffect(head == idx);
+            sk_assert(head == idx);
             head = n->next;
         }
 
         if (next)
             next->prev = n->prev;
         else {
-            assert_noeffect(tail == idx);
+            sk_assert(tail == idx);
             tail = n->prev;
         }
 

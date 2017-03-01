@@ -1,76 +1,110 @@
-#include <errno.h>
+#include <sstream>
+#include <stdarg.h>
+#include <algorithm>
+#include <string.h>
+#include <openssl/md5.h>
+#include <openssl/bio.h>
+#include <openssl/evp.h>
 #include "string_helper.h"
 
 namespace sk {
 
-template<typename R, bool integral>
-struct functor {
-    R(*f_)(const char *, char **, int);
-
-    functor(R(*func)(const char *, char **, int)) {
-        f_ = func;
-    }
-
-    R operator()(const char *str, char **end) const {
-        return f_(str, end, 10);
-    }
-};
-
-template<typename R>
-struct functor<R, false> {
-    R(*f_)(const char *, char **);
-
-    functor(R(*func)(const char *, char **)) {
-        f_ = func;
-    }
-
-    R operator()(const char *str, char **end) const {
-        return f_(str, end);
-    }
-};
-
-template<typename T, typename R, bool integral>
-static int convert(const char *str, T& val, const functor<R, integral>& f) {
+int split_string(const char *str, char delim, std::vector<std::string>& vec) {
     if (!str) return -EINVAL;
 
-    errno = 0;
-    char *end = NULL;
-    val = f(str, &end);
+    std::stringstream ss;
+    ss.str(str);
 
-    if (errno || *end != '\0' || end == str)
-        return -EINVAL;
+    std::string item;
+    while (std::getline(ss, item, delim))
+        vec.push_back(item);
 
     return 0;
 }
 
-int string2s32(const char *str, s32& val) {
-    functor<long, true> f(strtol);
-    return convert(str, val, f);
+void replace_string(std::string& str, const std::string& src, const std::string& dst) {
+    if (src.empty()) return;
+
+    size_t pos = 0;
+    while ((pos = str.find(src, pos)) != std::string::npos) {
+        str.replace(pos, src.length(), dst);
+        pos += dst.length();
+    }
 }
 
-int string2u32(const char *str, u32& val) {
-    functor<unsigned long, true> f(strtoul);
-    return convert(str, val, f);
+void fill_string(std::string& str, const char *fmt, ...) {
+    static char buffer[8192];
+
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, ap);
+    va_end(ap);
+
+    buffer[sizeof(buffer) - 1] = 0;
+
+    str = buffer;
 }
 
-int string2s64(const char *str, s64& val) {
-    functor<long long, true> f(strtoll);
-    return convert(str, val, f);
+void trim_string(std::string& str) {
+    str.erase(str.begin(),
+              std::find_if(str.begin(), str.end(),
+                           std::not1(std::ptr_fun<int, int>(std::isspace))));
+    str.erase(std::find_if(str.rbegin(), str.rend(),
+                           std::not1(std::ptr_fun<int, int>(std::isspace))).base(),
+              str.end());
 }
 
-int string2u64(const char *str, u64& val) {
-    functor<unsigned long long, true> f(strtoull);
-    return convert(str, val, f);
+bool is_prefix(const std::string& str1, const std::string& str2) {
+    const std::string *min = &str1;
+    const std::string *max = &str2;
+    if (min->length() > max->length()) {
+        min = &str2;
+        max = &str1;
+    }
+
+    auto it = std::mismatch(min->begin(), min->end(), max->begin());
+    return it.first == min->end();
 }
 
-int string2float(const char *str, float &val) {
-    functor<float, false> f(strtof);
-    return convert(str, val, f);
+std::string base64_decode(const std::string& str) {
+    static char buf[512];
+
+    bool allocated = false;
+    char *buffer = buf;
+    if (str.length() > array_len(buf)) {
+        buffer = (char *) malloc(str.length());
+        allocated = true;
+    }
+
+    BIO *b64  = BIO_new(BIO_f_base64());
+    BIO *bmem = BIO_new_mem_buf(str.data(), str.length());
+    bmem = BIO_push(b64, bmem);
+
+    BIO_set_flags(bmem, BIO_FLAGS_BASE64_NO_NL);
+    int out_len = BIO_read(bmem, buffer, str.length());
+
+    std::string output(buffer, out_len);
+    BIO_free_all(bmem);
+
+    if (allocated)
+        free(buffer);
+
+    return output;
 }
 
-int string2double(const char *str, double &val) {
-    functor<double, false> f(strtod);
-    return convert(str, val, f);
+std::string md5_string(const std::string& str) {
+    unsigned char md[16] = {0};
+    char tmp[3] = {0};
+    char buf[33] = {0};
+
+    MD5((const unsigned char*) str.c_str(), str.size(), md);
+
+    for (int i = 0; i < 16; ++i) {
+        sprintf(tmp, "%2.2x", md[i]);
+        strcat(buf, tmp);
+    }
+
+    return buf;
 }
 
 } // namespace sk

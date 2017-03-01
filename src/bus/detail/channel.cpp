@@ -1,7 +1,7 @@
 #include <errno.h>
 #include <string.h>
 #include "channel.h"
-#include "utility/log.h"
+#include "log/log.h"
 #include "shm/detail/shm_segment.h"
 #include "utility/assert_helper.h"
 #include "utility/config.h"
@@ -9,8 +9,8 @@
 
 #define MURMURHASH_SEED 77
 
-namespace sk {
-namespace detail {
+NS_BEGIN(sk)
+NS_BEGIN(detail)
 
 int channel::init(size_t node_size, size_t node_count) {
     // node_count should > 1 because there will be an empty
@@ -24,9 +24,10 @@ int channel::init(size_t node_size, size_t node_count) {
     this->magic = MAGIC;
     this->node_count = node_count;
     this->node_size = node_size;
-    this->read_pos = 0;
-    this->write_pos = 0;
-    // TODO: may do some alignment job here
+    this->push_count = 0;
+    this->pop_count  = 0;
+    this->read_pos   = 0;
+    this->write_pos  = 0;
     this->node_offset = sizeof(channel);
 
     this->node_size_shift = 0;
@@ -38,10 +39,17 @@ int channel::init(size_t node_size, size_t node_count) {
     return 0;
 }
 
+void channel::clear() {
+    assert_retnone(magic == MAGIC);
+
+    this->push_count = 0;
+    this->pop_count  = 0;
+    this->read_pos   = 0;
+    this->write_pos  = 0;
+}
+
 int channel::push(int src_busid, int dst_busid, const void *data, size_t length) {
     assert_retval(magic == MAGIC, -1);
-
-    // TODO: refine this function, make it more robust
 
     if (!data || length <= 0)
         return 0;
@@ -53,7 +61,6 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
     const size_t available_count = (read_pos - write_pos + node_count - 1) % node_count;
     const size_t new_write_pos = (write_pos + required_count) % node_count;
 
-    // TODO: retry or wait here?
     if (required_count > available_count) {
         sk_error("no enough space for incoming message, required<%lu>, available<%lu>.",
                  required_count, available_count);
@@ -61,7 +68,6 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
     }
 
     channel_message *head = __channel_message(write_pos);
-    // memset(head, 0x00, sizeof(*head));
 
     // loop back
     if (new_write_pos > 0 && new_write_pos < write_pos) {
@@ -95,13 +101,12 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
     __sync_synchronize();
 
     write_pos = new_write_pos;
+    push_count += 1;
     return 0;
 }
 
 int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid) {
     assert_retval(magic == MAGIC, -1);
-
-    // TODO: refine this function, make it more robust
 
     // no data
     if (read_pos == write_pos) return 0;
@@ -161,7 +166,23 @@ int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid) {
     __sync_synchronize();
 
     read_pos = new_read_pos;
+    pop_count += 1;
     return 1;
+}
+
+size_t channel::message_count() const {
+    if (push_count >= pop_count)
+        return push_count - pop_count;
+
+    // this may happen under two situations:
+    // 0. push_count reaches maximum value of size_t and returns to 0
+    // 1. a synchronize issue due to push_count/pop_count are manipulated
+    //    by two processes
+    // however, for both situations, we do not need to care much and do
+    // not need any "fix", as this function is just a helper function,
+    // a warning log should be enough
+    sk_warn("incorrect push count<%d>, pop count<%d>.", push_count, pop_count);
+    return 0;
 }
 
 size_t channel::__calc_node_count(size_t data_len) const {
@@ -177,5 +198,5 @@ channel_message *channel::__channel_message(size_t pos) {
     return cast_ptr(channel_message, addr);
 }
 
-} // namespace detail
-} // namespace sk
+NS_END(sk)
+NS_END(detail)

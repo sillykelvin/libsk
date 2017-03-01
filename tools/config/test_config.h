@@ -6,6 +6,10 @@
 
 #define DEF_CONFIG struct
 
+namespace test {
+
+namespace detail
+{
 
 DEF_CONFIG category {
     DEF_CONFIG device
@@ -38,6 +42,8 @@ DEF_CONFIG category {
     std::vector<filter> filters;
 };
 
+      } // namespace detail
+
 DEF_CONFIG log_conf    
 {
     /* test comment again */
@@ -45,5 +51,7 @@ DEF_CONFIG log_conf
     int default_level;
     std::vector<category> categories;
 };
+
+} // namespace test
 
 #endif // _TEST_CONFIG_H_

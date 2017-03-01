@@ -1,8 +1,9 @@
 #ifndef CHUNK_CACHE_H
 #define CHUNK_CACHE_H
 
-#include "shm/detail/span.h"
 #include "utility/config.h"
+#include "shm/detail/span.h"
+#include "shm/detail/offset_ptr.h"
 
 namespace sk {
 namespace detail {
@@ -37,8 +38,8 @@ struct chunk_cache {
 
     void report();
 
-    shm_ptr<void> allocate(size_t bytes);
-    void deallocate(shm_ptr<void> ptr);
+    offset_ptr<void> allocate(size_t bytes);
+    void deallocate(offset_ptr<void> ptr);
 };
 
 } // namespace detail

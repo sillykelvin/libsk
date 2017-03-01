@@ -7,13 +7,13 @@ import string
 
 
 FIELD_DEFS = {
-    's32'    : {'type': 's32',    'conv_func': 'sk::string2s32'},
-    'u32'    : {'type': 'u32',    'conv_func': 'sk::string2u32'},
-    's64'    : {'type': 's64',    'conv_func': 'sk::string2s64'},
-    'u64'    : {'type': 'u64',    'conv_func': 'sk::string2u64'},
-    'size_t' : {'type': 'size_t', 'conv_func': 'sk::string2size_t'},
-    'float'  : {'type': 'float',  'conv_func': 'sk::string2float'},
-    'double' : {'type': 'double', 'conv_func': 'sk::string2double'},
+    's32'    : {'type': 's32',    'conv_func': 'sk::string_traits<s32>::from_string'},
+    'u32'    : {'type': 'u32',    'conv_func': 'sk::string_traits<u32>::from_string'},
+    's64'    : {'type': 's64',    'conv_func': 'sk::string_traits<s64>::from_string'},
+    'u64'    : {'type': 'u64',    'conv_func': 'sk::string_traits<u64>::from_string'},
+    'size_t' : {'type': 'size_t', 'conv_func': 'sk::string_traits<u64>::from_string'},
+    'float'  : {'type': 'float',  'conv_func': 'sk::string_traits<float>::from_string'},
+    'double' : {'type': 'double', 'conv_func': 'sk::string_traits<double>::from_string'},
     'string' : {'type': 'string', 'conv_func': None},
     'vector' : {'type': 'vector', 'conv_func': None},
     'custom' : {'type': 'custom', 'conv_func': None},
@@ -85,7 +85,7 @@ def find_config_def(root_defs, sup_def, type_str):
 
     return None
 
-def build_config_def(root_defs, parent, name):
+def build_config_def(root_defs, namespace, parent, name):
     _def = ConfigDef()
     _def.name = name
     if parent:
@@ -93,7 +93,10 @@ def build_config_def(root_defs, parent, name):
         _def.prefix = parent.full_name() + '::'
         parent.sub_def.append(_def)
     else:
-        _def.prefix = ''
+        if namespace:
+            _def.prefix = namespace + '::'
+        else:
+            _def.prefix = ''
         root_defs.append(_def)
 
     return _def
@@ -141,6 +144,9 @@ def read_content(filename):
 
     content = content.replace('\r\n', '\n').replace('\t', '    ')
 
+    # remove content surrounded by "/// # ignore region" and "/// # end region"
+    content = re.sub('/// *# *ignore region((?:.|\n)*?)/// *# *end region', '', content)
+
     # remove line comments // ... and block comments /* ... */
     content = re.sub('//.*\n', '\n', content)
     content = re.sub('/\*((?:.|\n)*?)\*/', '', content)
@@ -165,6 +171,7 @@ def read_content(filename):
 def parse_content(content):
     def_list = []
     curr_def = None
+    namespace = []
 
     # split to lines, and remove empty ones
     lines = [x for x in content.split('\n') if x]
@@ -173,11 +180,25 @@ def parse_content(content):
         line = line.strip()
         if not line: continue
 
+        # the namespace start line
+        ret = re.search('^namespace +([_a-zA-Z0-9]+) +{$', line)
+        if ret:
+            ns = ret.group(1)
+            namespace.append(ns)
+            continue
+
+        # the namespace end line
+        ret = re.search('^ *}$', line)
+        if ret:
+            namespace.pop()
+            continue
+
         # the def start line
         ret = re.search('^DEF_CONFIG +([_a-zA-Z0-9]+) +{$', line)
         if ret:
             name = ret.group(1)
-            _def = build_config_def(def_list, curr_def, name)
+            ns = '::'.join(namespace)
+            _def = build_config_def(def_list, ns, curr_def, name)
             curr_def = _def
             continue
 
@@ -258,10 +279,15 @@ static int load_from_xml_node(std::vector<$type_name>& value, const pugi::xml_ob
 
         value.push_back(obj);
     }
-    if (value.size() <= 0) {
-        fprintf(stderr, "node %s not found.\\n", node_name);
-        return -EINVAL;
-    }
+
+    /*
+     * do NOT do this check, some selective configurations might
+     * be totally optional, so it's possible nothing is provided
+     */
+    // if (value.size() <= 0) {
+    //     fprintf(stderr, "node %s not found.\\n", node_name);
+    //     return -EINVAL;
+    // }
 
     return 0;
 }
@@ -356,7 +382,7 @@ def write_declarations(type_dict):
 
 def write_source(def_list, header_name, filename):
     template = '''
-int $conf_name::load_from_xml_file(const char *filename) {
+int $struct_name::load_from_xml_file(const char *filename) {
     assert_retval(filename, -1);
 
     pugi::xml_document doc;
@@ -407,7 +433,7 @@ int $conf_name::load_from_xml_file(const char *filename) {
         # only first level definitions can be loaded from file
         for _def in def_list:
             if _def.load_func:
-                f.write(string.Template(template).substitute(conf_name = _def.name))
+                f.write(string.Template(template).substitute(struct_name = _def.full_name(), conf_name = _def.name))
 
 if __name__ == '__main__':
     argc = len(sys.argv)

@@ -17,25 +17,25 @@ int shm_segment::__create(key_t key, size_t size) {
     }
 
     if (errno != EEXIST) {
-        ERR("shmget() failed, error<%s>.", strerror(errno));
+        sk_error("shmget() failed, error<%s>.", strerror(errno));
         return -1;
     }
 
     shmid = shmget(key, 0, 0666);
     if (shmid == -1) {
-        ERR("shmget() failed, error<%s>.", strerror(errno));
+        sk_error("shmget() failed, error<%s>.", strerror(errno));
         return -1;
     }
 
     int ret = shmctl(shmid, IPC_RMID, NULL);
     if (ret != 0) {
-        ERR("free shm failure, error<%s>.", strerror(errno));
+        sk_error("free shm failure, error<%s>.", strerror(errno));
         return ret;
     }
 
     shmid = shmget(key, size, 0666 | IPC_CREAT | IPC_EXCL);
     if (shmid == -1) {
-        ERR("shmget() failed, error<%s>.", strerror(errno));
+        sk_error("shmget() failed, error<%s>.", strerror(errno));
         return -1;
     }
 
@@ -51,7 +51,7 @@ int shm_segment::__create(key_t key, size_t size) {
 int shm_segment::__attach(key_t key) {
     int shmid = shmget(key, 0, 0666);
     if (shmid == -1) {
-        ERR("shmget() failed, error<%s>.", strerror(errno));
+        sk_error("shmget() failed, error<%s>.", strerror(errno));
         return -1;
     }
 
@@ -72,7 +72,7 @@ void shm_segment::fini() {
     if (shmid != -1) {
         int ret = shmctl(shmid, IPC_RMID, NULL);
         if (ret != 0) {
-            ERR("free shm failure, error<%s>.", strerror(errno));
+            sk_error("free shm failure, error<%s>.", strerror(errno));
             return;
         }
     }

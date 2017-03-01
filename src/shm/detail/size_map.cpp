@@ -15,7 +15,7 @@ static int lg_floor(size_t n) {
         }
     }
 
-    assert_noeffect(n == 1);
+    sk_assert(n == 1);
     return log;
 }
 
@@ -33,8 +33,8 @@ static int calc_alignment(size_t bytes) {
     if (alignment > PAGE_SIZE)
         alignment = PAGE_SIZE;
 
-    assert_noeffect(bytes < (size_t)min_align || alignment >= min_align);
-    assert_noeffect((alignment & (alignment - 1)) == 0);
+    sk_assert(bytes < (size_t) min_align || alignment >= min_align);
+    sk_assert((alignment & (alignment - 1)) == 0);
     return alignment;
 }
 
@@ -50,12 +50,12 @@ static int chunk_count(size_t bytes) {
 
 int size_map::init() {
     if (__index(0) != 0) {
-        ERR("invalid class index for 0: %u.", __index(0));
+        sk_error("invalid class index for 0: %u.", __index(0));
         return -1;
     }
 
     if (__index(MAX_SIZE) >= array_len(index2class)) {
-        ERR("invalid class index for MAX_SIZE: %u.", __index(MAX_SIZE));
+        sk_error("invalid class index for MAX_SIZE: %u.", __index(MAX_SIZE));
         return -1;
     }
 
@@ -94,7 +94,7 @@ int size_map::init() {
     }
 
     if (sc != SIZE_CLASS_COUNT) {
-        ERR("wrong number of size classes, found: %d, expected: %d.", sc, SIZE_CLASS_COUNT);
+        sk_error("wrong number of size classes, found: %d, expected: %d.", sc, SIZE_CLASS_COUNT);
         return -1;
     }
 
@@ -111,18 +111,18 @@ int size_map::init() {
     for (size_t size = 0; size <= MAX_SIZE;) {
         const int sc = size_class(size);
         if (sc < 0 || sc >= SIZE_CLASS_COUNT) {
-            ERR("bad size class, class: %d, size: %lu.", sc, size);
+            sk_error("bad size class, class: %d, size: %lu.", sc, size);
             return -1;
         }
 
         if (sc > 0 && size <= class2size[sc - 1]) {
-            ERR("size class too large, class: %d, size: %lu.", sc, size);
+            sk_error("size class too large, class: %d, size: %lu.", sc, size);
             return -1;
         }
 
         const size_t s = class2size[sc];
         if (size > s || s == 0) {
-            ERR("bad class: %d, size: %lu.", sc, size);
+            sk_error("bad class: %d, size: %lu.", sc, size);
             return -1;
         }
 

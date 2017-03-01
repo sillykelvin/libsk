@@ -1,6 +1,11 @@
 #ifndef FIXED_STRING_H
 #define FIXED_STRING_H
 
+#include <string>
+#include "utility/types.h"
+#include "utility/utility.h"
+#include "utility/assert_helper.h"
+
 namespace sk {
 
 template<size_t N>
@@ -15,6 +20,10 @@ struct fixed_string {
         used_count = copy(this->memory, N, str, strlen(str));
     }
 
+    explicit fixed_string(const std::string& str) {
+        used_count = copy(this->memory, N, str.c_str(), str.length());
+    }
+
     template<size_t M>
     explicit fixed_string(const fixed_string<M>& str) {
         used_count = copy(this->memory, N, str.memory, str.length());
@@ -22,6 +31,11 @@ struct fixed_string {
 
     fixed_string& operator=(const char *str) {
         used_count = copy(this->memory, N, str, strlen(str));
+        return *this;
+    }
+
+    fixed_string& operator=(const std::string& str) {
+        used_count = copy(this->memory, N, str.c_str(), str.length());
         return *this;
     }
 
@@ -39,6 +53,14 @@ struct fixed_string {
         return !(this->operator ==(str));
     }
 
+    bool operator==(const std::string& str) const {
+        return eq(memory, used_count, str.c_str(), str.length());
+    }
+
+    bool operator!=(const std::string& str) const {
+        return !(this->operator ==(str));
+    }
+
     template<size_t M>
     bool operator==(const fixed_string<M>& str) const {
         return eq(memory, used_count, str.memory, str.used_count);
@@ -47,6 +69,19 @@ struct fixed_string {
     template<size_t M>
     bool operator!=(const fixed_string<M>& str) const {
         return !(this->operator ==(str));
+    }
+
+    bool operator<(const char *str) const {
+        return compare(data(), length(), str, strlen(str)) < 0;
+    }
+
+    bool operator<(const std::string& str) const {
+        return compare(data(), length(), str.data(), str.length()) < 0;
+    }
+
+    template<size_t M>
+    bool operator<(const fixed_string<M>& str) const {
+        return compare(data(), length(), str.data(), str.length()) < 0;
     }
 
     void clear() {
@@ -58,7 +93,13 @@ struct fixed_string {
         return copy(array, capacity, memory, used_count);
     }
 
+    std::string to_string() const {
+        return std::string(memory, used_count);
+    }
+
     const char *c_str() const { return memory; }
+
+    const char *data() const { return memory; }
 
     size_t length()   const { return used_count; }
     size_t capacity() const { return N; }
@@ -98,6 +139,20 @@ struct fixed_string {
                 return false;
 
         return true;
+    }
+
+    static int compare(const char *str1, size_t length1,
+                       const char *str2, size_t length2) {
+        int ret = strncmp(str1, str2, std::min(length1, length2));
+        if (ret != 0) return ret;
+
+        if (length1 < length2)
+            return -1;
+
+        if (length1 > length2)
+            return 1;
+
+        return 0;
     }
 };
 

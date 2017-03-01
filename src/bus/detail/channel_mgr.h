@@ -10,6 +10,7 @@ namespace detail {
 
 struct channel_descriptor {
     int owner;         // owner bus id of this channel
+    int closed;        // close the R/W channels if the owner is stopped
     offset_t r_offset; // offset of read channel
     offset_t w_offset; // offset of write channel
 };
@@ -19,6 +20,7 @@ struct channel_mgr {
 
     int magic;
     int shmid;               // id of this shm segment
+    bool changed;            // if there is change to descriptors
     size_t shm_size;         // total size of this shm segment
     size_t used_size;        // allocated space size
 
@@ -31,15 +33,20 @@ struct channel_mgr {
      */
     int init(int shmid, size_t shm_size, bool resume);
 
+    void report() const;
+
     /*
-     * this function will be called in each process, thus we need to lock to
-     * ensure synchronization
+     * these two functions will be called in each process,
+     * thus we need to lock to ensure synchronization
      */
     int register_channel(int busid, size_t node_size, size_t node_count, int& fd);
+    void deregister_channel(int busid);
 
     channel *get_read_channel(int fd);
     channel *get_write_channel(int fd);
-    int get_owner_busid(int fd);
+    const channel *get_read_channel(int fd) const;
+    const channel *get_write_channel(int fd) const;
+    int get_owner_busid(int fd) const;
 
     channel *find_read_channel(int busid);
 };

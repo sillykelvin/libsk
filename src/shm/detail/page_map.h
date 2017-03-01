@@ -1,9 +1,9 @@
 #ifndef PAGE_MAP_H
 #define PAGE_MAP_H
 
-#include "shm/shm_ptr.h"
 #include "utility/types.h"
 #include "utility/config.h"
+#include "shm/detail/offset_ptr.h"
 
 namespace sk {
 namespace detail {
@@ -20,10 +20,10 @@ struct page_map {
     static const int LEAF_LENGTH = 1 << LEAF_BITS;
 
     struct leaf {
-        shm_ptr<void> values[LEAF_LENGTH];
+        offset_ptr<void> values[LEAF_LENGTH];
     };
 
-    shm_ptr<leaf> root[ROOT_LENGTH];
+    offset_ptr<leaf> root[ROOT_LENGTH];
 
     /*
      * estimate the metadata space needed to store page -> span
@@ -33,9 +33,9 @@ struct page_map {
 
     void init();
 
-    shm_ptr<void> get(page_t p) const;
+    offset_ptr<void> get(page_t p) const;
 
-    void set(page_t p, shm_ptr<void> v);
+    void set(page_t p, offset_ptr<void> v);
 };
 
 } // namespace detail

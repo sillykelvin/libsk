@@ -9,6 +9,22 @@
 
 static sk::shm_mgr *mgr = NULL;
 
+static const size_t SERIAL_BIT_COUNT = 28;
+static const size_t OFFSET_BIT_COUNT = 64 - SERIAL_BIT_COUNT;
+static_assert(OFFSET_BIT_COUNT >= MAX_MEM_SHIFT, "offset not enough");
+
+struct shm_mid {
+    u64 offset: OFFSET_BIT_COUNT;
+    u64 serial: SERIAL_BIT_COUNT;
+};
+static_assert(sizeof(shm_mid) == sizeof(u64), "shm_mid must be sizeof(u64)");
+
+struct shm_meta {
+    u64 magic:  OFFSET_BIT_COUNT;
+    u64 serial: SERIAL_BIT_COUNT;
+};
+static_assert(sizeof(shm_meta) == sizeof(u64), "shm_meta must be sizeof(u64)");
+
 namespace sk {
 
 int shm_mgr_init(key_t key, size_t size_hint, bool resume) {
@@ -23,8 +39,6 @@ int shm_mgr_fini() {
     if (!mgr)
         return 0;
 
-    // TODO: we may need to call destructors of the objects
-    // still in pool here
     shmctl(mgr->shmid, IPC_RMID, 0);
 
     mgr = NULL;
@@ -161,16 +175,62 @@ shm_ptr<void> shm_mgr::malloc(size_t bytes) {
     // this count at the beginning of this function
     ++stat.alloc_count;
 
-    if (bytes <= MAX_SIZE)
-        return chunk_cache->allocate(bytes);
+    // extra 8 bytes to store shm_meta struct
+    bytes += sizeof(shm_meta);
 
-    int page_count = (bytes >> PAGE_SHIFT) + ((bytes & (PAGE_SIZE - 1)) > 0 ? 1 : 0);
-    shm_ptr<detail::span> sp = page_heap->allocate_span(page_count);
-    if (!sp)
+    detail::offset_ptr<void> ptr;
+    do {
+        if (bytes <= MAX_SIZE) {
+            ptr = chunk_cache->allocate(bytes);
+            break;
+        }
+
+        int page_count = (bytes >> PAGE_SHIFT) + ((bytes & (PAGE_SIZE - 1)) > 0 ? 1 : 0);
+        detail::offset_ptr<detail::span> sp = page_heap->allocate_span(page_count);
+        if (sp) {
+            detail::span *s = sp.get();
+            ptr = detail::offset_ptr<void>(s->start << PAGE_SHIFT);
+            break;
+        }
+    } while (0);
+
+    if (!ptr)
         return SHM_NULL;
 
-    offset_t offset = sp->start << PAGE_SHIFT;
-    return shm_ptr<void>(offset);
+    ++serial;
+    if (serial >= (1ULL << SERIAL_BIT_COUNT))
+        serial = 1;
+
+    u64 mid = MID_NULL;
+    shm_mid *pmid = cast_ptr(shm_mid, &mid);
+    pmid->offset = ptr.offset;
+    pmid->serial = serial;
+
+    shm_meta *pmeta = ptr.as<shm_meta>().get();
+    pmeta->magic  = static_cast<u32>(MAGIC);
+    pmeta->serial = serial;
+
+    {
+        char *p = char_ptr(pmeta) + sizeof(*pmeta);
+        size_t s = bytes - sizeof(shm_meta);
+        memset(p, 0x00, s);
+    }
+
+    sk_debug("=> shm_mgr::malloc(): size<%lu>, serial<%lu>, offset<%lu>, mid<%lu>.",
+             bytes, serial, ptr.offset, mid);
+
+#ifdef NDEBUG
+#define COUNT 10000
+#else
+#define COUNT 100
+#endif
+
+    if (stat.alloc_count % COUNT == 0)
+        report();
+
+#undef COUNT
+
+    return shm_ptr<void>(mid);
 }
 
 void shm_mgr::free(shm_ptr<void> ptr) {
@@ -178,20 +238,52 @@ void shm_mgr::free(shm_ptr<void> ptr) {
 
     ++stat.free_count;
 
-    page_t page = ptr2page(ptr);
-    shm_ptr<detail::span> sp = page_heap->find_span(page);
+    u64 mid = ptr.mid;
+    const shm_mid *pmid = cast_ptr(shm_mid, &mid);
+    assert_retnone(pmid->offset != OFFSET_NULL);
+
+    detail::offset_ptr<void> offset(pmid->offset);
+    shm_meta *pmeta = offset.as<shm_meta>().get();
+    if (pmeta->magic != static_cast<u32>(MAGIC) || pmeta->serial != pmid->serial) {
+        sk_warn("invalid free, expected<serial: %lu>, actual<serial: %lu>.",
+                pmid->serial, pmeta->serial);
+        return;
+    }
+
+    pmeta->magic = 0;
+    pmeta->serial = 0;
+
+    page_t page = offset2page(pmid->offset);
+    detail::offset_ptr<detail::span> sp = page_heap->find_span(page);
     assert_retnone(sp);
 
-    if (sp->size_class < 0) {
-        assert_noeffect(!sp->chunk_list);
-        assert_noeffect(sp->used_count == 0);
+    detail::span *s = sp.get();
+    if (s->size_class < 0) {
+        sk_assert(!s->chunk_list);
+        sk_assert(s->used_count == 0);
 
         return page_heap->deallocate_span(sp);
     }
 
     // TODO: the function below will search for span again, it's better to
     // take the searched span as a parameter to improve performance
-    chunk_cache->deallocate(ptr);
+    chunk_cache->deallocate(offset);
+}
+
+shm_ptr<void> shm_mgr::get_singleton(int type, size_t bytes, bool& first_call) {
+    assert_retval(type >= 0 && type < MAX_SINGLETON_COUNT, SHM_NULL);
+
+    first_call = false;
+    if (singletons[type] == MID_NULL) {
+        shm_ptr<void> ptr = malloc(bytes);
+        if (!ptr)
+            return SHM_NULL;
+
+        first_call = true;
+        singletons[type] = ptr.mid;
+    }
+
+    return shm_ptr<void>(singletons[type]);
 }
 
 offset_t shm_mgr::__sbrk(size_t bytes) {
@@ -238,6 +330,13 @@ offset_t shm_mgr::allocate_metadata(size_t bytes) {
     return offset;
 }
 
+page_t shm_mgr::offset2page(offset_t offset) {
+    sk_assert(offset >= sizeof(*this));
+    sk_assert(offset < used_size);
+
+    return offset >> PAGE_SHIFT;
+}
+
 void *shm_mgr::offset2ptr(offset_t offset) {
     assert_retval(offset >= sizeof(*this), NULL);
     assert_retval(offset < used_size, NULL);
@@ -254,11 +353,20 @@ offset_t shm_mgr::ptr2offset(void *ptr) {
     return p - base;
 }
 
-page_t shm_mgr::ptr2page(shm_ptr<void> ptr) {
-    assert_noeffect(ptr.offset >= sizeof(*this));
-    assert_noeffect(ptr.offset < used_size);
+void *shm_mgr::mid2ptr(u64 mid) {
+    const shm_mid *pmid = cast_ptr(shm_mid, &mid);
+    assert_retval(pmid->offset != OFFSET_NULL, NULL);
 
-    return ptr.offset >> PAGE_SHIFT;
+    void *ptr = offset2ptr(pmid->offset);
+    const shm_meta *pmeta = cast_ptr(shm_meta, ptr);
+
+    if (pmeta->magic != static_cast<u32>(MAGIC) || pmeta->serial != pmid->serial) {
+        sk_warn("object freed? expected<serial: %lu>, actual<serial: %lu>.",
+                pmid->serial, pmeta->serial);
+        return NULL;
+    }
+
+    return char_ptr(ptr) + sizeof(shm_meta);
 }
 
 

@@ -17,19 +17,22 @@ struct channel_message {
 
 struct channel {
     int magic;
-    size_t node_count;         // total node count of this channel
-    size_t node_size;          // the size of a node
-    size_t node_size_shift;    // 2 ^ node_size_shift = node_size
-    volatile size_t read_pos;  // current read position
-    volatile size_t write_pos; // current write position
-    offset_t node_offset;      // offset of the first node
+    size_t node_count;          // total node count of this channel
+    size_t node_size;           // the size of a node
+    size_t node_size_shift;     // 2 ^ node_size_shift = node_size
+    volatile size_t push_count; // total message count pushed to this channel
+    volatile size_t pop_count;  // total message count popped from this channel
+    volatile size_t read_pos;   // current read position
+    volatile size_t write_pos;  // current write position
+    offset_t node_offset;       // offset of the first node
 
     static size_t calc_space(size_t node_size, size_t node_count) {
-        // TODO: if TODO in init(...) is fixed, please also fix this one
         return sizeof(channel) + node_size * node_count;
     }
 
     int init(size_t node_size, size_t node_count);
+
+    void clear();
 
     /**
      * @brief push a message into the channel
@@ -54,6 +57,8 @@ struct channel {
      *         2. -1: assert error
      */
     int pop(void *data, size_t& length, int *src_busid, int *dst_busid);
+
+    size_t message_count() const;
 
     size_t __calc_node_count(size_t data_len) const;
 

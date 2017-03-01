@@ -1,6 +1,8 @@
 #ifndef SHM_MGR_H
 #define SHM_MGR_H
 
+#include "utility/types.h"
+
 namespace sk {
 
 int shm_mgr_init(key_t key, size_t size_hint, bool resume);
@@ -18,6 +20,8 @@ template<typename T>
 struct shm_ptr;
 
 struct shm_mgr {
+    static const int MAX_SINGLETON_COUNT = 512;
+
     /*
      * id of the shm pool
      */
@@ -30,10 +34,29 @@ struct shm_mgr {
     size_t used_size;
 
     /*
+     * serial generator, to generate serial to
+     * every allocated object
+     */
+    size_t serial;
+
+    /*
      * metadata allocation
      */
     offset_t metadata_offset;
     size_t metadata_left;
+
+    /*
+     * mid to singleton objects
+     */
+    u64 singletons[MAX_SINGLETON_COUNT];
+
+    /*
+     * shm type to object size, allocated object
+     * count and current object serial
+     */
+    size_t type2size[MAX_SINGLETON_COUNT];
+    size_t type2count[MAX_SINGLETON_COUNT];
+    size_t type2serial[MAX_SINGLETON_COUNT];
 
     /*
      * runtime statistics
@@ -63,6 +86,8 @@ struct shm_mgr {
     shm_ptr<void> malloc(size_t bytes);
     void free(shm_ptr<void> ptr);
 
+    shm_ptr<void> get_singleton(int type, size_t bytes, bool& first_call);
+
     offset_t __sbrk(size_t bytes);
 
     /*
@@ -79,6 +104,11 @@ struct shm_mgr {
     offset_t allocate_metadata(size_t bytes);
 
     /*
+     * get the page number of the offset
+     */
+    page_t offset2page(offset_t offset);
+
+    /*
      * turn a valid offset into a raw pointer
      */
     void *offset2ptr(offset_t offset);
@@ -90,9 +120,9 @@ struct shm_mgr {
     offset_t ptr2offset(void *ptr);
 
     /*
-     * get the page number of the pointer
+     * turn a mid into a raw pointer
      */
-    page_t ptr2page(shm_ptr<void> ptr);
+    void *mid2ptr(u64 mid);
 };
 
 
@@ -131,6 +161,21 @@ void shm_del(shm_ptr<T> ptr) {
     t->~T();
 
     shm_free(ptr);
+}
+
+template<typename T, typename... Args>
+shm_ptr<T> shm_get_singleton(int type, Args&&... args) {
+    bool first_call = false;
+    shm_ptr<T> ptr = shm_mgr::get()->get_singleton(type, sizeof(T), first_call);
+    if (!ptr)
+        return ptr;
+
+    if (first_call) {
+        T *t = ptr.get();
+        new (t) T(std::forward<Args>(args)...);
+    }
+
+    return ptr;
 }
 
 } // namespace sk

@@ -227,10 +227,10 @@ struct extensible_hash {
             return;
 
         if (prev == npos) {
-            assert_noeffect(buckets[bucket_idx] == idx);
+            sk_assert(buckets[bucket_idx] == idx);
             buckets[bucket_idx] = nodes[idx].next;
         } else {
-            assert_noeffect(nodes[prev].next == idx);
+            sk_assert(nodes[prev].next == idx);
             nodes[prev].next = nodes[idx].next;
         }
 
@@ -278,10 +278,10 @@ struct extensible_hash {
             return;
 
         if (prev == npos) {
-            assert_noeffect(buckets[bucket_idx] == idx);
+            sk_assert(buckets[bucket_idx] == idx);
             buckets[bucket_idx] = nodes[idx].next;
         } else {
-            assert_noeffect(nodes[prev].next == idx);
+            sk_assert(nodes[prev].next == idx);
             nodes[prev].next = nodes[idx].next;
         }
 

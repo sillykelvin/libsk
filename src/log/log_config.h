@@ -18,7 +18,7 @@ DEF_CONFIG log_config {
 
     DEF_CONFIG net_device {
         std::string address; // ip address of the log server
-        u16 port;            // port of the log server
+        u32 port;            // port of the log server
     };
 
     DEF_CONFIG category {
@@ -31,6 +31,8 @@ DEF_CONFIG log_config {
     };
 
     std::vector<category> categories;
+
+    int load_from_xml_file(const char *filename);
 };
 
 } // namespace sk

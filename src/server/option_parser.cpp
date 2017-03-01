@@ -289,22 +289,22 @@ int option_parser::set_value(option_parser::option_config *conf, const char *arg
     switch (conf->vtype) {
     case option_config::VALUE_TYPE_S32: {
         s32 *v = cast_ptr(s32, conf->value);
-        ret = string2s32(arg, *v);
+        ret = string_traits<s32>::from_string(arg, *v);
         break;
     }
     case option_config::VALUE_TYPE_U32: {
         u32 *v = cast_ptr(u32, conf->value);
-        ret = string2u32(arg, *v);
+        ret = string_traits<u32>::from_string(arg, *v);
         break;
     }
     case option_config::VALUE_TYPE_S64: {
         s64 *v = cast_ptr(s64, conf->value);
-        ret = string2s64(arg, *v);
+        ret = string_traits<s64>::from_string(arg, *v);
         break;
     }
     case option_config::VALUE_TYPE_U64: {
         u64 *v = cast_ptr(u64, conf->value);
-        ret = string2u64(arg, *v);
+        ret = string_traits<u64>::from_string(arg, *v);
         break;
     }
     case option_config::VALUE_TYPE_STRING: {

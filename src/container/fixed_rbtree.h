@@ -2,7 +2,7 @@
 #define FIXED_RBTREE_H
 
 #include <iterator>
-#include "utility/log.h"
+#include "log/log.h"
 #include "utility/types.h"
 #include "utility/utility.h"
 #include "utility/assert_helper.h"
@@ -373,11 +373,11 @@ struct fixed_rbtree {
 
             if (__lt(f(value), f(x->value))) {
                 // check if the comparison function is sane
-                assert_noeffect(__gt(f(x->value), f(value)));
+                sk_assert(__gt(f(x->value), f(value)));
                 x = __left(x);
             } else {
                 // check if the comparison function is sane
-                assert_noeffect(!__gt(f(x->value), f(value)));
+                sk_assert(!__gt(f(x->value), f(value)));
                 x = __right(x);
             }
         }
@@ -416,7 +416,7 @@ struct fixed_rbtree {
 
         // if parent is null, the tree must be an empty tree
         if (!parent) {
-            assert_noeffect(root == npos);
+            sk_assert(root == npos);
             n->color = black;
             root = idx;
             return 0;
@@ -493,7 +493,7 @@ struct fixed_rbtree {
             size_t y_idx = __min(z->right);
             y = __node(y_idx);
             // y = __min(__right(z));
-            assert_noeffect(y->left == npos);
+            sk_assert(y->left == npos);
             is_black = !__red(y);
             x = __right(y);
             xp = y;
@@ -781,7 +781,7 @@ struct fixed_rbtree {
         size_t pbc = -1;
         if (!__check_prop5(root, 0, pbc)) { sk_error("rbtree property 5 violence"); valid = false; }
 
-        assert_noeffect(valid);
+        sk_assert(valid);
 #endif
         return valid;
     }

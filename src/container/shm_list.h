@@ -93,9 +93,9 @@ struct shm_list {
         bool empty = count <= 0;
 
         if (empty)
-            assert_noeffect(!head && !tail);
+            sk_assert(!head && !tail);
         else
-            assert_noeffect(head && tail);
+            sk_assert(head && tail);
 
         return empty;
     }
@@ -135,14 +135,14 @@ struct shm_list {
         if (prev)
             prev->next = p->next;
         else {
-            assert_noeffect(head == p);
+            sk_assert(head == p);
             head = p->next;
         }
 
         if (next)
             next->prev = p->prev;
         else {
-            assert_noeffect(tail == p);
+            sk_assert(tail == p);
             tail = p->prev;
         }
 
@@ -159,11 +159,11 @@ struct shm_list {
         else if (n->next)
             p = n->next->prev;
         else {
-            assert_noeffect(count == 1 && head == tail);
+            sk_assert(count == 1 && head == tail);
             p = head;
         }
 
-        assert_noeffect(p);
+        sk_assert(p);
         return p;
     }
 

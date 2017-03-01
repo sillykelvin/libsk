@@ -2,11 +2,11 @@
 #define METADATA_ALLOCATOR_H
 
 #include "shm/shm_mgr.h"
-#include "shm/shm_ptr.h"
-#include "utility/log.h"
+#include "log/log.h"
 #include "utility/types.h"
 #include "utility/config.h"
 #include "utility/assert_helper.h"
+#include "shm/detail/offset_ptr.h"
 
 namespace sk {
 namespace detail {
@@ -16,9 +16,11 @@ namespace detail {
  */
 template<typename T>
 struct metadata_allocator {
-    shm_ptr<T> free_list;
-    offset_t   free_space;
-    size_t     space_left;
+    static_assert(sizeof(T) <= META_ALLOC_INCREMENT, "T must NOT be so big");
+
+    offset_ptr<T> free_list;
+    offset_t      free_space;
+    size_t        space_left;
 
     struct {
         size_t total_size;  // total size allocated from shared memory
@@ -28,8 +30,7 @@ struct metadata_allocator {
     } stat;
 
     void init() {
-        assert_noeffect(sizeof(T) <= META_ALLOC_INCREMENT);
-        free_list = SHM_NULL;
+        free_list.set_null();
         free_space = OFFSET_NULL;
         space_left = 0;
 
@@ -44,20 +45,20 @@ struct metadata_allocator {
                 stat.alloc_count, stat.free_count);
     }
 
-    shm_ptr<T> allocate() {
+    offset_ptr<T> allocate() {
         // 1. if there are objects in free list
         if (free_list) {
-            shm_ptr<T> ret = free_list;
-            free_list = *cast_ptr(shm_ptr<T>, free_list.get());
+            offset_ptr<T> ret = free_list;
+            free_list = *cast_ptr(offset_ptr<T>, free_list.get());
             stat.alloc_count += 1;
             return ret;
         }
 
         // 2. if no enough space in free space
         if (space_left < sizeof(T)) {
-            shm_ptr<void> ptr(shm_mgr::get()->allocate_metadata(META_ALLOC_INCREMENT));
+            offset_ptr<void> ptr(shm_mgr::get()->allocate_metadata(META_ALLOC_INCREMENT));
             if (!ptr)
-                return SHM_NULL;
+                return offset_ptr<T>::null();
 
             stat.waste_size += space_left;
             space_left = META_ALLOC_INCREMENT;
@@ -65,7 +66,7 @@ struct metadata_allocator {
             stat.total_size += space_left;
         }
 
-        shm_ptr<T> ptr(free_space);
+        offset_ptr<T> ptr(free_space);
 
         space_left -= sizeof(T);
         free_space += sizeof(T);
@@ -74,13 +75,13 @@ struct metadata_allocator {
         return ptr;
     }
 
-    void deallocate(shm_ptr<T> ptr) {
+    void deallocate(offset_ptr<T> ptr) {
         if (!ptr) {
-            assert_noeffect(0);
+            sk_assert(0);
             return;
         }
 
-        *cast_ptr(shm_ptr<T>, ptr.get()) = free_list;
+        *cast_ptr(offset_ptr<T>, ptr.get()) = free_list;
         free_list = ptr;
         stat.free_count += 1;
     }

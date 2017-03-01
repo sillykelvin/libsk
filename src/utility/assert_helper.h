@@ -2,34 +2,43 @@
 #define ASSERT_HELPER_H
 
 #include <assert.h>
+#include "log/log.h"
+#include "utility/types.h"
 
-// TODO: enhance this macro
-#define ASSERT(exp) assert(exp)
-#define sk_assert(exp) ASSERT(exp)
+namespace sk {
+const char *stacktrace();
+} // namespace sk
+
+#define ASSERT(exp)                                    \
+    do {                                               \
+        sk_fatal("assert failure: %s", #exp);          \
+        sk_fatal("stack trace: %s", sk::stacktrace()); \
+        assert(exp);                                   \
+    } while (0)
+
+#define sk_assert(exp)                          \
+    do {                                        \
+        if (likely(exp)) break;                 \
+        ASSERT(exp);                            \
+    } while (0)
 
 #define assert_retval(exp, val)                 \
     do {                                        \
-        if (exp) break;                         \
+        if (likely(exp)) break;                 \
         ASSERT(exp);                            \
         return (val);                           \
     } while (0)
 
 #define assert_retnone(exp)                     \
     do {                                        \
-        if (exp) break;                         \
+        if (likely(exp)) break;                 \
         ASSERT(exp);                            \
         return;                                 \
     } while (0)
 
-#define assert_noeffect(exp)                    \
-    do {                                        \
-        if (exp) break;                         \
-        ASSERT(exp);                            \
-    } while (0)
-
 #define assert_break(exp)                       \
     {                                           \
-        if (!(exp)) {                           \
+        if (unlikely(!(exp))) {                 \
             ASSERT(exp);                        \
             break;                              \
         }                                       \
@@ -37,7 +46,7 @@
 
 #define assert_continue(exp)                    \
     {                                           \
-        if (!(exp)) {                           \
+        if (unlikely(!(exp))) {                 \
             ASSERT(exp);                        \
             continue;                           \
         }                                       \

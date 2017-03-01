@@ -135,10 +135,31 @@ struct fixed_vector {
         return *at(index);
     }
 
+    const_iterator find(const T& value) const {
+        const_iterator it, end;
+        for (it = this->begin(), end = this->end(); it != end; ++it) {
+            if (*it == value)
+                return it;
+        }
+
+        return this->end();
+    }
+
     iterator find(const T& value) {
         iterator it, end;
         for (it = this->begin(), end = this->end(); it != end; ++it) {
             if (*it == value)
+                return it;
+        }
+
+        return this->end();
+    }
+
+    template<typename Pred>
+    const_iterator find_if(Pred p) const {
+        const_iterator it, end;
+        for (it = this->begin(), end = this->end(); it != end; ++it) {
+            if (p(*it))
                 return it;
         }
 
