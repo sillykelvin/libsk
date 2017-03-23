@@ -1,8 +1,11 @@
 #ifndef REFERABLE_ARRAY_H
 #define REFERABLE_ARRAY_H
 
-namespace sk {
+#include "utility/types.h"
+#include "utility/utility.h"
+#include "utility/assert_helper.h"
 
+namespace sk {
 namespace detail {
 
 /*

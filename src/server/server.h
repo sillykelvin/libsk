@@ -58,6 +58,7 @@ struct server_context {
         max_idle_count(0),
         idle_sleep_ms(0),
         resume_mode(false),
+        disable_shm(false),
         disable_bus(false),
         bus_key(0),
         bus_node_size(0),

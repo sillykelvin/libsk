@@ -1,6 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include "utility/types.h"
+
 /*
  * sometimes, we need a magic code to identify something
  * "code feed" :-)

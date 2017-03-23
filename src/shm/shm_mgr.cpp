@@ -6,6 +6,7 @@
 #include "shm/detail/page_heap.h"
 #include "shm/detail/shm_segment.h"
 #include "utility/config.h"
+#include "utility/math_helper.h"
 
 static sk::shm_mgr *mgr = NULL;
 
@@ -136,8 +137,7 @@ shm_mgr *shm_mgr::create(key_t key, size_t size_hint, bool resume) {
         return NULL;
     }
 
-    char *base_addr = char_ptr(seg.address());
-    shm_mgr *self = cast_ptr(shm_mgr, base_addr);
+    shm_mgr *self = cast_ptr(shm_mgr, seg.address());
 
     if (!resume) {
         memset(self, 0x00, sizeof(*self));
@@ -210,13 +210,13 @@ shm_ptr<void> shm_mgr::malloc(size_t bytes) {
     pmeta->magic  = static_cast<u32>(MAGIC);
     pmeta->serial = serial;
 
-    {
-        char *p = char_ptr(pmeta) + sizeof(*pmeta);
+    do {
+        char *p = sk::byte_offset<char>(pmeta, sizeof(*pmeta));
         size_t s = bytes - sizeof(shm_meta);
         memset(p, 0x00, s);
-    }
+    } while (0);
 
-    sk_debug("=> shm_mgr::malloc(): size<%lu>, serial<%lu>, offset<%lu>, mid<%lu>.",
+    sk_trace("=> shm_mgr::malloc(): size<%lu>, serial<%lu>, offset<%lu>, mid<%lu>.",
              bytes, serial, ptr.offset, mid);
 
 #ifdef NDEBUG
@@ -341,7 +341,7 @@ void *shm_mgr::offset2ptr(offset_t offset) {
     assert_retval(offset >= sizeof(*this), NULL);
     assert_retval(offset < used_size, NULL);
 
-    return char_ptr(this) + offset;
+    return sk::byte_offset<void>(this, offset);
 }
 
 offset_t shm_mgr::ptr2offset(void *ptr) {
@@ -366,7 +366,7 @@ void *shm_mgr::mid2ptr(u64 mid) {
         return NULL;
     }
 
-    return char_ptr(ptr) + sizeof(shm_meta);
+    return sk::byte_offset<void>(ptr, sizeof(shm_meta));
 }
 
 

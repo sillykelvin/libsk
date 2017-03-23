@@ -22,6 +22,7 @@
 #include "utility/error_info.h"
 #include "utility/assert_helper.h"
 #include "utility/types.h"
+#include "utility/math_helper.h"
 #include "utility/string_helper.h"
 #include "utility/config.h"
 #include "utility/guid.h"

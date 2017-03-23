@@ -1,6 +1,9 @@
 #ifndef FIXED_VECTOR_H
 #define FIXED_VECTOR_H
 
+#include <algorithm>
+#include "utility/types.h"
+
 namespace sk {
 
 /*

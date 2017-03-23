@@ -1,6 +1,9 @@
 #ifndef EXTENSIBLE_STACK_H
 #define EXTENSIBLE_STACK_H
 
+#include "utility/types.h"
+#include "utility/assert_helper.h"
+
 namespace sk {
 
 template<typename T>

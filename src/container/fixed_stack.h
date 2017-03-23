@@ -1,6 +1,10 @@
 #ifndef FIXED_STACK_H
 #define FIXED_STACK_H
 
+#include <utility>
+#include "utility/types.h"
+#include "container/fixed_vector.h"
+
 namespace sk {
 
 template<typename T, size_t N>

@@ -5,11 +5,11 @@ namespace sk {
 namespace detail {
 
 struct shm_segment {
-    char *base_addr;
+    void *base_addr;
     int shmid;
     bool owner;
 
-    shm_segment() : base_addr(NULL), shmid(-1), owner(true) {}
+    shm_segment() : base_addr(nullptr), shmid(-1), owner(true) {}
     ~shm_segment() { if (owner && shmid != -1) fini(); }
 
     int __create(key_t key, size_t size);
@@ -29,7 +29,7 @@ struct shm_segment {
     }
 
     void *address() {
-        return void_ptr(base_addr);
+        return base_addr;
     }
 };
 

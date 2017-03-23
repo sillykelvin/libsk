@@ -2,6 +2,8 @@
 #define SHM_LIST_H
 
 #include <iterator>
+#include "shm/shm_ptr.h"
+#include "utility/utility.h"
 
 namespace sk {
 namespace detail {

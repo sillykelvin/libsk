@@ -1,7 +1,9 @@
 #ifndef FIXED_LIST_H
 #define FIXED_LIST_H
 
+#include <stddef.h>
 #include <iterator>
+#include "utility/utility.h"
 #include "container/referable_array.h"
 
 namespace sk {

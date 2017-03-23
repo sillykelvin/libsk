@@ -2,6 +2,7 @@
 #include <errno.h>
 #include "channel_mgr.h"
 #include "log/log.h"
+#include "utility/math_helper.h"
 #include "shm/detail/shm_segment.h"
 #include "utility/assert_helper.h"
 #include "utility/config.h"
@@ -78,11 +79,11 @@ int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count
 
             sk_info("channel<%x> closed, reopen it.", busid);
 
-            channel *rc = cast_ptr(channel, char_ptr(this) + desc.r_offset);
+            channel *rc = sk::byte_offset<channel>(this, desc.r_offset);
             assert_retval(rc->magic == MAGIC, -1);
             rc->clear();
 
-            channel *wc = cast_ptr(channel, char_ptr(this) + desc.w_offset);
+            channel *wc = sk::byte_offset<channel>(this, desc.w_offset);
             assert_retval(wc->magic == MAGIC, -1);
             wc->clear();
 
@@ -123,14 +124,14 @@ int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count
 
         int ret = 0;
 
-        channel *rc = static_cast<channel*>(static_cast<void*>(char_ptr(this) + desc->r_offset));
+        channel *rc = sk::byte_offset<channel>(this, desc->r_offset);
         ret = rc->init(node_size, node_count);
         if (ret != 0) {
             sk_error("failed to init read channel, bus id<%x>, ret<%d>.", busid, ret);
             return ret;
         }
 
-        channel *wc = static_cast<channel*>(static_cast<void*>(char_ptr(this) + desc->w_offset));
+        channel *wc = sk::byte_offset<channel>(this, desc->w_offset);
         ret = wc->init(node_size, node_count);
         if (ret != 0) {
             sk_error("failed to init write channel, bus id<%x>, ret<%d>.", busid, ret);
@@ -173,7 +174,7 @@ channel *channel_mgr::get_read_channel(int fd) {
         return nullptr;
     }
 
-    channel *rc = cast_ptr(channel, char_ptr(this) + desc.r_offset);
+    channel *rc = sk::byte_offset<channel>(this, desc.r_offset);
     assert_retval(rc->magic == MAGIC, nullptr);
 
     return rc;
@@ -188,7 +189,7 @@ channel *channel_mgr::get_write_channel(int fd) {
         return nullptr;
     }
 
-    channel *wc = cast_ptr(channel, char_ptr(this) + desc.w_offset);
+    channel *wc = sk::byte_offset<channel>(this, desc.w_offset);
     assert_retval(wc->magic == MAGIC, nullptr);
 
     return wc;
@@ -203,7 +204,7 @@ const channel *channel_mgr::get_read_channel(int fd) const {
         return nullptr;
     }
 
-    const channel *rc = (const channel *) (((char *) this) + desc.r_offset);
+    const channel *rc = sk::byte_offset<channel>(this, desc.r_offset);
     assert_retval(rc->magic == MAGIC, nullptr);
 
     return rc;
@@ -218,7 +219,7 @@ const channel *channel_mgr::get_write_channel(int fd) const {
         return nullptr;
     }
 
-    const channel *wc = (const channel *) (((char *) this) + desc.w_offset);
+    const channel *wc = sk::byte_offset<channel>(this, desc.w_offset);
     assert_retval(wc->magic == MAGIC, nullptr);
 
     return wc;

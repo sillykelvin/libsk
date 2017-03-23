@@ -1,6 +1,10 @@
 #ifndef EXTENSIBLE_HASH_H
 #define EXTENSIBLE_HASH_H
 
+#include "utility/types.h"
+#include "utility/utility.h"
+#include "utility/assert_helper.h"
+
 namespace sk {
 namespace detail {
 

@@ -5,6 +5,7 @@
 #include "shm/detail/shm_segment.h"
 #include "utility/assert_helper.h"
 #include "utility/config.h"
+#include "utility/math_helper.h"
 #include "common/murmurhash3.h"
 
 #define MURMURHASH_SEED 77
@@ -73,7 +74,7 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
     if (new_write_pos > 0 && new_write_pos < write_pos) {
         void *addr0 = void_ptr(head->data);
         size_t sz0 = (node_count - write_pos) * node_size - sizeof(*head);
-        void *addr1 = void_ptr(char_ptr(this) + node_offset);
+        void *addr1 = sk::byte_offset<void>(this, node_offset);
         size_t sz1 = new_write_pos * node_size;
 
         // this should NOT happen, if it happens, then function
@@ -84,7 +85,7 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
         } else {
             sk_assert(length - sz0 <= sz1);
             memcpy(addr0, data, sz0);
-            memcpy(addr1, void_ptr(char_ptr(const_cast<void*>(data)) + sz0), length - sz0);
+            memcpy(addr1, sk::byte_offset<void>(data, sz0), length - sz0);
         }
     } else {
         void *addr = void_ptr(head->data);
@@ -135,7 +136,7 @@ int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid) {
         if (new_read_pos > 0 && new_read_pos < read_pos) {
             void *addr0 = void_ptr(const_cast<char*>(head->data));
             size_t sz0 = (node_count - read_pos) * node_size - sizeof(*head);
-            void *addr1 = void_ptr(char_ptr(this) + node_offset);
+            void *addr1 = sk::byte_offset<void>(this, node_offset);
             size_t sz1 = new_read_pos * node_size;
 
             // this should NOT happen
@@ -145,7 +146,7 @@ int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid) {
             } else {
                 sk_assert(head->length - sz0 <= sz1);
                 memcpy(data, addr0, sz0);
-                memcpy(void_ptr(char_ptr(data) + sz0), addr1, head->length - sz0);
+                memcpy(sk::byte_offset<void>(data, sz0), addr1, head->length - sz0);
             }
         } else {
             void *addr = void_ptr(const_cast<char*>(head->data));
