@@ -7,16 +7,41 @@ NS_BEGIN(sk)
 
 class reactor {
 public:
-    static const int READABLE  = 0x01;
-    static const int WRITEABLE = 0x02;
+    static const int EVENT_NONE     = 0x00;
+    static const int EVENT_READABLE = 0x01;
+    static const int EVENT_WRITABLE = 0x02;
+    static const int EVENT_EPOLLERR = 0x04;
+    static const int EVENT_EPOLLHUP = 0x08;
 
     reactor() = default;
     virtual ~reactor() = default;
 
+    /**
+     * @brief register_handler will register the handler h
+     *        on events specified by event_flag
+     * @param h: the handler
+     * @param event_flag: the ORed events
+     * @return 0 if succeeds, -1 on error and errno will be set
+     */
     virtual int register_handler(const handler_ptr& h, int event_flag) = 0;
-    virtual void deregister_handler(const handler_ptr& h, int event_flag) = 0;
 
-    virtual void dispatch(int timeout) = 0;
+    /**
+     * @brief deregister_handler will remove the handler h
+     *        on events specified by event_flag
+     * @param h: the handler
+     * @param event_flag: the ORed events
+     * @return 0 if succeeds, -1 on error and errno will be set
+     */
+    virtual int deregister_handler(const handler_ptr& h, int event_flag) = 0;
+
+    /**
+     * @brief dispatch occurred events to corresponding handlers
+     * @param timeout: how long to wait for a event, in milliseconds,
+     *                 0 to return immediately, -1 for forever
+     * @return the count of occurred events(might be 0), -1 on error
+     *         and errno will be set
+     */
+    virtual int dispatch(int timeout) = 0;
 };
 
 NS_END(sk)
