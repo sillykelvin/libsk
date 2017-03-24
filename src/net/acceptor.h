@@ -12,6 +12,7 @@ public:
     MAKE_NONCOPYABLE(acceptor);
 
     static handler_ptr create(reactor *r);
+    virtual ~acceptor() = default;
 
     int listen(const std::string& addr, u16 port, int backlog);
 

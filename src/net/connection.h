@@ -11,6 +11,7 @@ public:
     MAKE_NONCOPYABLE(connection);
 
     static handler_ptr create(reactor *r);
+    virtual ~connection() = default;
 
     void set_socket(const socket_ptr& socket);
 

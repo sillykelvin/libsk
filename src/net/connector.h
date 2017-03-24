@@ -12,6 +12,7 @@ public:
     MAKE_NONCOPYABLE(connector);
 
     static handler_ptr create(reactor *r);
+    virtual ~connector() = default;
 
     int connect(const std::string& addr, u16 port);
 
