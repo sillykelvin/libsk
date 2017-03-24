@@ -6,7 +6,7 @@ LIBSK_HOME = ..
 
 include ../inc.mk
 
-SUB_MODULES = . container shm shm/detail utility server
+SUB_MODULES = . bus bus/detail common container log net server shm shm/detail time utility
 OUT_LIB     = $(LIBSK_LIB)/libsk.a
 CXXFILE     = $(foreach dir, $(SUB_MODULES), $(wildcard $(dir)/*.cpp))
 DEP         = $(CXXFILE:.cpp=.d)
