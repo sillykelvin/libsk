@@ -14,6 +14,13 @@ socket_ptr socket::create() {
     return socket_ptr(new socket());
 }
 
+socket::~socket() {
+    if (fd_ != -1) {
+        ::close(fd_);
+        fd_ = -1;
+    }
+}
+
 int socket::connect(const std::string& addr, u16 port) {
     assert_retval(fd_ == -1, -1);
 

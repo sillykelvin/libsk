@@ -15,6 +15,7 @@ public:
     MAKE_NONCOPYABLE(socket);
 
     static socket_ptr create();
+    virtual ~socket();
 
     int fd() const { return fd_; }
 
