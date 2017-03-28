@@ -8,7 +8,7 @@ NS_BEGIN(sk)
 
 class reactor;
 
-class handler {
+class handler : public std::enable_shared_from_this<handler> {
 public:
     handler(reactor *r) : reactor_(r) {}
     virtual ~handler() = default;

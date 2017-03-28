@@ -115,7 +115,6 @@ socket_ptr socket::accept(std::string& addr, u16& port) {
             fd = ::accept(fd_, &sockaddr, &addrlen);
         } while (fd == -1 && errno == EINTR);
 
-        // TODO: logging error here?
         if (fd == -1)
             return nullptr;
 
@@ -143,8 +142,10 @@ socket_ptr socket::accept(std::string& addr, u16& port) {
     // TODO: may set_keepalive(...) here?
 
     socket_ptr s = create();
-    if (unlikely(!s))
+    if (unlikely(!s)) {
+        errno = ENOMEM;
         return nullptr;
+    }
 
     static char buf[64];
     struct sockaddr_in *si = reinterpret_cast<struct sockaddr_in*>(&sockaddr);
