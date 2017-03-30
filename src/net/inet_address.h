@@ -17,6 +17,10 @@ public:
         return cast_ptr(sockaddr, &addr_);
     }
 
+    const struct sockaddr *address() const {
+        return reinterpret_cast<const struct sockaddr*>(&addr_);
+    }
+
     std::string to_string() const;
 
 private:
