@@ -21,98 +21,134 @@ socket::~socket() {
     }
 }
 
-int socket::connect(const std::string& addr, u16 port) {
+int socket::connect(const inet_address& addr) {
     assert_retval(fd_ == -1, -1);
 
-    struct addrinfo hints;
-    memset(&hints, 0x00, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
+    fd_ = make_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (fd_ == -1) return -1;
 
-    struct addrinfo *server = nullptr;
-    std::string port_str = std::to_string(port);
-    int ret = getaddrinfo(addr.c_str(), port_str.c_str(), &hints, &server);
-    if (ret != 0) return ret;
+    int ret = 0;
+    do {
+        errno = 0;
+        ret = ::connect(fd_, addr.address(), addr.length());
+    } while (ret == -1 && errno == EINTR);
 
-    for (struct addrinfo *p = server; p != nullptr; p = p->ai_next) {
-        fd_ = make_socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (fd_ == -1) continue;
-
-        do {
-            errno = 0;
-            ret = ::connect(fd_, p->ai_addr, p->ai_addrlen);
-        } while (ret == -1 && errno == EINTR);
-
-        // the socket is non-blocking, it's ok for
-        // connect() to return an EINPROGRESS error
-        if (ret == -1 && errno != EINPROGRESS) {
-            ::close(fd_);
-            fd_ = -1;
-            continue;
-        }
-
-        ret = 0;
-        break;
+    // the socket is non-blocking, it's ok for
+    // connect() to return an EINPROGRESS error
+    if (ret == -1 && errno != EINPROGRESS) {
+        ::close(fd_);
+        fd_ = -1;
+        return ret;
     }
 
-    sk_assert((ret == 0 && fd_ != -1) || (ret != 0 && fd_ == -1));
-    freeaddrinfo(server);
-    return ret;
+    return 0;
+
+    // struct addrinfo hints;
+    // memset(&hints, 0x00, sizeof(hints));
+    // hints.ai_family = AF_UNSPEC;
+    // hints.ai_socktype = SOCK_STREAM;
+
+    // struct addrinfo *server = nullptr;
+    // std::string port_str = std::to_string(port);
+    // int ret = getaddrinfo(addr.c_str(), port_str.c_str(), &hints, &server);
+    // if (ret != 0) return ret;
+
+    // for (struct addrinfo *p = server; p != nullptr; p = p->ai_next) {
+    //     fd_ = make_socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    //     if (fd_ == -1) continue;
+
+    //     do {
+    //         errno = 0;
+    //         ret = ::connect(fd_, p->ai_addr, p->ai_addrlen);
+    //     } while (ret == -1 && errno == EINTR);
+
+    //     // the socket is non-blocking, it's ok for
+    //     // connect() to return an EINPROGRESS error
+    //     if (ret == -1 && errno != EINPROGRESS) {
+    //         ::close(fd_);
+    //         fd_ = -1;
+    //         continue;
+    //     }
+
+    //     ret = 0;
+    //     break;
+    // }
+
+    // sk_assert((ret == 0 && fd_ != -1) || (ret != 0 && fd_ == -1));
+    // freeaddrinfo(server);
+    // return ret;
 }
 
-int socket::listen(const std::string& addr, u16 port, int backlog) {
+int socket::listen(const inet_address& addr, int backlog) {
     assert_retval(fd_ == -1, -1);
 
-    struct addrinfo hints;
-    memset(&hints, 0x00, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
+    fd_ = make_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (fd_ == -1) return -1;
 
-    struct addrinfo *server = nullptr;
-    std::string port_str = std::to_string(port);
-    int ret = getaddrinfo(addr.c_str(), port_str.c_str(), &hints, &server);
-    if (ret != 0) return ret;
-
-    for (struct addrinfo *p = server; p != nullptr; p = p->ai_next) {
-        fd_ = make_socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (fd_ == -1) continue;
-
-        ret = ::bind(fd_, p->ai_addr, p->ai_addrlen);
-        if (ret != 0) {
-            ::close(fd_);
-            fd_ = -1;
-            continue;
-        }
-
-        ret = ::listen(fd_, backlog);
-        if (ret != 0) {
-            ::close(fd_);
-            fd_ = -1;
-            continue;
-        }
-
-        ret = 0;
-        break;
+    int ret = ::bind(fd_, addr.address(), addr.length());
+    if (ret != 0) {
+        ::close(fd_);
+        fd_ = -1;
+        return ret;
     }
 
-    sk_assert((ret == 0 && fd_ != -1) || (ret != 0 && fd_ == -1));
-    freeaddrinfo(server);
-    return ret;
+    ret = ::listen(fd_, backlog);
+    if (ret != 0) {
+        ::close(fd_);
+        fd_ = -1;
+        return ret;
+    }
+
+    return 0;
+
+    // struct addrinfo hints;
+    // memset(&hints, 0x00, sizeof(hints));
+    // hints.ai_family = AF_INET;
+    // hints.ai_socktype = SOCK_STREAM;
+    // hints.ai_flags = AI_PASSIVE;
+
+    // struct addrinfo *server = nullptr;
+    // std::string port_str = std::to_string(port);
+    // int ret = getaddrinfo(addr.c_str(), port_str.c_str(), &hints, &server);
+    // if (ret != 0) return ret;
+
+    // for (struct addrinfo *p = server; p != nullptr; p = p->ai_next) {
+    //     fd_ = make_socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    //     if (fd_ == -1) continue;
+
+    //     ret = ::bind(fd_, p->ai_addr, p->ai_addrlen);
+    //     if (ret != 0) {
+    //         ::close(fd_);
+    //         fd_ = -1;
+    //         continue;
+    //     }
+
+    //     ret = ::listen(fd_, backlog);
+    //     if (ret != 0) {
+    //         ::close(fd_);
+    //         fd_ = -1;
+    //         continue;
+    //     }
+
+    //     ret = 0;
+    //     break;
+    // }
+
+    // sk_assert((ret == 0 && fd_ != -1) || (ret != 0 && fd_ == -1));
+    // freeaddrinfo(server);
+    // return ret;
 }
 
-socket_ptr socket::accept(std::string& addr, u16& port) {
+socket_ptr socket::accept(inet_address& addr) {
     assert_retval(fd_ != -1, nullptr);
 
     int fd = -1;
     socklen_t addrlen = 0;
-    struct sockaddr sockaddr;
-    memset(&sockaddr, 0x00, sizeof(sockaddr));
 
     while (1) {
         do {
             errno = 0;
-            fd = ::accept(fd_, &sockaddr, &addrlen);
+            fd = ::accept(fd_, addr.address(), &addrlen);
         } while (fd == -1 && errno == EINTR);
 
         if (fd == -1)
@@ -146,12 +182,6 @@ socket_ptr socket::accept(std::string& addr, u16& port) {
         errno = ENOMEM;
         return nullptr;
     }
-
-    static char buf[64];
-    struct sockaddr_in *si = reinterpret_cast<struct sockaddr_in*>(&sockaddr);
-    port = ntohs(si->sin_port);
-    inet_ntop(AF_INET, &si->sin_addr, buf, sizeof(buf));
-    addr = buf;
 
     s->fd_ = fd;
     return s;

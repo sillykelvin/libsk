@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include "utility/types.h"
+#include "net/inet_address.h"
 
 NS_BEGIN(sk)
 
@@ -19,9 +20,9 @@ public:
 
     int fd() const { return fd_; }
 
-    int connect(const std::string& addr, u16 port);
-    int listen(const std::string& addr, u16 port, int backlog);
-    socket_ptr accept(std::string& addr, u16& port);
+    int connect(const inet_address& addr);
+    int listen(const inet_address& addr, int backlog);
+    socket_ptr accept(inet_address& addr);
 
     /**
      * @brief send data to the connected peer
