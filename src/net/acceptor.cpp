@@ -1,7 +1,6 @@
 #include "acceptor.h"
 #include "log/log.h"
 #include "net/reactor.h"
-#include "net/connection.h"
 #include "utility/assert_helper.h"
 
 NS_BEGIN(sk)
@@ -35,7 +34,7 @@ int acceptor::listen(const inet_address& addr, int backlog) {
 }
 
 void acceptor::on_event(int event) {
-    // we do nothing here for the two events
+    // TODO: what should we do for the two events?
     if (event & reactor::EVENT_EPOLLERR)
         sk_error("epollerr");
     if (event & reactor::EVENT_EPOLLHUP)
