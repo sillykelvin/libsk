@@ -21,6 +21,10 @@ public:
         return reinterpret_cast<const struct sockaddr*>(&addr_);
     }
 
+    socklen_t length() const {
+        return sizeof(addr_);
+    }
+
     std::string to_string() const;
 
 private:
