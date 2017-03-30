@@ -2,19 +2,19 @@
 
 NS_BEGIN(sk)
 
-handler_ptr connector::create(reactor *r) {
+connector_ptr connector::create(reactor *r) {
     auto sock = socket::create();
     if (!sock) return nullptr;
 
-    auto ptr = std::shared_ptr<connector>(new connector(r));
+    auto ptr = connector_ptr(new connector(r));
     if (!ptr) return nullptr;
 
     ptr->socket_ = sock;
     return ptr;
 }
 
-int connector::connect(const std::string& addr, u16 port) {
-    return socket_->connect(addr, port);
+int connector::connect(const inet_address& addr) {
+    return socket_->connect(addr);
 }
 
 void connector::on_event(int event) {

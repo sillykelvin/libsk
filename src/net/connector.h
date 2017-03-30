@@ -4,17 +4,21 @@
 #include <string>
 #include "net/socket.h"
 #include "net/handler.h"
+#include "net/inet_address.h"
 
 NS_BEGIN(sk)
+
+class connector;
+typedef std::shared_ptr<connector> connector_ptr;
 
 class connector : public handler {
 public:
     MAKE_NONCOPYABLE(connector);
 
-    static handler_ptr create(reactor *r);
+    static connector_ptr create(reactor *r);
     virtual ~connector() = default;
 
-    int connect(const std::string& addr, u16 port);
+    int connect(const inet_address& addr);
 
     virtual void on_event(int event) override;
     virtual int handle() const override { return socket_->fd(); }
