@@ -9,7 +9,7 @@ connector_ptr connector::create(reactor *r, const fn_on_connection& fn) {
     auto sock = socket::create();
     if (!sock) return nullptr;
 
-    auto ptr = connector_ptr(new connector(r, fn));
+    auto ptr = std::make_shared<connector>(r, fn);
     if (!ptr) return nullptr;
 
     ptr->socket_ = sock;

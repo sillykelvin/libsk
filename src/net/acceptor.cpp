@@ -9,7 +9,7 @@ acceptor_ptr acceptor::create(reactor *r, const fn_on_connection& fn) {
     auto sock = socket::create();
     if (!sock) return nullptr;
 
-    auto ptr = acceptor_ptr(new acceptor(r, fn));
+    auto ptr = std::make_shared<acceptor>(r, fn);
     if (!ptr) return nullptr;
 
     ptr->socket_ = sock;
