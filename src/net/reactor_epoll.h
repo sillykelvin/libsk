@@ -13,6 +13,8 @@ public:
     static reactor_epoll *create();
     virtual ~reactor_epoll();
 
+    virtual bool event_registered(const handler_ptr& h, int event_flag) override;
+
     virtual int register_handler(const handler_ptr& h, int event_flag) override;
     virtual int deregister_handler(const handler_ptr& h, int event_flag) override;
 

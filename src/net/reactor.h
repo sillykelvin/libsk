@@ -17,6 +17,15 @@ public:
     virtual ~reactor() = default;
 
     /**
+     * @brief event_registered will return whether the
+     *        specified event registered or not
+     * @param h: the handler
+     * @param event_flag: the event(s) to be queried
+     * @return true if registered, false if not
+     */
+    virtual bool event_registered(const handler_ptr& h, int event_flag) = 0;
+
+    /**
      * @brief register_handler will register the handler h
      *        on events specified by event_flag
      * @param h: the handler

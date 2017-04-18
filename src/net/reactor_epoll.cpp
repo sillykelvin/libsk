@@ -28,6 +28,13 @@ reactor_epoll::~reactor_epoll() {
     // TODO: process contexts_ here?
 }
 
+bool reactor_epoll::event_registered(const handler_ptr& h, int event_flag) {
+    auto it = contexts_.find(h->handle());
+    if (it == contexts_.end()) return false;
+
+    return (it->second.flag & event_flag);
+}
+
 int reactor_epoll::register_handler(const handler_ptr& h, int event_flag) {
     int op = EPOLL_CTL_ADD;
     auto it = contexts_.find(h->handle());
