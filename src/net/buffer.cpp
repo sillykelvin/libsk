@@ -16,6 +16,10 @@ buffer::~buffer() {
         free(address_);
         address_ = nullptr;
     }
+
+    capacity_ = 0;
+    rindex_ = 0;
+    windex_ = 0;
 }
 
 void buffer::append(const void *data, size_t len) {
