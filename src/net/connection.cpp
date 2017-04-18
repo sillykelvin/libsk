@@ -15,8 +15,8 @@ connection::connection(reactor *r,
                        const socket_ptr& socket,
                        const inet_address& local_addr,
                        const inet_address& remote_addr)
-    : state_(state_disconnected),
-      handler(r),
+    : handler(r),
+      state_(state_disconnected),
       socket_(socket),
       local_addr_(local_addr),
       remote_addr_(remote_addr)
