@@ -16,32 +16,12 @@ public:
     reactor() = default;
     virtual ~reactor() = default;
 
-    /**
-     * @brief event_registered will return whether the
-     *        specified event registered or not
-     * @param h: the handler
-     * @param event_flag: the event(s) to be queried
-     * @return true if registered, false if not
-     */
-    virtual bool event_registered(const handler_ptr& h, int event_flag) = 0;
-
-    /**
-     * @brief register_handler will register the handler h
-     *        on events specified by event_flag
-     * @param h: the handler
-     * @param event_flag: the ORed events
-     * @return 0 if succeeds, -1 on error and errno will be set
-     */
-    virtual int register_handler(const handler_ptr& h, int event_flag) = 0;
-
-    /**
-     * @brief deregister_handler will remove the handler h
-     *        on events specified by event_flag
-     * @param h: the handler
-     * @param event_flag: the ORed events
-     * @return 0 if succeeds, -1 on error and errno will be set
-     */
-    virtual int deregister_handler(const handler_ptr& h, int event_flag) = 0;
+    virtual void enable_reading(const handler_ptr& h) = 0;
+    virtual void enable_writing(const handler_ptr& h) = 0;
+    virtual void disable_reading(const handler_ptr& h) = 0;
+    virtual void disable_writing(const handler_ptr& h) = 0;
+    virtual bool reading_enabled(const handler_ptr& h) const = 0;
+    virtual bool writing_enabled(const handler_ptr& h) const = 0;
 
     /**
      * @brief dispatch occurred events to corresponding handlers

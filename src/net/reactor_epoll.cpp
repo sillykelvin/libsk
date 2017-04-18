@@ -28,59 +28,34 @@ reactor_epoll::~reactor_epoll() {
     // TODO: process contexts_ here?
 }
 
-bool reactor_epoll::event_registered(const handler_ptr& h, int event_flag) {
+void reactor_epoll::enable_reading(const handler_ptr& h) {
+    enable_event(h, EVENT_READABLE);
+}
+
+void reactor_epoll::enable_writing(const handler_ptr& h) {
+    enable_event(h, EVENT_WRITABLE);
+}
+
+void reactor_epoll::disable_reading(const handler_ptr& h) {
+    disable_event(h, EVENT_READABLE);
+}
+
+void reactor_epoll::disable_writing(const handler_ptr& h) {
+    disable_event(h, EVENT_WRITABLE);
+}
+
+bool reactor_epoll::reading_enabled(const handler_ptr& h) const {
     auto it = contexts_.find(h->handle());
     if (it == contexts_.end()) return false;
 
-    return (it->second.flag & event_flag);
+    return it->second.event & EVENT_READABLE;
 }
 
-int reactor_epoll::register_handler(const handler_ptr& h, int event_flag) {
-    int op = EPOLL_CTL_ADD;
+bool reactor_epoll::writing_enabled(const handler_ptr& h) const {
     auto it = contexts_.find(h->handle());
-    if (it != contexts_.end()) {
-        event_flag |= it->second.flag;
-        if (likely(it->second.flag != EVENT_NONE))
-            op = EPOLL_CTL_MOD;
-    }
+    if (it == contexts_.end()) return false;
 
-    struct epoll_event e;
-    memset(&e, 0x00, sizeof(e));
-    if (event_flag & EVENT_READABLE) e.events |= EPOLLIN;
-    if (event_flag & EVENT_WRITABLE) e.events |= EPOLLOUT;
-    e.data.fd = h->handle();
-
-    int ret = epoll_ctl(epfd_, op, h->handle(), &e);
-    if (ret != 0) return ret;
-
-    if (it != contexts_.end()) it->second.flag = event_flag;
-    else contexts_.insert(std::make_pair(h->handle(), context(event_flag, h)));
-
-    return 0;
-}
-
-int reactor_epoll::deregister_handler(const handler_ptr& h, int event_flag) {
-    auto it = contexts_.find(h->handle());
-    if (it == contexts_.end()) return 0;
-
-    int flag = it->second.flag & (~event_flag);
-    int op = (flag == EVENT_NONE) ? EPOLL_CTL_DEL : EPOLL_CTL_MOD;
-
-    struct epoll_event e;
-    memset(&e, 0x00, sizeof(e));
-    if (flag & EVENT_READABLE) e.events |= EPOLLIN;
-    if (flag & EVENT_WRITABLE) e.events |= EPOLLOUT;
-    e.data.fd = h->handle();
-
-    int ret = epoll_ctl(epfd_, op, h->handle(), &e);
-    if (ret != 0) return ret;
-
-    if (flag == EVENT_NONE)
-        contexts_.erase(it);
-    else
-        it->second.flag = flag;
-
-    return 0;
+    return it->second.event & EVENT_WRITABLE;
 }
 
 int reactor_epoll::dispatch(int timeout) {
@@ -118,6 +93,54 @@ int reactor_epoll::dispatch(int timeout) {
     }
 
     return nfds;
+}
+
+void reactor_epoll::enable_event(const handler_ptr& h, int event) {
+    int op = EPOLL_CTL_ADD;
+    auto it = contexts_.find(h->handle());
+    if (it != contexts_.end()) {
+        event |= it->second.event;
+        if (likely(it->second.event != EVENT_NONE))
+            op = EPOLL_CTL_MOD;
+    }
+
+    struct epoll_event e;
+    memset(&e, 0x00, sizeof(e));
+    if (event & EVENT_READABLE) e.events |= EPOLLIN;
+    if (event & EVENT_WRITABLE) e.events |= EPOLLOUT;
+    e.data.fd = h->handle();
+
+    int ret = epoll_ctl(epfd_, op, h->handle(), &e);
+    if (ret != 0) {
+        sk_fatal("epoll_ctl error: %s.", strerror(errno));
+        return;
+    }
+
+    if (it != contexts_.end()) it->second.event = event;
+    else contexts_.insert(std::make_pair(h->handle(), context(event, h)));
+}
+
+void reactor_epoll::disable_event(const handler_ptr& h, int event) {
+    auto it = contexts_.find(h->handle());
+    if (it == contexts_.end()) return;
+
+    event = it->second.event & (~event);
+    int op = (event == EVENT_NONE) ? EPOLL_CTL_DEL : EPOLL_CTL_MOD;
+
+    struct epoll_event e;
+    memset(&e, 0x00, sizeof(e));
+    if (event & EVENT_READABLE) e.events |= EPOLLIN;
+    if (event & EVENT_WRITABLE) e.events |= EPOLLOUT;
+    e.data.fd = h->handle();
+
+    int ret = epoll_ctl(epfd_, op, h->handle(), &e);
+    if (ret != 0) {
+        sk_fatal("epoll_ctl error: %s.", strerror(errno));
+        return;
+    }
+
+    if (event == EVENT_NONE) contexts_.erase(it);
+    else it->second.event = event;
 }
 
 NS_END(sk)

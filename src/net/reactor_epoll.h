@@ -13,10 +13,12 @@ public:
     static reactor_epoll *create();
     virtual ~reactor_epoll();
 
-    virtual bool event_registered(const handler_ptr& h, int event_flag) override;
-
-    virtual int register_handler(const handler_ptr& h, int event_flag) override;
-    virtual int deregister_handler(const handler_ptr& h, int event_flag) override;
+    virtual void enable_reading(const handler_ptr& h) override;
+    virtual void enable_writing(const handler_ptr& h) override;
+    virtual void disable_reading(const handler_ptr& h) override;
+    virtual void disable_writing(const handler_ptr& h) override;
+    virtual bool reading_enabled(const handler_ptr& h) const override;
+    virtual bool writing_enabled(const handler_ptr& h) const override;
 
     virtual int dispatch(int timeout) override;
 
@@ -24,11 +26,15 @@ private:
     reactor_epoll() : epfd_(-1) {}
 
 private:
+    void enable_event(const handler_ptr& h, int event);
+    void disable_event(const handler_ptr& h, int event);
+
+private:
     struct context {
-        int flag;
+        int event;
         handler_ptr h;
 
-        context(int flag, const handler_ptr& h) : flag(flag), h(h) {}
+        context(int event, const handler_ptr& h) : event(event), h(h) {}
     };
 
     int epfd_;
