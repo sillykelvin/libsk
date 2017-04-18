@@ -123,6 +123,7 @@ void reactor_epoll::enable_event(const handler_ptr& h, int event) {
 void reactor_epoll::disable_event(const handler_ptr& h, int event) {
     auto it = contexts_.find(h->handle());
     if (it == contexts_.end()) return;
+    if (!(it->second.event & event)) return;
 
     event = it->second.event & (~event);
     int op = (event == EVENT_NONE) ? EPOLL_CTL_DEL : EPOLL_CTL_MOD;
