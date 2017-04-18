@@ -14,6 +14,7 @@ public:
     static const size_t default_buffer_size = 512;
 
     buffer(size_t buffer_size = default_buffer_size);
+    buffer(const void *data, size_t len);
     ~buffer();
 
     void append(const void *data, size_t len);
@@ -26,6 +27,11 @@ public:
     size_t size() const {
         sk_assert(windex_ >= rindex_);
         return windex_ - rindex_;
+    }
+
+    bool empty() const {
+        sk_assert(windex_ >= rindex_);
+        return windex_ == rindex_;
     }
 
 private:

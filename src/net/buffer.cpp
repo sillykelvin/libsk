@@ -11,6 +11,18 @@ buffer::buffer(size_t buffer_size) {
     windex_ = 0;
 }
 
+buffer::buffer(const void *data, size_t len) {
+    capacity_ = len;
+    address_ = malloc(capacity_);
+    sk_assert(address_);
+
+    rindex_ = 0;
+    windex_ = 0;
+
+    memcpy(address_, data, len);
+    windex_ += len;
+}
+
 buffer::~buffer() {
     if (address_) {
         free(address_);
