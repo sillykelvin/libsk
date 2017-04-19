@@ -11,7 +11,7 @@
 NS_BEGIN(sk)
 
 socket_ptr socket::create() {
-    return std::make_shared<socket>();
+    return socket_ptr(new socket());
 }
 
 socket::~socket() {

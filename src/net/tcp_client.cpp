@@ -8,7 +8,7 @@ tcp_client_ptr tcp_client::create(reactor *r, const std::string& host,
     auto sock = socket::create();
     if (!sock) return nullptr;
 
-    auto ptr = std::make_shared<tcp_client>(r, host, port, fn);
+    auto ptr = tcp_client_ptr(new tcp_client(r, host, port, fn));
     if (!ptr) return nullptr;
 
     ptr->socket_ = sock;

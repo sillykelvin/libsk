@@ -8,7 +8,7 @@ tcp_server_ptr tcp_server::create(reactor *r, int backlog,
     auto sock = socket::create();
     if (!sock) return nullptr;
 
-    auto ptr = std::make_shared<tcp_server>(r, backlog, port, fn);
+    auto ptr = tcp_server_ptr(new tcp_server(r, backlog, port, fn));
     if (!ptr) return nullptr;
 
     ptr->socket_ = sock;
