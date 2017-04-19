@@ -44,6 +44,10 @@ void reactor_epoll::disable_writing(const handler_ptr& h) {
     disable_event(h, EVENT_WRITABLE);
 }
 
+void reactor_epoll::disable_all(const handler_ptr& h) {
+    disable_event(h, EVENT_READABLE | EVENT_WRITABLE);
+}
+
 bool reactor_epoll::reading_enabled(const handler_ptr& h) const {
     auto it = contexts_.find(h->handle());
     if (it == contexts_.end()) return false;

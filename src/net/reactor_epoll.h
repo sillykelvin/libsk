@@ -17,6 +17,7 @@ public:
     virtual void enable_writing(const handler_ptr& h) override;
     virtual void disable_reading(const handler_ptr& h) override;
     virtual void disable_writing(const handler_ptr& h) override;
+    virtual void disable_all(const handler_ptr& h) override;
     virtual bool reading_enabled(const handler_ptr& h) const override;
     virtual bool writing_enabled(const handler_ptr& h) const override;
 

@@ -20,6 +20,7 @@ public:
     virtual void enable_writing(const handler_ptr& h) = 0;
     virtual void disable_reading(const handler_ptr& h) = 0;
     virtual void disable_writing(const handler_ptr& h) = 0;
+    virtual void disable_all(const handler_ptr& h) = 0;
     virtual bool reading_enabled(const handler_ptr& h) const = 0;
     virtual bool writing_enabled(const handler_ptr& h) const = 0;
 
