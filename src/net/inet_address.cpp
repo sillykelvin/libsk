@@ -19,7 +19,7 @@ inet_address::inet_address(const std::string& ip, u16 port) {
     addr_.sin_family = AF_INET;
     addr_.sin_port = htons(port);
     int ret = inet_pton(AF_INET, ip.c_str(), &addr_.sin_addr);
-    sk_assert(ret == 0);
+    sk_assert(ret == 1);
 }
 
 inet_address::inet_address(const sockaddr_in& addr) {
