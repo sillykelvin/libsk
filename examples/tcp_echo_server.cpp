@@ -19,23 +19,7 @@ int main() {
     }
 
     auto server = tcp_server::create(r, 32, 8888,
-                                     [](const connection_ptr& conn) {
-        conn->set_read_callback([](const connection_ptr& conn, buffer *buf) {
-            std::string str(buf->peek(), buf->size());
-            cout << "received: " << str << endl;
-
-            conn->send(buf->peek(), buf->size());
-            buf->consume(buf->size());
-        });
-
-        conn->set_write_callback([](const connection_ptr& conn) {
-            cout << "data written back" << endl;
-        });
-
-        conn->set_close_callback([](const connection_ptr& conn) {
-            cout << "connection closed" << endl;
-        });
-
+                                     [](const tcp_connection_ptr& conn) {
         conn->recv();
     });
 
@@ -44,13 +28,26 @@ int main() {
         return -3;
     }
 
+    server->set_message_callback([](const tcp_connection_ptr& conn, buffer *buf) {
+        std::string str(buf->peek(), buf->size());
+        cout << "received: " << str << endl;
+
+        conn->send(buf->peek(), buf->size());
+        buf->consume(buf->size());
+    });
+
+    server->set_write_callback([](const tcp_connection_ptr& conn) {
+        cout << "data written back" << endl;
+    });
+
     ret = server->start();
     if (ret != 0) {
         cout << "fuck 4" << endl;
         return -4;
     }
 
-    while (1) r->dispatch(-1);
+    while (r->has_event())
+        r->dispatch(-1);
     cout << "exit" << endl;
     return 0;
 }

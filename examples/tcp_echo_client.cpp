@@ -19,35 +19,10 @@ int main() {
     }
 
     auto client = tcp_client::create(r, "127.0.0.1", 8888,
-                                     [](int error, const connection_ptr& conn) {
-        if (error != 0) {
-            cout << "error: " << strerror(error) << endl;
-            return;
-        }
-
-        conn->set_read_callback([](const connection_ptr& conn, buffer *buf) {
-            std::string str(buf->peek(), buf->size());
-            buf->consume(buf->size());
-            cout << "received: " << str << endl;
-
-            if (str == "abc")
-                conn->send("def", 3);
-            else if (str == "def")
-                conn->send("quit", 4);
-            else
-                conn->close();
-        });
-
-        conn->set_write_callback([](const connection_ptr& conn) {
-            cout << "data written" << endl;
-            conn->recv();
-        });
-
-        conn->set_close_callback([](const connection_ptr& conn) {
-            cout << "connection closed" << endl;
-        });
-
+                                     [](const tcp_connection_ptr& conn) {
         conn->send("abc", 3);
+    }, [](int error) {
+        cout << "error: " << strerror(error) << endl;
     });
 
     if (!client) {
@@ -55,13 +30,32 @@ int main() {
         return -3;
     }
 
+    client->set_message_callback([](const tcp_connection_ptr& conn, buffer *buf) {
+        std::string str(buf->peek(), buf->size());
+        buf->consume(buf->size());
+        cout << "received: " << str << endl;
+
+        if (str == "abc")
+            conn->send("def", 3);
+        else if (str == "def")
+            conn->send("quit", 4);
+        else
+            conn->close();
+    });
+
+    client->set_write_callback([](const tcp_connection_ptr& conn) {
+        cout << "data written" << endl;
+        conn->recv();
+    });
+
     ret = client->connect();
     if (ret != 0) {
         cout << "fuck 4" << endl;
         return -4;
     }
 
-    while (1) r->dispatch(-1);
+    while (r->has_event())
+        r->dispatch(-1);
     cout << "exit" << endl;
     return 0;
 }
