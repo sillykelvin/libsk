@@ -16,7 +16,7 @@ public:
     MAKE_NONCOPYABLE(socket);
 
     static socket_ptr create();
-    virtual ~socket();
+    ~socket();
 
     int fd() const { return fd_; }
 
@@ -44,6 +44,7 @@ public:
      */
     ssize_t recv(void *buf, size_t len);
 
+    static int get_error(int fd);
     static int set_reuseaddr(int fd);
     static int set_nodelay(int fd, bool on);
     static int set_cloexec(int fd, bool on);

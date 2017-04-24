@@ -15,6 +15,7 @@ socket_ptr socket::create() {
 }
 
 socket::~socket() {
+    sk_trace("~socket(%d)", fd_);
     if (fd_ != -1) {
         ::close(fd_);
         fd_ = -1;
@@ -227,6 +228,16 @@ ssize_t socket::recv(void *buf, size_t len) {
         return nbytes;
 
     return nbytes;
+}
+
+int socket::get_error(int fd) {
+    int value = 0;
+    socklen_t len = static_cast<socklen_t>(sizeof(value));
+
+    int ret = getsockopt(fd, SOL_SOCKET, SO_ERROR, &value, &len);
+    if (ret == -1) return errno;
+
+    return value;
 }
 
 int socket::set_reuseaddr(int fd) {
