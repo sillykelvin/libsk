@@ -44,7 +44,6 @@ ssize_t tcp_connection::send(const void *data, size_t len) {
 
     outgoing_.append(sk::byte_offset<const void>(data, nbytes), remaining);
 
-    auto self(shared_from_this());
     if (!handler_->writing_enabled())
         handler_->enable_writing();
 
@@ -86,7 +85,8 @@ void tcp_connection::on_read() {
     } else if (nbytes == 0) {
         on_close();
     } else {
-        on_error();
+        int error = socket::get_error(socket_->fd());
+        sk_error("recv error: %s.", strerror(error));
     }
 }
 
@@ -101,7 +101,8 @@ void tcp_connection::on_write() {
                 fn_on_write_(shared_from_this());
         }
     } else {
-        on_error();
+        int error = socket::get_error(socket_->fd());
+        sk_error("send error: %s.", strerror(error));
     }
 }
 
