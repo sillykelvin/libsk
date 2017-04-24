@@ -19,6 +19,7 @@ public:
     reactor() = default;
     virtual ~reactor() = default;
 
+    virtual bool has_event() const;
     virtual bool has_handler(event_handler *h) const;
 
     virtual void update_handler(event_handler *h) = 0;
