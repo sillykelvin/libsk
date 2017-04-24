@@ -23,11 +23,6 @@ socket::~socket() {
 }
 
 int socket::connect(const inet_address& addr) {
-    assert_retval(fd_ == -1, -1);
-
-    fd_ = make_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (fd_ == -1) return -1;
-
     int ret = 0;
     do {
         errno = 0;
@@ -81,11 +76,6 @@ int socket::connect(const inet_address& addr) {
 }
 
 int socket::listen(const inet_address& addr, int backlog) {
-    assert_retval(fd_ == -1, -1);
-
-    fd_ = make_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (fd_ == -1) return -1;
-
     int ret = ::bind(fd_, addr.address(), addr.length());
     if (ret != 0) {
         ::close(fd_);
@@ -141,8 +131,6 @@ int socket::listen(const inet_address& addr, int backlog) {
 }
 
 socket_ptr socket::accept(inet_address& addr) {
-    assert_retval(fd_ != -1, nullptr);
-
     int fd = -1;
     socklen_t addrlen = 0;
 
@@ -189,8 +177,6 @@ socket_ptr socket::accept(inet_address& addr) {
 }
 
 ssize_t socket::send(const void *buf, size_t len) {
-    assert_retval(fd_ != -1, -1);
-
     ssize_t nbytes = 0;
     do {
         nbytes = write(fd_, buf, len);
@@ -207,8 +193,6 @@ ssize_t socket::send(const void *buf, size_t len) {
 }
 
 ssize_t socket::recv(void *buf, size_t len) {
-    assert_retval(fd_ != -1, -1);
-
     ssize_t nbytes = 0;
     do {
         nbytes = read(fd_, buf, len);

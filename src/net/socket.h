@@ -54,10 +54,10 @@ public:
     static int set_keepalive(int fd, int idle, int interval, int count);
 
 private:
-    int make_socket(int domain, int type, int protocol);
+    static int make_socket(int domain, int type, int protocol);
 
 private:
-    socket() : fd_(-1) {}
+    socket() : fd_(make_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) {}
 
 private:
     int fd_;
