@@ -1,18 +1,17 @@
 #include "tcp_server.h"
 #include "net/reactor.h"
+#include "log/log.h"
 
 NS_BEGIN(sk)
 
-tcp_server_ptr tcp_server::create(reactor *r, int backlog,
-                                  u16 port, const fn_on_connection& fn) {
-    auto sock = socket::create();
-    if (!sock) return nullptr;
+tcp_server_ptr tcp_server::create(reactor *r, int backlog, u16 port,
+                                  const fn_on_connection_event& fn_on_connection) {
+    return tcp_server_ptr(new tcp_server(r, backlog, port, fn_on_connection));
+}
 
-    auto ptr = tcp_server_ptr(new tcp_server(r, backlog, port, fn));
-    if (!ptr) return nullptr;
-
-    ptr->socket_ = sock;
-    return ptr;
+tcp_server::~tcp_server() {
+    sk_trace("~tcp_server(%s, %d, %lu)",
+             addr_.to_string().c_str(), socket_->fd(), connections_.size());
 }
 
 int tcp_server::start() {
@@ -23,11 +22,11 @@ int tcp_server::start() {
         return ret;
     }
 
-    reactor_->enable_reading(shared_from_this());
+    handler_->enable_reading();
     return 0;
 }
 
-void tcp_server::remove_connection(const connection_ptr& conn) {
+void tcp_server::remove_connection(const tcp_connection_ptr& conn) {
     auto it = connections_.find(conn);
     if (it == connections_.end()) {
         sk_warn("cannot find connection: %s.",
@@ -38,15 +37,7 @@ void tcp_server::remove_connection(const connection_ptr& conn) {
     connections_.erase(it);
 }
 
-void tcp_server::on_event(int event) {
-    // TODO: what should we do for the two events?
-    if (event & reactor::EVENT_EPOLLERR)
-        sk_error("epollerr");
-    if (event & reactor::EVENT_EPOLLHUP)
-        sk_error("epollhup");
-
-    sk_assert(event & reactor::EVENT_READABLE);
-
+void tcp_server::on_accept() {
     inet_address addr(0);
     auto client = socket_->accept(addr);
     if (!client) {
@@ -54,11 +45,11 @@ void tcp_server::on_event(int event) {
         return;
     }
 
-    auto conn = connection::create(reactor_, client, addr);
-    if (!conn) {
-        sk_fatal("cannot create connection.");
-        return;
-    }
+    auto conn = tcp_connection::create(reactor_, client, addr);
+    conn->set_message_callback(fn_on_message_);
+    conn->set_write_callback(fn_on_write_);
+    conn->set_close_callback(std::bind(&tcp_server::remove_connection,
+                                       this, std::placeholders::_1));
 
     connections_.insert(conn);
     fn_on_connection_(conn);

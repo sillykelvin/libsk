@@ -2,39 +2,52 @@
 #define TCP_SERVER_H
 
 #include <set>
-#include "net/connection.h"
+#include "net/tcp_connection.h"
 
 NS_BEGIN(sk)
 
 class tcp_server;
 typedef std::shared_ptr<tcp_server> tcp_server_ptr;
 
-class tcp_server : public handler {
+class tcp_server {
 public:
     MAKE_NONCOPYABLE(tcp_server);
-    typedef std::function<void(const connection_ptr&)> fn_on_connection;
 
-    static tcp_server_ptr create(reactor *r, int backlog,
-                                 u16 port, const fn_on_connection& fn);
-    // TODO: should we destroy connections_ manually in destructor?
-    virtual ~tcp_server() = default;
+    static tcp_server_ptr create(reactor *r, int backlog, u16 port,
+                                 const fn_on_connection_event& fn_on_connection);
+    ~tcp_server();
 
     int start();
-    void remove_connection(const connection_ptr& conn);
+    void remove_connection(const tcp_connection_ptr& conn);
 
-    virtual void on_event(int event) override;
-    virtual int handle() const override { return socket_->fd(); }
-
-private:
-    tcp_server(reactor *r, int backlog, u16 port, const fn_on_connection& fn)
-        : handler(r), backlog_(backlog), addr_(port), fn_on_connection_(fn) {}
+    void set_message_callback(const fn_on_connection_message& fn) { fn_on_message_ = fn; }
+    void set_write_callback(const fn_on_connection_event& fn) { fn_on_write_ = fn; }
 
 private:
-    int backlog_;
+    tcp_server(reactor *r, int backlog, u16 port,
+               const fn_on_connection_event& fn_on_connection)
+        : reactor_(r), backlog_(backlog),
+          addr_(port), socket_(socket::create()),
+          handler_(new event_handler(r, socket_->fd())),
+          fn_on_connection_(fn_on_connection) {
+        handler_->set_read_callback(std::bind(&tcp_server::on_accept, this));
+    }
+
+private:
+    void on_accept();
+
+private:
+    reactor *reactor_;
+    const int backlog_;
     inet_address addr_;
     socket_ptr socket_;
-    fn_on_connection fn_on_connection_;
-    std::set<connection_ptr> connections_;
+    std::unique_ptr<event_handler> handler_;
+    fn_on_connection_event fn_on_connection_;
+    std::set<tcp_connection_ptr> connections_;
+
+    // optional callbacks
+    fn_on_connection_message fn_on_message_;
+    fn_on_connection_event fn_on_write_;
 };
 
 NS_END(sk)
