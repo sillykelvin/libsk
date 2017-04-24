@@ -1,0 +1,12 @@
+<log_config>
+  <categories>
+    <name>default</name>
+    <pattern>[%T][%L][(%f:%l) (%F)] %m</pattern>
+    <level>DEBUG</level>
+    <fdev_list>
+      <path>./server.log</path>
+      <max_size>10485760</max_size>
+      <max_rotation>50</max_rotation>
+    </fdev_list>
+  </categories>
+</log_config>

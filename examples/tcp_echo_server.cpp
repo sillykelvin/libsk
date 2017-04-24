@@ -6,10 +6,16 @@ using namespace sk;
 using namespace std;
 
 int main() {
+    int ret = sk::logger::init("server_log.xml");
+    if (ret != 0) {
+        cout << "fuck 1" << endl;
+        return -1;
+    }
+
     reactor *r = reactor_epoll::create();
     if (!r) {
-        cout << "fuck" << endl;
-        return -1;
+        cout << "fuck 2" << endl;
+        return -2;
     }
 
     auto server = tcp_server::create(r, 32, 8888,
@@ -34,14 +40,14 @@ int main() {
     });
 
     if (!server) {
-        cout << "fuck 2" << endl;
-        return -2;
-    }
-
-    int ret = server->start();
-    if (ret != 0) {
         cout << "fuck 3" << endl;
         return -3;
+    }
+
+    ret = server->start();
+    if (ret != 0) {
+        cout << "fuck 4" << endl;
+        return -4;
     }
 
     while (1) r->dispatch(-1);

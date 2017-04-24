@@ -6,14 +6,25 @@ using namespace sk;
 using namespace std;
 
 int main() {
-    reactor *r = reactor_epoll::create();
-    if (!r) {
-        cout << "fuck" << endl;
+    int ret = sk::logger::init("client_log.xml");
+    if (ret != 0) {
+        cout << "fuck 1" << endl;
         return -1;
     }
 
+    reactor *r = reactor_epoll::create();
+    if (!r) {
+        cout << "fuck 2" << endl;
+        return -2;
+    }
+
     auto client = tcp_client::create(r, "127.0.0.1", 8888,
-                                     [](const connection_ptr& conn) {
+                                     [](int error, const connection_ptr& conn) {
+        if (error != 0) {
+            cout << "error: " << strerror(error) << endl;
+            return;
+        }
+
         conn->set_read_callback([](const connection_ptr& conn, buffer *buf) {
             std::string str(buf->peek(), buf->size());
             buf->consume(buf->size());
@@ -40,14 +51,14 @@ int main() {
     });
 
     if (!client) {
-        cout << "fuck 2" << endl;
-        return -2;
-    }
-
-    int ret = client->connect();
-    if (ret != 0) {
         cout << "fuck 3" << endl;
         return -3;
+    }
+
+    ret = client->connect();
+    if (ret != 0) {
+        cout << "fuck 4" << endl;
+        return -4;
     }
 
     while (1) r->dispatch(-1);
