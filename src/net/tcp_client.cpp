@@ -1,18 +1,19 @@
 #include "tcp_client.h"
 #include "net/reactor.h"
+#include "log/log.h"
 
 NS_BEGIN(sk)
 
-tcp_client_ptr tcp_client::create(reactor *r, const std::string& host,
-                                  u16 port, const fn_on_connection& fn) {
-    auto sock = socket::create();
-    if (!sock) return nullptr;
+tcp_client_ptr tcp_client::create(reactor *r, const std::string& host, u16 port,
+                                  const fn_on_connection_event& fn_on_connection,
+                                  const fn_on_error_event& fn_on_error) {
+    return tcp_client_ptr(new tcp_client(r, host, port, fn_on_connection, fn_on_error));
+}
 
-    auto ptr = tcp_client_ptr(new tcp_client(r, host, port, fn));
-    if (!ptr) return nullptr;
-
-    ptr->socket_ = sock;
-    return ptr;
+tcp_client::~tcp_client() {
+    sk_trace("~tcp_client(%s, %d, %s)",
+             addr_.to_string().c_str(), socket_ ? socket_->fd() : -1,
+             connection_ ? connection_->name().c_str() : "not connected");
 }
 
 int tcp_client::connect() {
@@ -29,30 +30,37 @@ int tcp_client::connect() {
     }
 
     state_ = state_connecting;
-    reactor_->enable_writing(shared_from_this());
+    handler_->enable_writing();
     return 0;
 }
 
-void tcp_client::on_event(int event) {
-    // TODO: what should we do for the two events?
-    if (event & reactor::EVENT_EPOLLERR)
-        sk_error("epollerr");
-    if (event & reactor::EVENT_EPOLLHUP)
-        sk_error("epollhup");
-
-    sk_assert(event & reactor::EVENT_WRITABLE);
+void tcp_client::on_connect() {
     sk_assert(state_ == state_connecting);
-
-    reactor_->disable_writing(shared_from_this());
-    connection_ = connection::create(reactor_, socket_, addr_);
-    if (!connection_) {
-        sk_fatal("cannot create connection.");
-        return;
-    }
-
     state_ = state_connected;
+
+    handler_->disable_all();
+    handler_.reset();
+
+    connection_ = tcp_connection::create(reactor_, socket_, addr_);
+    connection_->set_message_callback(fn_on_message_);
+    connection_->set_write_callback(fn_on_write_);
+    connection_->set_close_callback(std::bind(&tcp_client::remove_connection,
+                                              this, std::placeholders::_1));
+
     socket_.reset();
     fn_on_connection_(connection_);
+}
+
+void tcp_client::on_error() {
+    sk_assert(state_ == state_connecting);
+
+    int error = socket::get_error(socket_->fd());
+    sk_error("connect to %s error: %s.",
+             addr_.to_string().c_str(), strerror(error));
+
+    state_ = state_disconnected;
+    handler_->disable_writing();
+    fn_on_error_(error);
 }
 
 NS_END(sk)
