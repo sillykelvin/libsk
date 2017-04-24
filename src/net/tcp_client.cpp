@@ -34,6 +34,12 @@ int tcp_client::connect() {
     return 0;
 }
 
+void tcp_client::remove_connection(const tcp_connection_ptr& conn) {
+    sk_assert(conn == connection_);
+
+    connection_.reset();
+}
+
 void tcp_client::on_connect() {
     sk_assert(state_ == state_connecting);
     state_ = state_connected;
