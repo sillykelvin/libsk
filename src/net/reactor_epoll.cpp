@@ -2,6 +2,7 @@
 #include <string.h>
 #include <sys/epoll.h>
 #include "reactor_epoll.h"
+#include "net/event_handler.h"
 #include "utility/assert_helper.h"
 
 NS_BEGIN(sk)
@@ -28,38 +29,39 @@ reactor_epoll::~reactor_epoll() {
     // TODO: process contexts_ here?
 }
 
-void reactor_epoll::enable_reading(const handler_ptr& h) {
-    enable_event(h, EVENT_READABLE);
-}
+void reactor_epoll::update_handler(event_handler *h) {
+    int op = EPOLL_CTL_ADD;
+    auto it = handlers_.find(h->fd());
+    if (it == handlers_.end()) {
+        sk_assert(h->has_event());
+    } else {
+        sk_assert(it->second == h);
 
-void reactor_epoll::enable_writing(const handler_ptr& h) {
-    enable_event(h, EVENT_WRITABLE);
-}
+        if (h->has_event())
+            op = EPOLL_CTL_MOD;
+        else
+            op = EPOLL_CTL_DEL;
+    }
 
-void reactor_epoll::disable_reading(const handler_ptr& h) {
-    disable_event(h, EVENT_READABLE);
-}
+    int events = h->events();
+    struct epoll_event e;
+    memset(&e, 0x00, sizeof(e));
+    if (events & EVENT_READABLE) e.events |= EPOLLIN;
+    if (events & EVENT_WRITABLE) e.events |= EPOLLOUT;
+    e.data.fd = h->fd();
 
-void reactor_epoll::disable_writing(const handler_ptr& h) {
-    disable_event(h, EVENT_WRITABLE);
-}
+    int ret = epoll_ctl(epfd_, op, h->fd(), &e);
+    if (ret != 0) {
+        sk_fatal("epoll_ctl error: %s.", strerror(errno));
+        return;
+    }
 
-void reactor_epoll::disable_all(const handler_ptr& h) {
-    disable_event(h, EVENT_READABLE | EVENT_WRITABLE);
-}
-
-bool reactor_epoll::reading_enabled(const handler_ptr& h) const {
-    auto it = contexts_.find(h->handle());
-    if (it == contexts_.end()) return false;
-
-    return it->second.event & EVENT_READABLE;
-}
-
-bool reactor_epoll::writing_enabled(const handler_ptr& h) const {
-    auto it = contexts_.find(h->handle());
-    if (it == contexts_.end()) return false;
-
-    return it->second.event & EVENT_WRITABLE;
+    if (it == handlers_.end()) {
+        handlers_.insert(std::make_pair(h->fd(), h));
+    } else {
+        if (op == EPOLL_CTL_DEL)
+            handlers_.erase(it);
+    }
 }
 
 int reactor_epoll::dispatch(int timeout) {
@@ -77,75 +79,25 @@ int reactor_epoll::dispatch(int timeout) {
 
     for (int i = 0; i < nfds; ++i) {
         struct epoll_event *e = events + i;
-        int handle = e->data.fd;
-        assert_continue(handle >= 0);
+        int fd = e->data.fd;
+        assert_continue(fd >= 0);
 
-        auto it = contexts_.find(handle);
-        assert_continue(it != contexts_.end());
+        auto it = handlers_.find(fd);
+        assert_continue(it != handlers_.end());
 
-        int event = 0;
-        if (e->events & EPOLLIN)  event |= EVENT_READABLE;
-        if (e->events & EPOLLOUT) event |= EVENT_WRITABLE;
-        if (e->events & EPOLLERR) event |= EVENT_EPOLLERR;
-        if (e->events & EPOLLHUP) event |= EVENT_EPOLLHUP;
+        int events = 0;
+        if (e->events & EPOLLIN)  events |= EVENT_READABLE;
+        if (e->events & EPOLLOUT) events |= EVENT_WRITABLE;
+        if (e->events & EPOLLERR) events |= EVENT_EPOLLERR;
+        if (e->events & EPOLLHUP) events |= EVENT_EPOLLHUP;
 
         // NOTE: the handler might register/deregister handlers
         // in handler::on_event(...) function, thus the iterator
         // "it" might be invalidated in this call
-        handler_ptr h = it->second.h;
-        h->on_event(event);
+        it->second->on_event(events);
     }
 
     return nfds;
-}
-
-void reactor_epoll::enable_event(const handler_ptr& h, int event) {
-    int op = EPOLL_CTL_ADD;
-    auto it = contexts_.find(h->handle());
-    if (it != contexts_.end()) {
-        event |= it->second.event;
-        if (likely(it->second.event != EVENT_NONE))
-            op = EPOLL_CTL_MOD;
-    }
-
-    struct epoll_event e;
-    memset(&e, 0x00, sizeof(e));
-    if (event & EVENT_READABLE) e.events |= EPOLLIN;
-    if (event & EVENT_WRITABLE) e.events |= EPOLLOUT;
-    e.data.fd = h->handle();
-
-    int ret = epoll_ctl(epfd_, op, h->handle(), &e);
-    if (ret != 0) {
-        sk_fatal("epoll_ctl error: %s.", strerror(errno));
-        return;
-    }
-
-    if (it != contexts_.end()) it->second.event = event;
-    else contexts_.insert(std::make_pair(h->handle(), context(event, h)));
-}
-
-void reactor_epoll::disable_event(const handler_ptr& h, int event) {
-    auto it = contexts_.find(h->handle());
-    if (it == contexts_.end()) return;
-    if (!(it->second.event & event)) return;
-
-    event = it->second.event & (~event);
-    int op = (event == EVENT_NONE) ? EPOLL_CTL_DEL : EPOLL_CTL_MOD;
-
-    struct epoll_event e;
-    memset(&e, 0x00, sizeof(e));
-    if (event & EVENT_READABLE) e.events |= EPOLLIN;
-    if (event & EVENT_WRITABLE) e.events |= EPOLLOUT;
-    e.data.fd = h->handle();
-
-    int ret = epoll_ctl(epfd_, op, h->handle(), &e);
-    if (ret != 0) {
-        sk_fatal("epoll_ctl error: %s.", strerror(errno));
-        return;
-    }
-
-    if (event == EVENT_NONE) contexts_.erase(it);
-    else it->second.event = event;
 }
 
 NS_END(sk)
