@@ -3,11 +3,15 @@
 #include "log/log.h"
 
 NS_BEGIN(sk)
+NS_BEGIN(net)
 
-tcp_client_ptr tcp_client::create(reactor *r, const std::string& host, u16 port,
-                                  const fn_on_connection_event& fn_on_connection,
-                                  const fn_on_error_event& fn_on_error) {
-    return tcp_client_ptr(new tcp_client(r, host, port, fn_on_connection, fn_on_error));
+tcp_client::tcp_client(reactor *r, const std::string& host,
+                       u16 port, const fn_on_connection& fn)
+    : state_(state_disconnected),
+      reactor_(r), addr_(host, port),
+      socket_(socket::create()), fn_on_connection_(fn),
+      handler_(new detail::handler(r, socket_->fd())) {
+    handler_->on_write_event(std::bind(&tcp_client::on_connect, this));
 }
 
 tcp_client::~tcp_client() {
@@ -37,36 +41,34 @@ int tcp_client::connect() {
 void tcp_client::remove_connection(const tcp_connection_ptr& conn) {
     sk_assert(conn == connection_);
 
+    state_ = state_disconnected;
     connection_.reset();
 }
 
 void tcp_client::on_connect() {
     sk_assert(state_ == state_connecting);
-    state_ = state_connected;
 
+    int error = socket::get_error(socket_->fd());
+    if (error != 0) {
+        state_ = state_disconnected;
+        handler_->disable_all();
+        return fn_on_connection_(error, nullptr);
+    }
+
+    state_ = state_connected;
     handler_->disable_all();
     handler_.reset();
 
-    connection_ = tcp_connection::create(reactor_, socket_, addr_);
-    connection_->set_message_callback(fn_on_message_);
-    connection_->set_write_callback(fn_on_write_);
-    connection_->set_close_callback(std::bind(&tcp_client::remove_connection,
-                                              this, std::placeholders::_1));
+    connection_ = tcp_connection_ptr(new tcp_connection(reactor_, socket_, addr_,
+                                                        std::bind(&tcp_client::remove_connection,
+                                                                  this, std::placeholders::_1)));
+
+    connection_->on_read_event(fn_on_read_);
+    connection_->on_write_event(fn_on_write_);
 
     socket_.reset();
-    fn_on_connection_(connection_);
+    fn_on_connection_(0, connection_);
 }
 
-void tcp_client::on_error() {
-    sk_assert(state_ == state_connecting);
-
-    int error = socket::get_error(socket_->fd());
-    sk_error("connect to %s error: %s.",
-             addr_.to_string().c_str(), strerror(error));
-
-    state_ = state_disconnected;
-    handler_->disable_writing();
-    fn_on_error_(error);
-}
-
+NS_END(net)
 NS_END(sk)

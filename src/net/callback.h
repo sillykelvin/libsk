@@ -6,6 +6,7 @@
 #include "utility/types.h"
 
 NS_BEGIN(sk)
+NS_BEGIN(net)
 
 class buffer;
 class tcp_connection;
@@ -16,6 +17,7 @@ typedef std::function<void(int)> fn_on_error_event;
 typedef std::function<void(const tcp_connection_ptr&)> fn_on_connection_event;
 typedef std::function<void(const tcp_connection_ptr&, buffer*)> fn_on_connection_message;
 
+NS_END(net)
 NS_END(sk)
 
 #endif // CALLBACK_H

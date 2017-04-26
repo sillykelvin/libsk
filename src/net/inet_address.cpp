@@ -4,6 +4,7 @@
 #include "utility/assert_helper.h"
 
 NS_BEGIN(sk)
+NS_BEGIN(net)
 
 inet_address::inet_address(u16 port) {
     memset(&addr_, 0x00, sizeof(addr_));
@@ -37,4 +38,5 @@ std::string inet_address::to_string() const {
     return addr;
 }
 
+NS_END(net)
 NS_END(sk)

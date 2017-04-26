@@ -6,6 +6,7 @@
 #include "utility/assert_helper.h"
 
 NS_BEGIN(sk)
+NS_BEGIN(net)
 
 class buffer {
 public:
@@ -44,6 +45,7 @@ private:
     size_t windex_;
 };
 
+NS_END(net)
 NS_END(sk)
 
 #endif // BUFFER_H

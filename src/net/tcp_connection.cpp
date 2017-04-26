@@ -1,12 +1,18 @@
 #include "tcp_connection.h"
 
 NS_BEGIN(sk)
+NS_BEGIN(net)
 
-tcp_connection_ptr tcp_connection::create(reactor *r,
-                                          const socket_ptr& socket,
-                                          const inet_address& remote_addr) {
-    sk_assert(socket);
-    return tcp_connection_ptr(new tcp_connection(r, socket, remote_addr));
+tcp_connection::tcp_connection(reactor *r, const socket_ptr& socket,
+                               const inet_address& remote_addr, const fn_on_close& fn)
+    : reactor_(r), socket_(socket), remote_addr_(remote_addr),
+      fn_on_close_(fn), handler_(new detail::handler(r, socket->fd())) {
+    char buf[64] = {0};
+    snprintf(buf, sizeof(buf), "[%d->%s]", socket_->fd(), remote_addr_.to_string().c_str());
+    name_ = buf;
+
+    handler_->on_read_event(std::bind(&tcp_connection::on_read, this));
+    handler_->on_write_event(std::bind(&tcp_connection::on_write, this));
 }
 
 tcp_connection::~tcp_connection() {
@@ -27,14 +33,16 @@ ssize_t tcp_connection::send(const void *data, size_t len) {
         if (nbytes >= 0) {
             remaining = len - nbytes;
             if (remaining <= 0 && fn_on_write_) {
-                fn_on_write_(shared_from_this());
+                fn_on_write_(0, shared_from_this());
                 return nbytes;
             }
         } else {
             // EAGAIN and EWOULDBLOCK can be ignored
             // due to this is a non-blocking socket
-            if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                sk_error("send error<%s>.", strerror(errno));
+            int error = errno;
+            sk_error("send error: %s.", strerror(error));
+            if (error != EAGAIN && error != EWOULDBLOCK) {
+                fn_on_write_(error, shared_from_this());
                 return -1;
             }
         }
@@ -43,10 +51,7 @@ ssize_t tcp_connection::send(const void *data, size_t len) {
     sk_assert(remaining > 0 && remaining <= len);
 
     outgoing_.append(sk::byte_offset<const void>(data, nbytes), remaining);
-
-    if (!handler_->writing_enabled())
-        handler_->enable_writing();
-
+    handler_->enable_writing();
     return nbytes;
 }
 
@@ -56,8 +61,7 @@ void tcp_connection::recv() {
         return;
     }
 
-    if (!handler_->reading_enabled())
-        handler_->enable_reading();
+    handler_->enable_reading();
 }
 
 void tcp_connection::close() {
@@ -67,12 +71,9 @@ void tcp_connection::close() {
         sk_warn("output queue is NOT empty!");
 
     handler_->disable_all();
-
-    // TODO: better handling here than just forcly close the socket fd
+    handler_->invalidate();
     socket_.reset();
-
-    if (fn_on_close_)
-        fn_on_close_(shared_from_this());
+    fn_on_close_(shared_from_this());
 }
 
 void tcp_connection::on_read() {
@@ -80,13 +81,18 @@ void tcp_connection::on_read() {
     ssize_t nbytes = socket_->recv(buf, sizeof(buf));
     if (nbytes > 0) {
         incoming_.append(buf, nbytes);
-        if (fn_on_message_)
-            fn_on_message_(shared_from_this(), &incoming_);
+        if (fn_on_read_)
+            fn_on_read_(0, shared_from_this(), &incoming_);
     } else if (nbytes == 0) {
-        on_close();
+        handler_->disable_reading();
+        fn_on_read_(EOF, shared_from_this(), &incoming_);
     } else {
-        int error = socket::get_error(socket_->fd());
+        int error = errno;
         sk_error("recv error: %s.", strerror(error));
+        if (error != EAGAIN && error != EWOULDBLOCK) {
+            handler_->disable_reading();
+            fn_on_read_(error, shared_from_this(), nullptr);
+        }
     }
 }
 
@@ -98,27 +104,17 @@ void tcp_connection::on_write() {
         if (outgoing_.empty()) {
             handler_->disable_writing();
             if (fn_on_write_)
-                fn_on_write_(shared_from_this());
+                fn_on_write_(0, shared_from_this());
         }
     } else {
-        int error = socket::get_error(socket_->fd());
+        int error = errno;
         sk_error("send error: %s.", strerror(error));
+        if (error != EAGAIN && error != EWOULDBLOCK) {
+            handler_->disable_writing();
+            fn_on_write_(error, shared_from_this());
+        }
     }
 }
 
-void tcp_connection::on_close() {
-    handler_->disable_all();
-
-    // TODO: better handling here than just forcly close the socket fd
-    socket_.reset();
-
-    if (fn_on_close_)
-        fn_on_close_(shared_from_this());
-}
-
-void tcp_connection::on_error() {
-    int error = socket::get_error(socket_->fd());
-    sk_error("connection error: %s.", strerror(error));
-}
-
+NS_END(net)
 NS_END(sk)

@@ -1,6 +1,7 @@
 #include "buffer.h"
 
 NS_BEGIN(sk)
+NS_BEGIN(net)
 
 buffer::buffer(size_t buffer_size) {
     capacity_ = buffer_size;
@@ -87,4 +88,5 @@ void buffer::ensure_space(size_t len) {
     address_ = addr;
 }
 
+NS_END(net)
 NS_END(sk)

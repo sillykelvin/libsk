@@ -9,6 +9,7 @@
 #include "utility/assert_helper.h"
 
 NS_BEGIN(sk)
+NS_BEGIN(net)
 
 socket_ptr socket::create() {
     return socket_ptr(new socket());
@@ -17,7 +18,14 @@ socket_ptr socket::create() {
 socket::~socket() {
     sk_trace("~socket(%d)", fd_);
     if (fd_ != -1) {
-        ::close(fd_);
+        int ret = ::close(fd_);
+        if (ret == -1) {
+            int error = errno;
+            if (error != EINTR && error != EINPROGRESS)
+                sk_error("close fd error: %s.", strerror(error));
+
+            // TODO: what should we do for the errors??
+        }
         fd_ = -1;
     }
 }
@@ -148,32 +156,25 @@ socket_ptr socket::accept(inet_address& addr) {
 
     int ret = set_nodelay(fd, true);
     if (ret != 0) {
-        close(fd);
+        ::close(fd);
         return nullptr;
     }
 
     ret = set_nonblock(fd, true);
     if (ret != 0) {
-        close(fd);
+        ::close(fd);
         return nullptr;
     }
 
     ret = set_cloexec(fd, true);
     if (ret != 0) {
-        close(fd);
+        ::close(fd);
         return nullptr;
     }
 
     // TODO: may set_keepalive(...) here?
 
-    socket_ptr s = create();
-    if (unlikely(!s)) {
-        errno = ENOMEM;
-        return nullptr;
-    }
-
-    s->fd_ = fd;
-    return s;
+    return socket_ptr(new socket(fd));
 }
 
 ssize_t socket::send(const void *buf, size_t len) {
@@ -331,4 +332,5 @@ int socket::make_socket(int domain, int type, int protocol) {
     return fd;
 }
 
+NS_END(net)
 NS_END(sk)

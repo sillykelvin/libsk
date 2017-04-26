@@ -2,10 +2,10 @@
 #include <string.h>
 #include <sys/epoll.h>
 #include "reactor_epoll.h"
-#include "net/event_handler.h"
 #include "utility/assert_helper.h"
 
 NS_BEGIN(sk)
+NS_BEGIN(net)
 
 reactor_epoll *reactor_epoll::create() {
     reactor_epoll *r = new reactor_epoll();
@@ -29,7 +29,7 @@ reactor_epoll::~reactor_epoll() {
     // TODO: process contexts_ here?
 }
 
-void reactor_epoll::update_handler(event_handler *h) {
+void reactor_epoll::register_handler(detail::handler *h) {
     int op = EPOLL_CTL_ADD;
     auto it = handlers_.find(h->fd());
     if (it == handlers_.end()) {
@@ -46,8 +46,8 @@ void reactor_epoll::update_handler(event_handler *h) {
     int events = h->events();
     struct epoll_event e;
     memset(&e, 0x00, sizeof(e));
-    if (events & EVENT_READABLE) e.events |= EPOLLIN;
-    if (events & EVENT_WRITABLE) e.events |= EPOLLOUT;
+    if (events & detail::handler::EVENT_READABLE) e.events |= EPOLLIN;
+    if (events & detail::handler::EVENT_WRITABLE) e.events |= EPOLLOUT;
     e.data.fd = h->fd();
 
     int ret = epoll_ctl(epfd_, op, h->fd(), &e);
@@ -86,10 +86,10 @@ int reactor_epoll::dispatch(int timeout) {
         assert_continue(it != handlers_.end());
 
         int events = 0;
-        if (e->events & EPOLLIN)  events |= EVENT_READABLE;
-        if (e->events & EPOLLOUT) events |= EVENT_WRITABLE;
-        if (e->events & EPOLLERR) events |= EVENT_EPOLLERR;
-        if (e->events & EPOLLHUP) events |= EVENT_EPOLLHUP;
+        if (e->events & EPOLLIN)  events |= detail::handler::EVENT_READABLE;
+        if (e->events & EPOLLOUT) events |= detail::handler::EVENT_WRITABLE;
+        if (e->events & EPOLLERR) events |= detail::handler::EVENT_EPOLLERR;
+        if (e->events & EPOLLHUP) events |= detail::handler::EVENT_EPOLLHUP;
 
         // NOTE: the handler might register/deregister handlers
         // in handler::on_event(...) function, thus the iterator
@@ -100,4 +100,5 @@ int reactor_epoll::dispatch(int timeout) {
     return nfds;
 }
 
+NS_END(net)
 NS_END(sk)

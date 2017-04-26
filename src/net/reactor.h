@@ -2,27 +2,24 @@
 #define REACTOR_H
 
 #include <unordered_map>
-#include "net/handler.h"
+#include "net/detail/handler.h"
 
 NS_BEGIN(sk)
-
-class event_handler;
+NS_BEGIN(net)
 
 class reactor {
 public:
-    static const int EVENT_NONE     = 0x00;
-    static const int EVENT_READABLE = 0x01;
-    static const int EVENT_WRITABLE = 0x02;
-    static const int EVENT_EPOLLERR = 0x04;
-    static const int EVENT_EPOLLHUP = 0x08;
-
     reactor() = default;
     virtual ~reactor() = default;
 
-    virtual bool has_event() const;
-    virtual bool has_handler(event_handler *h) const;
+    virtual bool has_pending_event() const { return !handlers_.empty(); }
 
-    virtual void update_handler(event_handler *h) = 0;
+    virtual bool handler_registered(detail::handler *h) const {
+        auto it = handlers_.find(h->fd());
+        return it != handlers_.end() && it->second == h;
+    }
+
+    virtual void register_handler(detail::handler *h) = 0;
 
     /**
      * @brief dispatch occurred events to corresponding handlers
@@ -34,9 +31,10 @@ public:
     virtual int dispatch(int timeout) = 0;
 
 protected:
-    std::unordered_map<int, event_handler*> handlers_; // fd -> handler
+    std::unordered_map<int, detail::handler*> handlers_; // fd -> handler
 };
 
+NS_END(net)
 NS_END(sk)
 
 #endif // REACTOR_H

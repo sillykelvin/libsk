@@ -4,6 +4,7 @@
 #include "net/reactor.h"
 
 NS_BEGIN(sk)
+NS_BEGIN(net)
 
 class reactor_epoll : public reactor {
 public:
@@ -12,7 +13,7 @@ public:
     static reactor_epoll *create();
     virtual ~reactor_epoll();
 
-    virtual void update_handler(event_handler *h) override;
+    virtual void register_handler(detail::handler *h) override;
 
     virtual int dispatch(int timeout) override;
 
@@ -23,6 +24,7 @@ private:
     int epfd_;
 };
 
+NS_END(net)
 NS_END(sk)
 
 #endif // REACTOR_EPOLL_H

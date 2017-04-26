@@ -7,6 +7,7 @@
 #include "net/inet_address.h"
 
 NS_BEGIN(sk)
+NS_BEGIN(net)
 
 class socket;
 typedef std::shared_ptr<socket> socket_ptr;
@@ -58,11 +59,13 @@ private:
 
 private:
     socket() : fd_(make_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) {}
+    socket(int fd) : fd_(fd) {}
 
 private:
     int fd_;
 };
 
+NS_END(net)
 NS_END(sk)
 
 #endif // SOCKET_H

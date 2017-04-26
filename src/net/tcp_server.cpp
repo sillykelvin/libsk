@@ -3,10 +3,13 @@
 #include "log/log.h"
 
 NS_BEGIN(sk)
+NS_BEGIN(net)
 
-tcp_server_ptr tcp_server::create(reactor *r, int backlog, u16 port,
-                                  const fn_on_connection_event& fn_on_connection) {
-    return tcp_server_ptr(new tcp_server(r, backlog, port, fn_on_connection));
+tcp_server::tcp_server(reactor *r, int backlog, u16 port, const fn_on_connection& fn)
+    : reactor_(r), backlog_(backlog), addr_(port),
+      socket_(socket::create()), fn_on_connection_(fn),
+      handler_(new detail::handler(r, socket_->fd())) {
+    handler_->on_read_event(std::bind(&tcp_server::on_accept, this));
 }
 
 tcp_server::~tcp_server() {
@@ -29,8 +32,7 @@ int tcp_server::start() {
 void tcp_server::remove_connection(const tcp_connection_ptr& conn) {
     auto it = connections_.find(conn);
     if (it == connections_.end()) {
-        sk_warn("cannot find connection: %s.",
-                conn->remote_address().to_string().c_str());
+        sk_warn("cannot find connection: %s.", conn->name().c_str());
         return;
     }
 
@@ -45,14 +47,16 @@ void tcp_server::on_accept() {
         return;
     }
 
-    auto conn = tcp_connection::create(reactor_, client, addr);
-    conn->set_message_callback(fn_on_message_);
-    conn->set_write_callback(fn_on_write_);
-    conn->set_close_callback(std::bind(&tcp_server::remove_connection,
-                                       this, std::placeholders::_1));
+    tcp_connection_ptr conn(new tcp_connection(reactor_, client, addr,
+                                               std::bind(&tcp_server::remove_connection,
+                                                         this, std::placeholders::_1)));
+
+    conn->on_read_event(fn_on_read_);
+    conn->on_write_event(fn_on_write_);
 
     connections_.insert(conn);
-    fn_on_connection_(conn);
+    fn_on_connection_(0, conn);
 }
 
+NS_END(net)
 NS_END(sk)

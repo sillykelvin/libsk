@@ -5,35 +5,25 @@
 #include "net/tcp_connection.h"
 
 NS_BEGIN(sk)
-
-class tcp_server;
-typedef std::shared_ptr<tcp_server> tcp_server_ptr;
+NS_BEGIN(net)
 
 class tcp_server {
 public:
     MAKE_NONCOPYABLE(tcp_server);
+    typedef std::function<void(int, const tcp_connection_ptr&)> fn_on_connection;
+    typedef std::function<void(int, const tcp_connection_ptr&, buffer*)> fn_on_read;
+    typedef std::function<void(int, const tcp_connection_ptr&)> fn_on_write;
 
-    static tcp_server_ptr create(reactor *r, int backlog, u16 port,
-                                 const fn_on_connection_event& fn_on_connection);
+    tcp_server(reactor *r, int backlog, u16 port, const fn_on_connection& fn);
     ~tcp_server();
 
     int start();
+
+    void on_read_event (const fn_on_read&  fn) { fn_on_read_  = fn; }
+    void on_write_event(const fn_on_write& fn) { fn_on_write_ = fn; }
+
+private:
     void remove_connection(const tcp_connection_ptr& conn);
-
-    void set_message_callback(const fn_on_connection_message& fn) { fn_on_message_ = fn; }
-    void set_write_callback(const fn_on_connection_event& fn) { fn_on_write_ = fn; }
-
-private:
-    tcp_server(reactor *r, int backlog, u16 port,
-               const fn_on_connection_event& fn_on_connection)
-        : reactor_(r), backlog_(backlog),
-          addr_(port), socket_(socket::create()),
-          handler_(new event_handler(r, socket_->fd())),
-          fn_on_connection_(fn_on_connection) {
-        handler_->set_read_callback(std::bind(&tcp_server::on_accept, this));
-    }
-
-private:
     void on_accept();
 
 private:
@@ -41,15 +31,16 @@ private:
     const int backlog_;
     inet_address addr_;
     socket_ptr socket_;
-    std::unique_ptr<event_handler> handler_;
-    fn_on_connection_event fn_on_connection_;
+    fn_on_connection fn_on_connection_;
+    std::unique_ptr<detail::handler> handler_;
     std::set<tcp_connection_ptr> connections_;
 
     // optional callbacks
-    fn_on_connection_message fn_on_message_;
-    fn_on_connection_event fn_on_write_;
+    fn_on_read fn_on_read_;
+    fn_on_write fn_on_write_;
 };
 
+NS_END(net)
 NS_END(sk)
 
 #endif // TCP_SERVER_H

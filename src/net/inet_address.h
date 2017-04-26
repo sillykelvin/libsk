@@ -6,6 +6,7 @@
 #include "utility/types.h"
 
 NS_BEGIN(sk)
+NS_BEGIN(net)
 
 class inet_address {
 public:
@@ -31,6 +32,7 @@ private:
     struct sockaddr_in addr_;
 };
 
+NS_END(net)
 NS_END(sk)
 
 #endif // INET_ADDRESS_H
