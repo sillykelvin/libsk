@@ -4,13 +4,12 @@
 
 NS_BEGIN(sk)
 NS_BEGIN(net)
-NS_BEGIN(detail)
 
 handler::handler(reactor *r, int fd)
     : fd_(fd), events_(EVENT_NONE), reactor_(r) {}
 
 handler::~handler() {
-    sk_assert(!reactor_->handler_registered(this));
+    sk_assert(!has_event());
 }
 
 void handler::on_event(int events) {
@@ -62,9 +61,8 @@ void handler::disable(int event) {
 }
 
 void handler::update() {
-    reactor_->register_handler(this);
+    reactor_->register_handler(shared_from_this());
 }
 
-NS_END(detail)
 NS_END(net)
 NS_END(sk)

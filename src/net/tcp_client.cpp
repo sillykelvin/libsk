@@ -10,7 +10,7 @@ tcp_client::tcp_client(reactor *r, const std::string& host,
     : state_(state_disconnected),
       reactor_(r), addr_(host, port),
       socket_(socket::create()), fn_on_connection_(fn),
-      handler_(new detail::handler(r, socket_->fd())) {
+      handler_(new handler(r, socket_->fd())) {
     handler_->on_write_event(std::bind(&tcp_client::on_connect, this));
 }
 

@@ -34,7 +34,7 @@ private:
     socket_ptr socket_;
     tcp_connection_ptr connection_;
     fn_on_connection fn_on_connection_;
-    std::unique_ptr<detail::handler> handler_;
+    handler_ptr handler_;
 
     // optional callbacks
     fn_on_read fn_on_read_;

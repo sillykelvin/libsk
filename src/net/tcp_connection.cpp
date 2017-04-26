@@ -6,7 +6,7 @@ NS_BEGIN(net)
 tcp_connection::tcp_connection(reactor *r, const socket_ptr& socket,
                                const inet_address& remote_addr, const fn_on_close& fn)
     : reactor_(r), socket_(socket), remote_addr_(remote_addr),
-      fn_on_close_(fn), handler_(new detail::handler(r, socket->fd())) {
+      fn_on_close_(fn), handler_(new handler(r, socket->fd())) {
     char buf[64] = {0};
     snprintf(buf, sizeof(buf), "[%d->%s]", socket_->fd(), remote_addr_.to_string().c_str());
     name_ = buf;

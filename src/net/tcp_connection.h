@@ -3,7 +3,7 @@
 
 #include "net/buffer.h"
 #include "net/socket.h"
-#include "net/detail/handler.h"
+#include "net/handler.h"
 
 NS_BEGIN(sk)
 NS_BEGIN(net)
@@ -40,7 +40,7 @@ private:
     inet_address remote_addr_;
     std::string name_;
     fn_on_close fn_on_close_;
-    std::unique_ptr<detail::handler> handler_;
+    handler_ptr handler_;
 
     buffer incoming_;
     buffer outgoing_;

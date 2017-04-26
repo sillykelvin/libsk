@@ -13,7 +13,7 @@ public:
     static reactor_epoll *create();
     virtual ~reactor_epoll();
 
-    virtual void register_handler(detail::handler *h) override;
+    virtual void register_handler(const handler_ptr& h) override;
 
     virtual int dispatch(int timeout) override;
 

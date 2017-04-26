@@ -8,7 +8,7 @@ NS_BEGIN(net)
 tcp_server::tcp_server(reactor *r, int backlog, u16 port, const fn_on_connection& fn)
     : reactor_(r), backlog_(backlog), addr_(port),
       socket_(socket::create()), fn_on_connection_(fn),
-      handler_(new detail::handler(r, socket_->fd())) {
+      handler_(new handler(r, socket_->fd())) {
     handler_->on_read_event(std::bind(&tcp_server::on_accept, this));
 }
 

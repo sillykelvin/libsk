@@ -32,7 +32,7 @@ private:
     inet_address addr_;
     socket_ptr socket_;
     fn_on_connection fn_on_connection_;
-    std::unique_ptr<detail::handler> handler_;
+    handler_ptr handler_;
     std::set<tcp_connection_ptr> connections_;
 
     // optional callbacks

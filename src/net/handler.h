@@ -5,10 +5,10 @@
 
 NS_BEGIN(sk)
 NS_BEGIN(net)
-class reactor;
-NS_BEGIN(detail)
 
-class handler {
+class reactor;
+
+class handler : public std::enable_shared_from_this<handler> {
 public:
     // TODO: merge these events with epoll events
     static const int EVENT_NONE     = 0x00;
@@ -19,7 +19,6 @@ public:
 
     MAKE_NONCOPYABLE(handler);
 
-    handler(reactor *r, int fd);
     ~handler();
 
     void on_event(int events);
@@ -42,6 +41,8 @@ public:
     void on_write_event(const fn_on_poll_event& fn) { fn_on_write_ = fn; }
 
 private:
+    handler(reactor *r, int fd);
+
     void enable(int event);
     void disable(int event);
     void update();
@@ -52,9 +53,13 @@ private:
     reactor *reactor_;
     fn_on_poll_event fn_on_read_;
     fn_on_poll_event fn_on_write_;
-};
 
-NS_END(detail)
+    friend class tcp_client;
+    friend class tcp_server;
+    friend class tcp_connection;
+};
+typedef std::shared_ptr<handler> handler_ptr;
+
 NS_END(net)
 NS_END(sk)
 

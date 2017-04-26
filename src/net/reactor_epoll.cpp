@@ -29,13 +29,13 @@ reactor_epoll::~reactor_epoll() {
     // TODO: process contexts_ here?
 }
 
-void reactor_epoll::register_handler(detail::handler *h) {
+void reactor_epoll::register_handler(const handler_ptr& h) {
     int op = EPOLL_CTL_ADD;
     auto it = handlers_.find(h->fd());
     if (it == handlers_.end()) {
         sk_assert(h->has_event());
     } else {
-        sk_assert(it->second == h);
+        sk_assert(it->second.lock() == h);
 
         if (h->has_event())
             op = EPOLL_CTL_MOD;
@@ -46,8 +46,8 @@ void reactor_epoll::register_handler(detail::handler *h) {
     int events = h->events();
     struct epoll_event e;
     memset(&e, 0x00, sizeof(e));
-    if (events & detail::handler::EVENT_READABLE) e.events |= EPOLLIN;
-    if (events & detail::handler::EVENT_WRITABLE) e.events |= EPOLLOUT;
+    if (events & handler::EVENT_READABLE) e.events |= EPOLLIN;
+    if (events & handler::EVENT_WRITABLE) e.events |= EPOLLOUT;
     e.data.fd = h->fd();
 
     int ret = epoll_ctl(epfd_, op, h->fd(), &e);
@@ -86,15 +86,17 @@ int reactor_epoll::dispatch(int timeout) {
         assert_continue(it != handlers_.end());
 
         int events = 0;
-        if (e->events & EPOLLIN)  events |= detail::handler::EVENT_READABLE;
-        if (e->events & EPOLLOUT) events |= detail::handler::EVENT_WRITABLE;
-        if (e->events & EPOLLERR) events |= detail::handler::EVENT_EPOLLERR;
-        if (e->events & EPOLLHUP) events |= detail::handler::EVENT_EPOLLHUP;
+        if (e->events & EPOLLIN)  events |= handler::EVENT_READABLE;
+        if (e->events & EPOLLOUT) events |= handler::EVENT_WRITABLE;
+        if (e->events & EPOLLERR) events |= handler::EVENT_EPOLLERR;
+        if (e->events & EPOLLHUP) events |= handler::EVENT_EPOLLHUP;
 
         // NOTE: the handler might register/deregister handlers
         // in handler::on_event(...) function, thus the iterator
         // "it" might be invalidated in this call
-        it->second->on_event(events);
+        auto h = it->second.lock();
+        if (h) h->on_event(events);
+        else sk_error("handler<%d> deleted!", fd);
     }
 
     return nfds;

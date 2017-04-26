@@ -2,7 +2,7 @@
 #define REACTOR_H
 
 #include <unordered_map>
-#include "net/detail/handler.h"
+#include "net/handler.h"
 
 NS_BEGIN(sk)
 NS_BEGIN(net)
@@ -14,12 +14,7 @@ public:
 
     virtual bool has_pending_event() const { return !handlers_.empty(); }
 
-    virtual bool handler_registered(detail::handler *h) const {
-        auto it = handlers_.find(h->fd());
-        return it != handlers_.end() && it->second == h;
-    }
-
-    virtual void register_handler(detail::handler *h) = 0;
+    virtual void register_handler(const handler_ptr& h) = 0;
 
     /**
      * @brief dispatch occurred events to corresponding handlers
@@ -31,7 +26,8 @@ public:
     virtual int dispatch(int timeout) = 0;
 
 protected:
-    std::unordered_map<int, detail::handler*> handlers_; // fd -> handler
+    typedef std::weak_ptr<handler> weak_handler_ptr;
+    std::unordered_map<int, weak_handler_ptr> handlers_; // fd -> handler
 };
 
 NS_END(net)
