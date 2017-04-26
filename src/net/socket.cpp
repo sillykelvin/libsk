@@ -140,7 +140,7 @@ int socket::listen(const inet_address& addr, int backlog) {
 
 socket_ptr socket::accept(inet_address& addr) {
     int fd = -1;
-    socklen_t addrlen = 0;
+    socklen_t addrlen = addr.length();
 
     while (1) {
         do {
