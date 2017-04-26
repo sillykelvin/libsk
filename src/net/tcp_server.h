@@ -10,9 +10,6 @@ NS_BEGIN(net)
 class tcp_server {
 public:
     MAKE_NONCOPYABLE(tcp_server);
-    typedef std::function<void(int, const tcp_connection_ptr&)> fn_on_connection;
-    typedef std::function<void(int, const tcp_connection_ptr&, buffer*)> fn_on_read;
-    typedef std::function<void(int, const tcp_connection_ptr&)> fn_on_write;
 
     tcp_server(reactor *r, int backlog, u16 port, const fn_on_connection& fn);
     ~tcp_server();

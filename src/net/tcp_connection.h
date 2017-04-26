@@ -11,9 +11,6 @@ NS_BEGIN(net)
 class tcp_connection : public std::enable_shared_from_this<tcp_connection> {
 public:
     MAKE_NONCOPYABLE(tcp_connection);
-    typedef std::function<void(int, const tcp_connection_ptr&, buffer*)> fn_on_read;
-    typedef std::function<void(int, const tcp_connection_ptr&)> fn_on_write;
-    typedef std::function<void(const tcp_connection_ptr&)> fn_on_close;
 
     ~tcp_connection();
 

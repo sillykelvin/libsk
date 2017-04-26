@@ -37,8 +37,8 @@ public:
     bool reading_enabled() const { return events_ & EVENT_READABLE; }
     bool writing_enabled() const { return events_ & EVENT_WRITABLE; }
 
-    void on_read_event (const fn_on_poll_event& fn) { fn_on_read_  = fn; }
-    void on_write_event(const fn_on_poll_event& fn) { fn_on_write_ = fn; }
+    void on_read_event (const fn_on_event& fn) { fn_on_read_  = fn; }
+    void on_write_event(const fn_on_event& fn) { fn_on_write_ = fn; }
 
 private:
     handler(reactor *r, int fd);
@@ -51,8 +51,8 @@ private:
     int fd_;
     int events_;
     reactor *reactor_;
-    fn_on_poll_event fn_on_read_;
-    fn_on_poll_event fn_on_write_;
+    fn_on_event fn_on_read_;
+    fn_on_event fn_on_write_;
 
     friend class tcp_client;
     friend class tcp_server;

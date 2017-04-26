@@ -9,9 +9,6 @@ NS_BEGIN(net)
 class tcp_client {
 public:
     MAKE_NONCOPYABLE(tcp_client);
-    typedef std::function<void(int, const tcp_connection_ptr&)> fn_on_connection;
-    typedef std::function<void(int, const tcp_connection_ptr&, buffer*)> fn_on_read;
-    typedef std::function<void(int, const tcp_connection_ptr&)> fn_on_write;
 
     tcp_client(reactor *r, const std::string& host, u16 port, const fn_on_connection& fn);
     ~tcp_client();
