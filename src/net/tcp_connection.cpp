@@ -85,13 +85,15 @@ void tcp_connection::on_read() {
             fn_on_read_(0, shared_from_this(), &incoming_);
     } else if (nbytes == 0) {
         handler_->disable_reading();
-        fn_on_read_(EOF, shared_from_this(), &incoming_);
+        if (fn_on_read_)
+            fn_on_read_(EOF, shared_from_this(), &incoming_);
     } else {
         int error = errno;
         sk_error("recv error: %s.", strerror(error));
         if (error != EAGAIN && error != EWOULDBLOCK) {
             handler_->disable_reading();
-            fn_on_read_(error, shared_from_this(), nullptr);
+            if (fn_on_read_)
+                fn_on_read_(error, shared_from_this(), nullptr);
         }
     }
 }
@@ -111,7 +113,8 @@ void tcp_connection::on_write() {
         sk_error("send error: %s.", strerror(error));
         if (error != EAGAIN && error != EWOULDBLOCK) {
             handler_->disable_writing();
-            fn_on_write_(error, shared_from_this());
+            if (fn_on_write_)
+                fn_on_write_(error, shared_from_this());
         }
     }
 }
