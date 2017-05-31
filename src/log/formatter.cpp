@@ -8,9 +8,9 @@ static const char* level_names[] = { "TRACE", "DEBUG", "INFO ", "WARN ", "ERROR"
 // time format (%T), e.g.: 20160918 14:45:20.777923
 class T_formatter : public flag_formatter {
     void format(fmt::MemoryWriter& writer, const std::tm& time,
-                spdlog::level::level_enum level,
-                const char *file, int line,
-                const char *function, const char *msg) override {
+                spdlog::level::level_enum,
+                const char *, int,
+                const char *, const char *) override {
         auto duration = spdlog::details::os::now().time_since_epoch();
         auto micros = std::chrono::duration_cast<std::chrono::microseconds>(duration).count() % 1000000;
 
@@ -31,20 +31,20 @@ class T_formatter : public flag_formatter {
 // message level, e.g.: DEBUG
 class L_formatter : public flag_formatter {
 
-    void format(fmt::MemoryWriter& writer, const std::tm& time,
+    void format(fmt::MemoryWriter& writer, const std::tm&,
                 spdlog::level::level_enum level,
-                const char *file, int line,
-                const char *function, const char *msg) override {
+                const char *, int,
+                const char *, const char *) override {
         writer << level_names[level];
     }
 };
 
 // source file
 class f_formatter : public flag_formatter {
-    void format(fmt::MemoryWriter& writer, const std::tm& time,
-                spdlog::level::level_enum level,
-                const char *file, int line,
-                const char *function, const char *msg) override {
+    void format(fmt::MemoryWriter& writer, const std::tm&,
+                spdlog::level::level_enum,
+                const char *file, int,
+                const char *, const char *) override {
         if (!file) file = "Unknown File";
 
         writer << file;
@@ -53,20 +53,20 @@ class f_formatter : public flag_formatter {
 
 // file line
 class l_formatter : public flag_formatter {
-    void format(fmt::MemoryWriter& writer, const std::tm& time,
-                spdlog::level::level_enum level,
-                const char *file, int line,
-                const char *function, const char *msg) override {
+    void format(fmt::MemoryWriter& writer, const std::tm&,
+                spdlog::level::level_enum,
+                const char *, int line,
+                const char *, const char *) override {
         writer << line;
     }
 };
 
 // function, e.g.: main
 class F_formatter : public flag_formatter {
-    void format(fmt::MemoryWriter& writer, const std::tm& time,
-                spdlog::level::level_enum level,
-                const char *file, int line,
-                const char *function, const char *msg) override {
+    void format(fmt::MemoryWriter& writer, const std::tm&,
+                spdlog::level::level_enum,
+                const char *, int,
+                const char *function, const char *) override {
         if (!function) function = "Unknown Function";
 
         writer << function;
@@ -75,10 +75,10 @@ class F_formatter : public flag_formatter {
 
 // message
 class m_formatter : public flag_formatter {
-    void format(fmt::MemoryWriter& writer, const std::tm& time,
-                spdlog::level::level_enum level,
-                const char *file, int line,
-                const char *function, const char *msg) override {
+    void format(fmt::MemoryWriter& writer, const std::tm&,
+                spdlog::level::level_enum,
+                const char *, int,
+                const char *, const char *msg) override {
         writer << msg;
     }
 };
@@ -89,10 +89,10 @@ public:
 
     void add_char(char c) { str_ += c; }
 
-    void format(fmt::MemoryWriter& writer, const std::tm& time,
-                spdlog::level::level_enum level,
-                const char *file, int line,
-                const char *function, const char *msg) override {
+    void format(fmt::MemoryWriter& writer, const std::tm& ,
+                spdlog::level::level_enum,
+                const char *, int,
+                const char *, const char *) override {
         writer << str_;
     }
 

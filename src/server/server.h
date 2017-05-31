@@ -6,11 +6,11 @@
 #include <signal.h>
 #include <sys/file.h>
 #include "bus/bus.h"
+#include "log/log.h"
+#include "time/time.h"
+#include "shm/shm_mgr.h"
 #include "spdlog/spdlog.h"
 #include "server/option_parser.h"
-#include "log/log.h"
-#include "shm/shm_mgr.h"
-#include "time/timer.h"
 
 namespace sk {
 
@@ -218,8 +218,8 @@ public:
             if (ctx_.reloading)
                 reload();
 
-            if (sk::time::timer_enabled())
-                sk::time::run_timer();
+            if (sk::time::time_enabled(nullptr))
+                sk::time::update_time();
 
             bool bus_idle = true;
             if (!ctx_.disable_bus) {

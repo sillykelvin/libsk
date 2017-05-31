@@ -1,7 +1,8 @@
 #include <map>
+#include <time.h>
 #include "guid.h"
 #include "bus/bus.h"
-#include "time/timer.h"
+#include "time/time.h"
 #include "utility/assert_helper.h"
 
 static const int      INST_BIT_COUNT = 3;
@@ -66,7 +67,10 @@ int create(u64& guid) {
     GUID_KEY key(inst, func, zone);
     auto it = key2guid.find(key);
     if (it == key2guid.end()) {
-        GUID_VALUE value = {0};
+        GUID_VALUE value;
+        value.last_sec = 0;
+        value.last_serial = 0;
+
         auto ret = key2guid.insert(std::pair<GUID_KEY, GUID_VALUE>(key, value));
         if (!ret.second) {
             sk_assert(0);

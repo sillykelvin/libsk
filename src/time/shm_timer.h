@@ -1,22 +1,12 @@
-#ifndef TIMER_H
-#define TIMER_H
+#ifndef SHM_TIMER_H
+#define SHM_TIMER_H
 
 #include "utility/types.h"
 
-#define TICK_PER_SEC 50 // 50 tick per second
-
-namespace sk {
-namespace time {
+NS_BEGIN(sk)
+NS_BEGIN(time)
 
 typedef void (*TIMEOUT_CALLBACK)(u64 timer_mid, void *cb_data, size_t cb_len);
-
-inline u32 sec2tick(u32 sec) {
-    return sec * TICK_PER_SEC;
-}
-
-inline u64 ms2tick(u64 ms) {
-    return (ms / 1000) * TICK_PER_SEC;
-}
 
 int register_timeout_callback(int timer_type, TIMEOUT_CALLBACK fn_callback);
 
@@ -38,19 +28,11 @@ u64 add_single_timer(u32 interval_sec, int timer_type,
 
 void remove_timer(u64 timer_mid);
 
-int now();
+bool shm_timer_enabled();
+void run_shm_timer();
+int init_shm_timer(int shm_type);
 
-u64 current_tick();
-u64 current_msec();
-u64 current_usec();
+NS_END(time)
+NS_END(sk)
 
-bool timer_enabled();
-
-int init_timer(int shm_type, int time_offset);
-
-void run_timer();
-
-} // namespace time
-} // namespace sk
-
-#endif // TIMER_H
+#endif // SHM_TIMER_H
