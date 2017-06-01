@@ -65,7 +65,7 @@ void reactor_epoll::register_handler(const handler_ptr& h) {
 }
 
 int reactor_epoll::dispatch(int timeout) {
-    struct epoll_event events[1024];
+    static struct epoll_event events[1024];
     int nfds = epoll_wait(epfd_, events, array_len(events), timeout);
 
     if (nfds == 0) return 0;
