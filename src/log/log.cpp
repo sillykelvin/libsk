@@ -104,6 +104,9 @@ void logger::log(const std::string& name, spdlog::level::level_enum level,
         return;
     }
 
+    if (!it->second.second->should_log(level))
+        return;
+
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(buffer, sizeof(buffer), fmt, ap);

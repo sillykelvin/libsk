@@ -528,6 +528,11 @@ private:
         memset(&act, 0x00, sizeof(act));
         sigfillset(&act.sa_mask);
 
+        // NOTE: it's important to ignore SIGPIPE
+        act.sa_handler = SIG_IGN;
+        sigaction(SIGPIPE, &act, NULL);
+        sk_info("signal: SIGPIPE(%d), action: ignore", SIGPIPE);
+
         act.sa_handler = server::sig_on_stop;
         sigaction(SIGTERM, &act, NULL);
         sk_info("signal: SIGTERM(%d), action: call server::stop", SIGTERM);
