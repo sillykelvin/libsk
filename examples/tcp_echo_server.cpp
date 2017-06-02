@@ -29,7 +29,7 @@ int main() {
         conn->recv();
     });
 
-    server.on_read_event([] (int error, const tcp_connection_ptr& conn, buffer *buf) {
+    server.set_read_callback([] (int error, const tcp_connection_ptr& conn, buffer *buf) {
         if (error == EOF) {
             sk_debug("eof received.");
             conn->close();
@@ -43,13 +43,16 @@ int main() {
         }
 
         std::string str(buf->peek(), buf->size());
-        sk_debug("received: %s", str.c_str());
+        if (str.length() >= 5)
+            sk_debug("received length: %lu", str.length());
+        else
+            sk_debug("received: %s", str.c_str());
 
         conn->send(buf->peek(), buf->size());
         buf->consume(buf->size());
     });
 
-    server.on_write_event([] (int error, const tcp_connection_ptr& conn) {
+    server.set_write_callback([] (int error, const tcp_connection_ptr& conn) {
         if (error != 0) {
             sk_error("cannot write: %s", strerror(error));
             conn->close();
