@@ -11,8 +11,8 @@ tcp_connection::tcp_connection(reactor *r, const socket_ptr& socket,
     snprintf(buf, sizeof(buf), "[%d->%s]", socket_->fd(), remote_addr_.to_string().c_str());
     name_ = buf;
 
-    handler_->on_read_event(std::bind(&tcp_connection::on_read, this));
-    handler_->on_write_event(std::bind(&tcp_connection::on_write, this));
+    handler_->set_read_callback(std::bind(&tcp_connection::on_read, this));
+    handler_->set_write_callback(std::bind(&tcp_connection::on_write, this));
 }
 
 tcp_connection::~tcp_connection() {

@@ -21,7 +21,9 @@ public:
 
     ~handler();
 
-    void on_event(int events);
+    void on_read_event();
+    void on_write_event();
+    void on_error_event();
 
     int fd() const { return fd_; }
     int events() const { return events_; }
@@ -37,8 +39,9 @@ public:
     bool reading_enabled() const { return events_ & EVENT_READABLE; }
     bool writing_enabled() const { return events_ & EVENT_WRITABLE; }
 
-    void on_read_event (const fn_on_event& fn) { fn_on_read_  = fn; }
-    void on_write_event(const fn_on_event& fn) { fn_on_write_ = fn; }
+    void set_read_callback (const fn_on_event& fn) { fn_on_read_ = fn;  }
+    void set_write_callback(const fn_on_event& fn) { fn_on_write_ = fn; }
+    void set_error_callback(const fn_on_event& fn) { fn_on_error_ = fn; }
 
 private:
     handler(reactor *r, int fd);
@@ -53,6 +56,7 @@ private:
     reactor *reactor_;
     fn_on_event fn_on_read_;
     fn_on_event fn_on_write_;
+    fn_on_event fn_on_error_;
 
     friend class tcp_client;
     friend class tcp_server;

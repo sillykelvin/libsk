@@ -11,7 +11,7 @@ tcp_client::tcp_client(reactor *r, const std::string& host,
       reactor_(r), addr_(host, port),
       socket_(socket::create()), fn_on_connection_(fn),
       handler_(new handler(r, socket_->fd())) {
-    handler_->on_write_event(std::bind(&tcp_client::on_connect, this));
+    handler_->set_write_callback(std::bind(&tcp_client::on_connect, this));
 }
 
 tcp_client::~tcp_client() {
@@ -63,8 +63,8 @@ void tcp_client::on_connect() {
                                                         std::bind(&tcp_client::remove_connection,
                                                                   this, std::placeholders::_1)));
 
-    connection_->on_read_event(fn_on_read_);
-    connection_->on_write_event(fn_on_write_);
+    connection_->set_read_callback(fn_on_read_);
+    connection_->set_write_callback(fn_on_write_);
 
     socket_.reset();
     fn_on_connection_(0, connection_);

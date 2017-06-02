@@ -9,7 +9,7 @@ tcp_server::tcp_server(reactor *r, int backlog, u16 port, const fn_on_connection
     : reactor_(r), backlog_(backlog), addr_(port),
       socket_(socket::create()), fn_on_connection_(fn),
       handler_(new handler(r, socket_->fd())) {
-    handler_->on_read_event(std::bind(&tcp_server::on_accept, this));
+    handler_->set_read_callback(std::bind(&tcp_server::on_accept, this));
 }
 
 tcp_server::~tcp_server() {
@@ -51,8 +51,8 @@ void tcp_server::on_accept() {
                                                std::bind(&tcp_server::remove_connection,
                                                          this, std::placeholders::_1)));
 
-    conn->on_read_event(fn_on_read_);
-    conn->on_write_event(fn_on_write_);
+    conn->set_read_callback(fn_on_read_);
+    conn->set_write_callback(fn_on_write_);
 
     connections_.insert(conn);
     fn_on_connection_(0, conn);

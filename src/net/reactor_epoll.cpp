@@ -85,18 +85,31 @@ int reactor_epoll::dispatch(int timeout) {
         auto it = handlers_.find(fd);
         assert_continue(it != handlers_.end());
 
-        int events = 0;
-        if (e->events & EPOLLIN)  events |= handler::EVENT_READABLE;
-        if (e->events & EPOLLOUT) events |= handler::EVENT_WRITABLE;
-        if (e->events & EPOLLERR) events |= handler::EVENT_EPOLLERR;
-        if (e->events & EPOLLHUP) events |= handler::EVENT_EPOLLHUP;
-
-        // NOTE: the handler might register/deregister handlers
-        // in handler::on_event(...) function, thus the iterator
-        // "it" might be invalidated in this call
         auto h = it->second.lock();
-        if (h) h->on_event(events);
-        else sk_error("handler<%d> deleted!", fd);
+        if (!h) {
+            sk_error("handler<%d> deleted!", fd);
+            continue;
+        }
+
+        sk_trace("RD(%d) WR(%d) ERR(%d) HUP(%d), RDHUP(%d), fd(%d)",
+                 e->events & EPOLLIN ? 1 : 0, e->events & EPOLLOUT ? 1 : 0,
+                 e->events & EPOLLERR ? 1 : 0, e->events & EPOLLHUP ? 1 : 0,
+                 e->events & EPOLLRDHUP ? 1 : 0, fd);
+
+        if (e->events & EPOLLIN)
+            h->on_read_event();
+
+        if (e->events & EPOLLOUT)
+            h->on_write_event();
+
+        if (e->events & (EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
+            // ignore the error here as it has been processed
+            // by IN and OUT event handler
+            if (e->events & (EPOLLIN | EPOLLOUT))
+                continue;
+
+            h->on_error_event();
+        }
     }
 
     return nfds;

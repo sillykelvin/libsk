@@ -21,8 +21,8 @@ public:
     const std::string& name() const { return name_; }
     const inet_address& remote_address() const { return remote_addr_; }
 
-    void on_read_event (const fn_on_read&  fn) { fn_on_read_  = fn; }
-    void on_write_event(const fn_on_write& fn) { fn_on_write_ = fn; }
+    void set_read_callback (const fn_on_read&  fn) { fn_on_read_  = fn; }
+    void set_write_callback(const fn_on_write& fn) { fn_on_write_ = fn; }
 
 private:
     tcp_connection(reactor *r, const socket_ptr& socket,

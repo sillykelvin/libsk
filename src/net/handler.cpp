@@ -12,26 +12,31 @@ handler::~handler() {
     sk_assert(!has_event());
 }
 
-void handler::on_event(int events) {
-    sk_trace("RD(%d) WR(%d) ERR(%d) HUP(%d)",
-             events & EVENT_READABLE ? 1 : 0, events & EVENT_WRITABLE ? 1 : 0,
-             events & EVENT_EPOLLERR ? 1 : 0, events & EVENT_EPOLLHUP ? 1 : 0);
-
+void handler::on_read_event() {
     if (fd_ == -1) {
         sk_error("handler already invalidated!");
-        disable_all();
         return;
     }
 
-    if (events & (EVENT_READABLE | EVENT_EPOLLHUP | EVENT_EPOLLERR)) {
-        if (fn_on_read_) fn_on_read_();
-        if (fd_ == -1) return;
+    if (fn_on_read_) fn_on_read_();
+}
+
+void handler::on_write_event() {
+    if (fd_ == -1) {
+        sk_error("handler already invalidated!");
+        return;
     }
 
-    if (events & (EVENT_WRITABLE | EVENT_EPOLLHUP | EVENT_EPOLLERR)) {
-        if (fn_on_write_) fn_on_write_();
-        if (fd_ == -1) return;
+    if (fn_on_write_) fn_on_write_();
+}
+
+void handler::on_error_event() {
+    if (fd_ == -1) {
+        sk_error("handler already invalidated!");
+        return;
     }
+
+    if (fn_on_error_) fn_on_error_();
 }
 
 void handler::enable(int event) {
