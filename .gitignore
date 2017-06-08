@@ -17,3 +17,4 @@ GTAGS
 GRTAGS
 
 lib/
+build/
