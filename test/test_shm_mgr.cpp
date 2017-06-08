@@ -49,25 +49,25 @@ TEST(shm_mgr, page_map) {
     int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
     ASSERT_TRUE(ret == 0);
 
-    shm_ptr<void> tmp = shm_malloc(1);
+    offset_ptr<void> tmp(777);
 
-    ASSERT_TRUE(m.get(0) == SHM_NULL);
+    ASSERT_TRUE(m.get(0) == offset_ptr<void>::null());
     m.set(0, tmp);
     ASSERT_TRUE(m.get(0) == tmp);
 
-    ASSERT_TRUE(m.get(1) == SHM_NULL);
+    ASSERT_TRUE(m.get(1) == offset_ptr<void>::null());
     m.set(1, tmp);
     ASSERT_TRUE(m.get(1) == tmp);
 
-    ASSERT_TRUE(m.get(222) == SHM_NULL);
+    ASSERT_TRUE(m.get(222) == offset_ptr<void>::null());
     m.set(222, tmp);
     ASSERT_TRUE(m.get(222) == tmp);
 
-    ASSERT_TRUE(m.get(3333) == SHM_NULL);
+    ASSERT_TRUE(m.get(3333) == offset_ptr<void>::null());
     m.set(3333, tmp);
     ASSERT_TRUE(m.get(3333) == tmp);
 
-    ASSERT_TRUE(m.get(99999) == SHM_NULL);
+    ASSERT_TRUE(m.get(99999) == offset_ptr<void>::null());
     m.set(99999, tmp);
     ASSERT_TRUE(m.get(99999) == tmp);
 
@@ -81,13 +81,13 @@ TEST(shm_mgr, metadata_allocator) {
     int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
     ASSERT_TRUE(ret == 0);
 
-    shm_ptr<size_t> ptr = allocator.allocate();
-    ASSERT_TRUE(ptr != SHM_NULL);
+    offset_ptr<size_t> ptr = allocator.allocate();
+    ASSERT_TRUE(ptr != offset_ptr<size_t>::null());
     offset_t offset = ptr.offset;
 
     allocator.deallocate(ptr);
     ptr = allocator.allocate();
-    ASSERT_TRUE(ptr != SHM_NULL);
+    ASSERT_TRUE(ptr != offset_ptr<size_t>::null());
     ASSERT_TRUE(ptr.offset == offset);
 
     allocator.deallocate(ptr);

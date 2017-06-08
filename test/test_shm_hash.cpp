@@ -29,7 +29,7 @@ TEST(shm_hash, normal) {
     int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
     ASSERT_TRUE(ret == 0);
 
-    shm_ptr<hash> h = shm_new<hash>(SHM_HASH_NODE_COUNT);
+    shm_ptr<::hash> h = shm_new<::hash>(SHM_HASH_NODE_COUNT);
     ASSERT_TRUE(h && h->empty());
 
     hash_test t;
@@ -89,10 +89,10 @@ TEST(shm_hash, iterator) {
     int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
     ASSERT_TRUE(ret == 0);
 
-    shm_ptr<hash> h = shm_new<hash>(SHM_HASH_NODE_COUNT);
+    shm_ptr<::hash> h = shm_new<::hash>(SHM_HASH_NODE_COUNT);
     ASSERT_TRUE(h && h->empty());
 
-    hash::iterator it = h->begin();
+    ::hash::iterator it = h->begin();
     ASSERT_TRUE(it.n == NULL && it == h->end());
 
     hash_test t;
@@ -156,7 +156,7 @@ TEST(shm_hash, iterator) {
     ++it;
     ASSERT_TRUE(it->first == 12 && it->second.a == 12);
 
-    hash::const_iterator cit = it;
+    ::hash::const_iterator cit = it;
     // cit->second.a = 999;   // this should cannot compile
 
     it++;

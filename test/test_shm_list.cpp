@@ -125,7 +125,7 @@ TEST(shm_list, loop_erase) {
     ASSERT_TRUE(ret == 0);
 
     shm_ptr<list> l = shm_new<list>();
-    ASSERT_TRUE(l);
+    ASSERT_TRUE(!!l);
 
     const int max_size = 20;
 
