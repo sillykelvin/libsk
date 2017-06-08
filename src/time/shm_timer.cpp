@@ -351,6 +351,11 @@ void run_shm_timer() {
 }
 
 int init_shm_timer(int shm_type) {
+    bool in_shm = false;
+    bool ok = time_enabled(&in_shm);
+    if (!ok || !in_shm)
+        return -EINVAL;
+
     shm_ptr<shm_timer_mgr> ptr = shm_get_singleton<shm_timer_mgr>(shm_type);
     assert_retval(ptr, -ENOMEM);
 

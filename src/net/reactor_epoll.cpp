@@ -8,14 +8,11 @@ NS_BEGIN(sk)
 NS_BEGIN(net)
 
 reactor_epoll *reactor_epoll::create() {
+    int epfd = epoll_create1(EPOLL_CLOEXEC);
+    if (epfd == -1) return nullptr;
+
     reactor_epoll *r = new reactor_epoll();
     if (!r) return nullptr;
-
-    int epfd = epoll_create1(EPOLL_CLOEXEC);
-    if (epfd == -1) {
-        delete r;
-        return nullptr;
-    }
 
     r->epfd_ = epfd;
     return r;

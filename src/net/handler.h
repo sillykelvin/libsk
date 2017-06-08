@@ -19,6 +19,7 @@ public:
 
     MAKE_NONCOPYABLE(handler);
 
+    handler(reactor *r, int fd);
     ~handler();
 
     void on_read_event();
@@ -44,8 +45,6 @@ public:
     void set_error_callback(const fn_on_event& fn) { fn_on_error_ = fn; }
 
 private:
-    handler(reactor *r, int fd);
-
     void enable(int event);
     void disable(int event);
     void update();

@@ -86,7 +86,7 @@ void tcp_connection::on_read() {
     } else if (nbytes == 0) {
         handler_->disable_reading();
         if (fn_on_read_)
-            fn_on_read_(EOF, shared_from_this(), &incoming_);
+            fn_on_read_(READ_EOF, shared_from_this(), &incoming_);
     } else {
         int error = errno;
         sk_error("recv error: %s.", strerror(error));

@@ -136,6 +136,9 @@ void run_heap_timer() {
 }
 
 int init_heap_timer() {
+    if (!time_enabled(nullptr))
+        return -EINVAL;
+
     mgr = new heap_timer_mgr();
     assert_retval(mgr, -ENOMEM);
     return 0;

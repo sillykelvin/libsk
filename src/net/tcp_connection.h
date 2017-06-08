@@ -10,6 +10,8 @@ NS_BEGIN(net)
 
 class tcp_connection : public std::enable_shared_from_this<tcp_connection> {
 public:
+    static const int READ_EOF = -1;
+
     MAKE_NONCOPYABLE(tcp_connection);
 
     ~tcp_connection();
@@ -20,6 +22,9 @@ public:
 
     const std::string& name() const { return name_; }
     const inet_address& remote_address() const { return remote_addr_; }
+
+    bool incoming_buffer_empty() const { return incoming_.empty(); }
+    bool outgoing_buffer_empty() const { return outgoing_.empty(); }
 
     void set_read_callback (const fn_on_read&  fn) { fn_on_read_  = fn; }
     void set_write_callback(const fn_on_write& fn) { fn_on_write_ = fn; }

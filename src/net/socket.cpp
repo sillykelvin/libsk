@@ -242,15 +242,15 @@ int socket::set_nodelay(int fd, bool on) {
 }
 
 int socket::set_cloexec(int fd, bool on) {
-    int flags = fcntl(fd, F_GETFL);
+    int flags = fcntl(fd, F_GETFD);
     if (flags == -1) return flags;
 
     if (on)
-        flags |= O_CLOEXEC;
+        flags |= FD_CLOEXEC;
     else
-        flags &= ~O_CLOEXEC;
+        flags &= ~FD_CLOEXEC;
 
-    int ret = fcntl(fd, F_SETFL, flags);
+    int ret = fcntl(fd, F_SETFD, flags);
     if (ret == -1) return ret;
 
     return 0;
