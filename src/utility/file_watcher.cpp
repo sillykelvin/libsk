@@ -13,7 +13,7 @@ file_watcher::file_watcher(int inotify_fd, net::reactor *r)
 }
 
 file_watcher::~file_watcher() {
-    for (const auto& it : fd2file_)
+    for (const auto& it : wd2file_)
         inotify_rm_watch(inotify_fd_, it.first);
 
     if (inotify_fd_ != -1) {
@@ -30,32 +30,32 @@ file_watcher *file_watcher::create(sk::net::reactor *r) {
 }
 
 void file_watcher::watch(const std::string& file) {
-    auto it = file2fd_.find(file);
-    if (it != file2fd_.end()) return;
+    auto it = file2wd_.find(file);
+    if (it != file2wd_.end()) return;
 
-    int fd = inotify_add_watch(inotify_fd_, file.c_str(), IN_ALL_EVENTS);
-    sk_debug("watch file<%s>, fd<%d>.", file.c_str(), fd);
+    int wd = inotify_add_watch(inotify_fd_, file.c_str(), IN_ALL_EVENTS);
+    sk_debug("watch file<%s>, wd<%d>.", file.c_str(), wd);
 
-    file2fd_[file] = fd;
-    fd2file_[fd] = file;
+    file2wd_[file] = wd;
+    wd2file_[wd] = file;
 }
 
 void file_watcher::unwatch(const std::string& file) {
-    auto it = file2fd_.find(file);
-    if (it == file2fd_.end()) return;
+    auto it = file2wd_.find(file);
+    if (it == file2wd_.end()) return;
 
-    int fd = it->second;
-    inotify_rm_watch(inotify_fd_, fd);
-    sk_debug("unwatch file<%s>, fd<%d>.", file.c_str(), fd);
+    int wd = it->second;
+    inotify_rm_watch(inotify_fd_, wd);
+    sk_debug("unwatch file<%s>, wd<%d>.", file.c_str(), wd);
 
-    file2fd_.erase(it);
-    fd2file_.erase(fd);
+    file2wd_.erase(it);
+    wd2file_.erase(wd);
 }
 
 bool file_watcher::has_watch(const std::string& file) const {
-    auto it = file2fd_.find(file);
-    bool found = (it != file2fd_.end());
-    if (found) sk_assert(fd2file_.find(it->second) != fd2file_.end());
+    auto it = file2wd_.find(file);
+    bool found = (it != file2wd_.end());
+    if (found) sk_assert(wd2file_.find(it->second) != wd2file_.end());
 
     return found;
 }
@@ -87,13 +87,10 @@ void file_watcher::on_inotify_read() {
              ptr += sizeof(struct inotify_event) + event->len) {
             event = reinterpret_cast<const struct inotify_event*>(ptr);
 
-            if (event->mask == IN_IGNORED) {
-                sk_debug("IN_IGNORED, %s", event->len > 0 ? event->name : "unknown");
-                continue;
-            }
+            if (event->mask == IN_IGNORED) continue;
 
-            auto it = fd2file_.find(event->wd);
-            if (it == fd2file_.end()) {
+            auto it = wd2file_.find(event->wd);
+            if (it == wd2file_.end()) {
                 sk_warn("file watch<%d> not found.", event->wd);
                 continue;
             }

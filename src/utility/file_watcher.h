@@ -44,8 +44,8 @@ private:
     fn_on_file_event fn_on_file_change_;
     fn_on_file_event fn_on_file_delete_;
 
-    std::unordered_map<int, std::string> fd2file_;
-    std::unordered_map<std::string, int> file2fd_;
+    std::unordered_map<int, std::string> wd2file_;
+    std::unordered_map<std::string, int> file2wd_;
 };
 
 NS_END(sk)
