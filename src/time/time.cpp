@@ -4,8 +4,6 @@
 #include "time/shm_timer.h"
 #include "time/heap_timer.h"
 
-#define TICK_PER_SEC 50 // 50 tick per second (1 tick == 20ms)
-
 struct time_mgr {
     bool in_shm;      // true if this instance is allocated in shared memory
     int time_offset;  // offset of real time and process time
@@ -15,7 +13,7 @@ struct time_mgr {
     u64 current_tick; // current tick
 
     static u64 __ms2tick(u64 ms) {
-        return (ms / 1000) * TICK_PER_SEC;
+        return ms / sk::time::TIMER_PRECISION;
     }
 
     u64 __outdated_tick_count(const struct timeval *tv) const {
@@ -81,7 +79,8 @@ bool time_enabled(bool *in_shm) {
 }
 
 u64 sec2tick(u32 sec) {
-    return sec * TICK_PER_SEC;
+    static const u64 tick_per_sec = 1000 / TIMER_PRECISION;
+    return sec * tick_per_sec;
 }
 
 u64 current_tick() {

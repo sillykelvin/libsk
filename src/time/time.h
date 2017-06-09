@@ -7,6 +7,13 @@ NS_BEGIN(sk)
 NS_BEGIN(time)
 
 /*
+ * timers with value not a multiple of 20ms will be
+ * rounded to a multiple of 20ms, e.g. 17ms will be
+ * 0ms, 105ms will be 100ms
+ */
+static const u64 TIMER_PRECISION = 20; // 20 ms
+
+/*
  * return the number of seconds since the Epoch,
  * which represents current process time, may differ
  * from real clock time as a time offset might be
