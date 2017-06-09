@@ -71,9 +71,13 @@ void file_watcher::stop() {
 void file_watcher::on_inotify_read() {
     char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
     const struct inotify_event *event = nullptr;
+    ssize_t len = 0;
 
     while (true) {
-        ssize_t len = read(inotify_fd_, buf, sizeof(buf));
+        do {
+            len = read(inotify_fd_, buf, sizeof(buf));
+        } while (len == -1 && errno == EINTR);
+
         if (len == -1) {
             if (errno != EAGAIN && errno != EWOULDBLOCK)
                 sk_error("inotify read error: %s.", strerror(errno));

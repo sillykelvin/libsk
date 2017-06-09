@@ -36,7 +36,6 @@ private:
 
 private:
     int inotify_fd_;
-    std::string file_;
     net::handler_ptr handler_;
 
     fn_on_file_event fn_on_file_open_;
