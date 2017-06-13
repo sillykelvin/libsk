@@ -1,10 +1,10 @@
 #include <signal.h>
-#include "rest_client.h"
+#include <utility/rest_client.h>
 #include <utility/assert_helper.h>
 #include <utility/string_helper.h>
 
-#define CURL_CONNECT_TIMEOUT_MS  15000
-#define CURL_TRANSFER_TIMEOUT_MS 30000
+#define DEFAULT_CONNECT_TIMEOUT_MS  15000 // 15 seconds
+#define DEFAULT_TRANSFER_TIMEOUT_MS 30000 // 30 seconds
 
 NS_BEGIN(sk)
 
@@ -25,6 +25,8 @@ rest_client::context::~context() {
 
 void rest_client::context::init(const std::string& url,
                                 const string_map *headers,
+                                long connect_timeout_ms,
+                                long transfer_timeout_ms,
                                 const fn_on_response& fn) {
     sk_assert(!outgoing_headers_);
     this->fn_on_rsp_ = fn;
@@ -45,8 +47,10 @@ void rest_client::context::init(const std::string& url,
 
     // curl_easy_setopt(h, CURLOPT_DNS_CACHE_TIMEOUT, 0);
     // curl_easy_setopt(h, CURLOPT_FORBID_REUSE, 0);
-    curl_easy_setopt(handle_, CURLOPT_CONNECTTIMEOUT_MS, CURL_CONNECT_TIMEOUT_MS);
-    curl_easy_setopt(handle_, CURLOPT_TIMEOUT_MS, CURL_TRANSFER_TIMEOUT_MS);
+    if (connect_timeout_ms > 0)
+        curl_easy_setopt(handle_, CURLOPT_CONNECTTIMEOUT_MS, connect_timeout_ms);
+    if (transfer_timeout_ms > 0)
+        curl_easy_setopt(handle_, CURLOPT_TIMEOUT_MS, transfer_timeout_ms);
 
 #ifndef NDEBUG
     curl_easy_setopt(handle_, CURLOPT_VERBOSE, 1L);
@@ -156,7 +160,9 @@ size_t rest_client::context::on_body(char *ptr, size_t size, size_t nmemb, void 
 
 
 rest_client::rest_client(net::reactor *r, const std::string& host, size_t max_cache_count)
-    : reactor_(r), host_(host), max_cache_count_(max_cache_count) {
+    : connect_timeout_ms_(DEFAULT_CONNECT_TIMEOUT_MS),
+      transfer_timeout_ms_(DEFAULT_TRANSFER_TIMEOUT_MS),
+      reactor_(r), host_(host), max_cache_count_(max_cache_count) {
     curl_global_init(CURL_GLOBAL_ALL);
     mh_ = curl_multi_init();
 
@@ -189,12 +195,66 @@ rest_client::~rest_client() {
 
 int rest_client::get(const char *uri, const fn_on_response& fn,
                      const string_map *parameters, const string_map *headers) {
-    std::string url = make_url(uri, parameters);
-    sk_debug("entire url: %s", url.c_str());
-
-    context *ctx = fetch_context(url, headers, fn);
+    context *ctx = fetch_context(uri, parameters, headers, fn);
     assert_retval(ctx, -1);
 
+    CURLMcode rc = curl_multi_add_handle(mh_, ctx->handle());
+    if (rc != CURLM_OK) {
+        sk_error("failed to add handle, ret<%d>.", rc);
+        release_context(ctx);
+        return -1;
+    }
+
+    busy_contexts_.insert(ctx);
+    return 0;
+}
+
+int rest_client::del(const char *uri, const fn_on_response& fn,
+                     const string_map *parameters, const string_map *headers) {
+    context *ctx = fetch_context(uri, parameters, headers, fn);
+    assert_retval(ctx, -1);
+
+    curl_easy_setopt(ctx->handle(), CURLOPT_CUSTOMREQUEST, "DELETE");
+    CURLMcode rc = curl_multi_add_handle(mh_, ctx->handle());
+    if (rc != CURLM_OK) {
+        sk_error("failed to add handle, ret<%d>.", rc);
+        release_context(ctx);
+        return -1;
+    }
+
+    busy_contexts_.insert(ctx);
+    return 0;
+}
+
+int rest_client::put(const char *uri, const fn_on_response& fn,
+                     const char *payload, size_t payload_len,
+                     const string_map *parameters, const string_map *headers) {
+    context *ctx = fetch_context(uri, parameters, headers, fn);
+    assert_retval(ctx, -1);
+
+    curl_easy_setopt(ctx->handle(), CURLOPT_CUSTOMREQUEST, "PUT");
+    curl_easy_setopt(ctx->handle(), CURLOPT_POSTFIELDSIZE, payload_len);
+    curl_easy_setopt(ctx->handle(), CURLOPT_COPYPOSTFIELDS, payload);
+    CURLMcode rc = curl_multi_add_handle(mh_, ctx->handle());
+    if (rc != CURLM_OK) {
+        sk_error("failed to add handle, ret<%d>.", rc);
+        release_context(ctx);
+        return -1;
+    }
+
+    busy_contexts_.insert(ctx);
+    return 0;
+}
+
+int rest_client::post(const char *uri, const fn_on_response& fn,
+                      const char *payload, size_t payload_len,
+                      const string_map *parameters, const string_map *headers) {
+    context *ctx = fetch_context(uri, parameters, headers, fn);
+    assert_retval(ctx, -1);
+
+    curl_easy_setopt(ctx->handle(), CURLOPT_POST, 1);
+    curl_easy_setopt(ctx->handle(), CURLOPT_POSTFIELDSIZE, payload_len);
+    curl_easy_setopt(ctx->handle(), CURLOPT_COPYPOSTFIELDS, payload);
     CURLMcode rc = curl_multi_add_handle(mh_, ctx->handle());
     if (rc != CURLM_OK) {
         sk_error("failed to add handle, ret<%d>.", rc);
@@ -355,7 +415,8 @@ int rest_client::handle_timer(CURLM *mh, long timeout_ms, void *userp) {
     return client->on_timer(timeout_ms);
 }
 
-rest_client::context *rest_client::fetch_context(const std::string& url,
+rest_client::context *rest_client::fetch_context(const char *uri,
+                                                 const string_map *parameters,
                                                  const string_map *headers,
                                                  const fn_on_response& fn) {
     context *ctx = nullptr;
@@ -374,7 +435,10 @@ rest_client::context *rest_client::fetch_context(const std::string& url,
         return nullptr;
     } while (0);
 
-    ctx->init(url, headers, fn);
+    std::string url = make_url(uri, parameters);
+    sk_debug("entire url: %s", url.c_str());
+
+    ctx->init(url, headers, connect_timeout_ms_, transfer_timeout_ms_, fn);
     return ctx;
 }
 

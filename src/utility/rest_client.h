@@ -20,8 +20,36 @@ public:
     rest_client(net::reactor *r, const std::string& host, size_t max_cache_count);
     ~rest_client();
 
+    /*
+     * set connecting timeout value in millisecond, the default
+     * value is 15000 (15 seconds), if it's set to 0, libcurl
+     * will use its default value (300 seconds) internally
+     */
+    void set_connect_timeout(long timeout_ms) {
+        if (timeout_ms >= 0) connect_timeout_ms_ = timeout_ms;
+    }
+
+    /*
+     * set transferring timeout value in millisecond, 0 means
+     * never timeout, the default value is 30000 (30 seconds)
+     */
+    void set_transfer_timeout(long timeout_ms) {
+        if (timeout_ms >= 0) transfer_timeout_ms_ = timeout_ms;
+    }
+
     int get(const char *uri, const fn_on_response& fn,
             const string_map *parameters, const string_map *headers);
+
+    int del(const char *uri, const fn_on_response& fn,
+            const string_map *parameters, const string_map *headers);
+
+    int put(const char *uri, const fn_on_response& fn,
+            const char *payload, size_t payload_len,
+            const string_map *parameters, const string_map *headers);
+
+    int post(const char *uri, const fn_on_response& fn,
+             const char *payload, size_t payload_len,
+             const string_map *parameters, const string_map *headers);
 
 private:
     class context {
@@ -31,6 +59,8 @@ private:
 
         void init(const std::string& url,
                   const string_map *headers,
+                  long connect_timeout_ms,
+                  long transfer_timeout_ms,
                   const fn_on_response& fn);
         void start(rest_client *client, int sockfd, net::reactor *r);
         void on_response(int rc, int status_code);
@@ -61,7 +91,8 @@ private:
     std::string make_url(const char *uri, const string_map *parameters);
     void try_read_response();
 
-    context *fetch_context(const std::string& url,
+    context *fetch_context(const char *uri,
+                           const string_map *parameters,
                            const string_map *headers,
                            const fn_on_response& fn);
     void release_context(context *ctx);
@@ -79,6 +110,8 @@ private:
     static int handle_timer(CURLM *mh, long timeout_ms, void *userp);
 
 private:
+    long connect_timeout_ms_;
+    long transfer_timeout_ms_;
     net::reactor *reactor_;
     std::string host_;
     size_t max_cache_count_;
