@@ -5,6 +5,7 @@ set(EXECUTABLE_OUTPUT_PATH "${PROJECT_SOURCE_DIR}/lib")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/deps/pugixml/include")
 include_directories("${PROJECT_SOURCE_DIR}/deps/spdlog/include")
+include_directories("${PROJECT_SOURCE_DIR}/deps/curl/include")
 
 link_directories("${PROJECT_SOURCE_DIR}/lib")
 
