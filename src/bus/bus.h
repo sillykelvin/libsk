@@ -4,8 +4,8 @@
 #include <string>
 #include "utility/types.h"
 
-namespace sk {
-namespace bus {
+NS_BEGIN(sk)
+NS_BEGIN(bus)
 
 static const key_t  DEFAULT_BUS_KEY        = 1799;
 static const size_t DEFAULT_BUS_NODE_SIZE  = 128;
@@ -136,7 +136,7 @@ int send(int dst_busid, const void *data, size_t length);
  */
 int recv(int& src_busid, void *data, size_t& length);
 
-} // namespace bus
-} // namespace sk
+NS_END(bus)
+NS_END(sk)
 
 #endif // BUS_H

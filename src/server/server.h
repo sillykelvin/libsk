@@ -12,7 +12,7 @@
 #include "spdlog/spdlog.h"
 #include "server/option_parser.h"
 
-namespace sk {
+NS_BEGIN(sk)
 
 inline std::string default_pid_file(int area_id, int zone_id,
                                     int func_id, int inst_id,
@@ -123,9 +123,6 @@ public:
         ret = init_shm();
         if (ret != 0) return ret;
 
-        ret = init_bus();
-        if (ret != 0) return ret;
-
         ret = make_daemon();
         if (ret != 0) return ret;
 
@@ -133,6 +130,9 @@ public:
         if (ret != 0) return ret;
 
         ret = write_pid();
+        if (ret != 0) return ret;
+
+        ret = register_bus();
         if (ret != 0) return ret;
 
         set_signal_handler();
@@ -447,6 +447,10 @@ private:
         return sk::logger::init(ctx_.log_conf);
     }
 
+    int init_conf() {
+        return cfg_.load_from_xml_file(ctx_.proc_conf.c_str());
+    }
+
     int init_buf() {
         buf_len_ = 1 * 1024 * 1024; // 1MB
         buf_ = malloc(buf_len_);
@@ -466,19 +470,8 @@ private:
         return sk::shm_mgr_init(ctx_.id, cfg_.shm_size, ctx_.resume_mode);
     }
 
-    int init_bus() {
-        if (ctx_.disable_bus)
-            return 0;
-
-        return sk::bus::register_bus(ctx_.bus_key, ctx_.id, ctx_.bus_node_size, ctx_.bus_node_count);
-    }
-
     int make_daemon() {
         return daemon(1, 0);
-    }
-
-    int init_conf() {
-        return cfg_.load_from_xml_file(ctx_.proc_conf.c_str());
     }
 
     int lock_pid() {
@@ -518,6 +511,13 @@ private:
 
         close(fd);
         return 0;
+    }
+
+    int register_bus() {
+        if (ctx_.disable_bus)
+            return 0;
+
+        return sk::bus::register_bus(ctx_.bus_key, ctx_.id, ctx_.bus_node_size, ctx_.bus_node_count);
     }
 
     void set_signal_handler() {
@@ -569,6 +569,6 @@ private:
 template<typename C, typename D>
 D *server<C, D>::instance_ = NULL;
 
-} // namespace sk
+NS_END(sk)
 
 #endif // SERVER_H

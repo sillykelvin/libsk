@@ -35,6 +35,7 @@ int channel_mgr::init(int shmid, size_t shm_size, bool resume) {
         this->magic = MAGIC;
     }
 
+    this->pid = getpid();
     return 0;
 }
 
@@ -51,7 +52,7 @@ void channel_mgr::report() const {
     sk_info("===================================");
 }
 
-int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count, int& fd) {
+int channel_mgr::register_channel(int busid, pid_t pid, size_t node_size, size_t node_count, int& fd) {
     if (magic != MAGIC) {
         sk_error("channel mgr has not been initialized.");
         return -EINVAL;
@@ -74,6 +75,7 @@ int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count
             if (!desc.closed) {
                 sk_info("channel already exists, bus<%x>.", busid);
                 fd = i;
+                desc.pid = pid;
                 return 0;
             }
 
@@ -95,6 +97,7 @@ int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count
                         rc->node_size, rc->node_count, node_size, node_count);
 
             desc.closed = 0;
+            desc.pid = pid;
             this->changed = true;
             fd = i;
             return 0;
@@ -117,6 +120,7 @@ int channel_mgr::register_channel(int busid, size_t node_size, size_t node_count
         desc = &descriptors[fd];
         desc->owner = busid;
         desc->closed = 0;
+        desc->pid = pid;
         desc->r_offset = used_size;
         used_size += channel_size;
         desc->w_offset = used_size;
@@ -158,6 +162,7 @@ void channel_mgr::deregister_channel(int busid) {
         }
 
         desc.closed = 1;
+        desc.pid = 0;
         this->changed = true;
         sk_info("channel<%x> gets closed.", desc.owner);
 

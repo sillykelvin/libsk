@@ -1,9 +1,12 @@
+#include <signal.h>
 #include "bus.h"
 #include "log/log.h"
 #include "bus/detail/channel_mgr.h"
 #include "bus/detail/channel.h"
 #include "shm/detail/shm_segment.h"
 #include "utility/assert_helper.h"
+
+#define BUS_SIGNO (SIGRTMIN + 7)
 
 NS_BEGIN(sk)
 NS_BEGIN(bus)
@@ -143,7 +146,8 @@ int register_bus(key_t bus_key, int busid, size_t node_size, size_t node_count) 
     // release the control here
     seg.release();
 
-    ret = mgr->register_channel(busid, node_size, node_count, fd);
+    pid_t pid = getpid();
+    ret = mgr->register_channel(busid, pid, node_size, node_count, fd);
     if (ret != 0) return ret;
 
     sk::bus::busid = busid;
@@ -183,7 +187,7 @@ int send(int dst_busid, const void *data, size_t length) {
     assert_retval(mgr, -1);
     assert_retval(data, -1);
 
-    if (dst_busid <= 0) {
+    if (unlikely(dst_busid <= 0)) {
         sk_error("invalid bus id<%x>.", dst_busid);
         return -EINVAL;
     }
@@ -197,10 +201,15 @@ int send(int dst_busid, const void *data, size_t length) {
     int retry = 3;
     while (retry-- > 0) {
         int ret = wc->push(src_busid, dst_busid, data, length);
-        if (ret == 0) break;
+        if (likely(ret == 0)) break;
 
         sk_error("failed to write data to bus, ret<%d>, retry<%d>.", ret, retry);
     }
+
+    sigval value = {0};
+    value.sival_int = fd;
+    int ret = sigqueue(mgr->pid, BUS_SIGNO, value);
+    if (ret != 0) sk_warn("cannot send signal: %s", strerror(errno));
 
     return 0;
 }
