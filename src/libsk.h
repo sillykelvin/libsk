@@ -60,5 +60,6 @@
 #include "net/tcp_server.h"
 #include "net/tcp_client.h"
 #include "net/tcp_connection.h"
+#include "utility/rest_client.h"
 
 #endif // LIBSK_H
