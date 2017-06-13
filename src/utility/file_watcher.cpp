@@ -16,6 +16,9 @@ file_watcher::~file_watcher() {
     for (const auto& it : wd2file_)
         inotify_rm_watch(inotify_fd_, it.first);
 
+    wd2file_.clear();
+    file2wd_.clear();
+
     if (inotify_fd_ != -1) {
         close(inotify_fd_);
         inotify_fd_ = -1;

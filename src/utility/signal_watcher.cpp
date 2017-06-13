@@ -45,8 +45,8 @@ int signal_watcher::watch(int signal) {
 
     sigset_t mask;
     sigemptyset(&mask);
-
     sigaddset(&mask, signal);
+
     if (sigprocmask(SIG_BLOCK, &mask, nullptr) == -1) {
         sk_error("cannot block signal<%d>, error<%s>.", signal, strerror(errno));
         return -1;
