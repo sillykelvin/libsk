@@ -5,7 +5,6 @@
 #define SHM_MGR_KEY         (0x77777)
 #define SHM_SIZE            (1024000)
 
-using namespace std;
 using namespace sk;
 using namespace sk::detail;
 
@@ -13,12 +12,12 @@ struct list_test {
     int a;
 
     list_test() {
-        cout << "list test constructor" << endl;
+        std::cout << "list test constructor" << std::endl;
         a = 7;
     }
 
     ~list_test() {
-        cout << "list test destructor, a: " << a << endl;
+        std::cout << "list test destructor, a: " << a << std::endl;
     }
 
     bool operator==(const list_test& that) const {
