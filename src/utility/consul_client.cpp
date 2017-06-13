@@ -27,6 +27,15 @@ struct consul_del_context {
         : recursive(recursive), key(key) {}
 };
 
+template<typename T>
+struct guard {
+public:
+    guard(T *t) : t_(t) {}
+    ~guard() { if (t_) delete t_; }
+private:
+    T *t_;
+};
+
 NS_BEGIN(sk)
 
 int consul_client::init(net::reactor *r, const string_vector& addr_list) {
@@ -202,12 +211,7 @@ void consul_client::on_set(consul_set_context *ctx,
                            const std::string& body,
                            const fn_on_set& fn) {
     (void) headers;
-
-    struct guard {
-        guard(consul_set_context *ctx) : ctx(ctx) {}
-        ~guard() { if (ctx) delete ctx; }
-        consul_set_context *ctx;
-    } guard(ctx);
+    guard<consul_set_context> g(ctx);
 
     if (ret != 0) {
         sk_error("curl error<%d>.", ret);
@@ -267,12 +271,7 @@ void consul_client::on_del(consul_del_context *ctx,
                            const std::string& body,
                            const fn_on_del& fn) {
     (void) headers;
-
-    struct guard {
-        guard(consul_del_context *ctx) : ctx(ctx) {}
-        ~guard() { if (ctx) delete ctx; }
-        consul_del_context *ctx;
-    } guard(ctx);
+    guard<consul_del_context> g(ctx);
 
     if (ret != 0) {
         sk_error("curl error<%d>.", ret);

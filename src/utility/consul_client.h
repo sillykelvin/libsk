@@ -44,6 +44,7 @@ private:
                 const fn_on_del& fn);
 
 private:
+    // TODO: add master/backup switch logic
     std::shared_ptr<rest_client> master_;
     std::list<std::shared_ptr<rest_client>> backup_;
 };
