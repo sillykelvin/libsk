@@ -4,7 +4,7 @@
 #include <utility/consul_client.h>
 #include <utility/string_helper.h>
 
-#define MAX_CACHED_SIZE    1
+#define MAX_CACHED_SIZE    5
 #define DEFAULT_WATCH_TIME "10m"
 #define KV_STATIC_PREFIX   "/v1/kv/"
 #define INDEX_HEADER_NAME  "X-Consul-Index"

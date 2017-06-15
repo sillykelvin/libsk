@@ -22,7 +22,6 @@ struct channel_mgr {
     int magic;
     int shmid;        // id of this shm segment
     pid_t pid;        // pid of the busd process
-    bool changed;     // if there is change to descriptors
     size_t shm_size;  // total size of this shm segment
     size_t used_size; // allocated space size
 

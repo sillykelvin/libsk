@@ -1,6 +1,7 @@
 #ifndef BUS_H
 #define BUS_H
 
+#include <signal.h>
 #include <string>
 #include "utility/types.h"
 
@@ -10,6 +11,8 @@ NS_BEGIN(bus)
 static const key_t  DEFAULT_BUS_KEY        = 1799;
 static const size_t DEFAULT_BUS_NODE_SIZE  = 128;
 static const size_t DEFAULT_BUS_NODE_COUNT = 102400;
+static const s32    BUS_MESSAGE_SIGNO      = SIGRTMIN + 7;
+static const s32    BUS_REGISTRATION_SIGNO = SIGRTMIN + 8;
 
 /**
  * @brief parse a bus id from string
@@ -21,8 +24,8 @@ static const size_t DEFAULT_BUS_NODE_COUNT = 102400;
  * @return bus id if succeeded, -1 on parsing error
  */
 int from_string(const char *str,
-                int *area_id = NULL, int *zone_id = NULL,
-                int *func_id = NULL, int *inst_id = NULL);
+                int *area_id = nullptr, int *zone_id = nullptr,
+                int *func_id = nullptr, int *inst_id = nullptr);
 
 /**
  * @brief return a bus id by the given sub ids
@@ -112,11 +115,9 @@ int register_bus(key_t bus_key, int busid,
                  size_t node_count = DEFAULT_BUS_NODE_COUNT);
 
 /**
- * @brief deregister bus for process whose bus id is busid
- * @param bus_key: shm key of bus
- * @param busid: bus id of current process
+ * @brief deregister bus for current process
  */
-void deregister_bus(key_t bus_key, int busid);
+void deregister_bus();
 
 /**
  * @brief send message through bus
@@ -130,7 +131,7 @@ int send(int dst_busid, const void *data, size_t length);
 /**
  * @brief recv one message from bus
  * @param src_busid: stores the source bus id of this message
- * @param data: buffer to store message, must NOT be NULL
+ * @param data: buffer to store message, must NOT be null
  * @param length: length of the buffer, also stores the length of the message
  * @return count of received message, should be 0 or 1, or negative error code
  */

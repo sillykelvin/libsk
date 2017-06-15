@@ -194,7 +194,7 @@ size_t channel::__calc_node_count(size_t data_len) const {
 channel_message *channel::__channel_message(size_t pos) {
     if (pos >= node_count) return NULL;
 
-    char *base_addr = char_ptr(this) + node_offset;
+    char *base_addr = sk::byte_offset<char>(this, node_offset);
     char *addr = base_addr + node_size * pos;
     return cast_ptr(channel_message, addr);
 }

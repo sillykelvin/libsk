@@ -1,4 +1,3 @@
-#include <signal.h>
 #include "bus.h"
 #include "log/log.h"
 #include "bus/detail/channel_mgr.h"
@@ -6,14 +5,12 @@
 #include "shm/detail/shm_segment.h"
 #include "utility/assert_helper.h"
 
-#define BUS_SIGNO (SIGRTMIN + 7)
-
 NS_BEGIN(sk)
 NS_BEGIN(bus)
 
 static int fd = -1;
 static int busid = -1;
-static detail::channel_mgr *mgr = NULL;
+static detail::channel_mgr *mgr = nullptr;
 
 union busid_format {
     int busid;
@@ -156,25 +153,12 @@ int register_bus(key_t bus_key, int busid, size_t node_size, size_t node_count) 
     return 0;
 }
 
-void deregister_bus(key_t bus_key, int busid) {
+void deregister_bus() {
     if (fd == -1) sk_warn("bus<%x> seems to be deregistered.", busid);
 
-    int ret = 0;
-
-    detail::shm_segment seg;
-    ret = seg.init(bus_key, 0, true);
-    assert_retnone(ret == 0);
-
-    mgr = cast_ptr(detail::channel_mgr, seg.address());
-    assert_retnone(mgr);
-
-    // no matter it will succeed or not in the following logic, we
-    // release the control here
-    seg.release();
-
     mgr->deregister_channel(busid);
-
     fd = -1;
+
     // we do NOT reset busid here, in case functions like
     // sk::bus::area_id() might get called after deregistration
     //sk::bus::busid = -1;
@@ -206,9 +190,10 @@ int send(int dst_busid, const void *data, size_t length) {
         sk_error("failed to write data to bus, ret<%d>, retry<%d>.", ret, retry);
     }
 
-    sigval value = {0};
+    sigval value;
+    memset(&value, 0x00, sizeof(value));
     value.sival_int = fd;
-    int ret = sigqueue(mgr->pid, BUS_SIGNO, value);
+    int ret = sigqueue(mgr->pid, BUS_MESSAGE_SIGNO, value);
     if (ret != 0) sk_warn("cannot send signal: %s", strerror(errno));
 
     return 0;

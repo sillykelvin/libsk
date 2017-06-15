@@ -175,7 +175,7 @@ public:
         }
 
         if (!ctx_.disable_bus)
-            sk::bus::deregister_bus(ctx_.bus_key, ctx_.id);
+            sk::bus::deregister_bus();
 
         if (!ctx_.disable_shm)
             sk::shm_mgr_fini();

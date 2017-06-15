@@ -3,8 +3,8 @@
 
 #include "utility/types.h"
 
-namespace sk {
-namespace detail {
+NS_BEGIN(sk)
+NS_BEGIN(detail)
 
 struct channel_message {
     int magic;
@@ -65,7 +65,7 @@ struct channel {
     channel_message *__channel_message(size_t pos);
 };
 
-} // namespace detail
-} // namespace sk
+NS_END(detail)
+NS_END(sk)
 
 #endif // CHANNEL_H

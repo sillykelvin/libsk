@@ -60,6 +60,8 @@
 #include "net/tcp_server.h"
 #include "net/tcp_client.h"
 #include "net/tcp_connection.h"
+#include "utility/file_watcher.h"
+#include "utility/signal_watcher.h"
 #include "utility/rest_client.h"
 #include "utility/consul_client.h"
 

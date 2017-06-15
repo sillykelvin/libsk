@@ -15,6 +15,7 @@ public:
 
     int connect();
 
+    bool connecting() const { return state_ == state_connecting; }
     bool disconnected() const { return state_ == state_disconnected; }
 
     void set_read_callback (const fn_on_read&  fn) { fn_on_read_  = fn; }

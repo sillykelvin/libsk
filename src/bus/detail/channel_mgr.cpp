@@ -1,6 +1,8 @@
+#include <signal.h>
 #include <string.h>
 #include <errno.h>
 #include "channel_mgr.h"
+#include "bus/bus.h"
 #include "log/log.h"
 #include "utility/math_helper.h"
 #include "shm/detail/shm_segment.h"
@@ -12,17 +14,27 @@
 NS_BEGIN(sk)
 NS_BEGIN(detail)
 
+static int notify_channel_change(int bus_pid, int fd) {
+    sigval value;
+    memset(&value, 0x00, sizeof(value));
+    value.sival_int = fd;
+    return sigqueue(bus_pid, sk::bus::BUS_REGISTRATION_SIGNO, value);
+}
+
 int channel_mgr::init(int shmid, size_t shm_size, bool resume) {
     if (resume) {
         assert_retval(this->magic == MAGIC, -1);
         assert_retval(this->shmid == shmid, -1);
         assert_retval(this->shm_size == shm_size, -1);
+
+        // reset pid here as it must have been changed
+        this->pid = getpid();
     } else {
+        this->pid = getpid();
         this->shmid = shmid;
         this->shm_size = shm_size;
         // TODO: may do some alignment job here
         this->used_size = sizeof(channel_mgr);
-        this->changed = false;
 
         lock.init();
         descriptor_count = 0;
@@ -35,7 +47,6 @@ int channel_mgr::init(int shmid, size_t shm_size, bool resume) {
         this->magic = MAGIC;
     }
 
-    this->pid = getpid();
     return 0;
 }
 
@@ -96,10 +107,16 @@ int channel_mgr::register_channel(int busid, pid_t pid, size_t node_size, size_t
                 sk_warn("configuration change<%d:%d -> %d:%d> is not supported.",
                         rc->node_size, rc->node_count, node_size, node_count);
 
+            int ret = notify_channel_change(this->pid, i);
+            if (ret != 0) {
+                sk_error("cannot send signal: %s", strerror(errno));
+                return ret;
+            }
+
             desc.closed = 0;
             desc.pid = pid;
-            this->changed = true;
             fd = i;
+
             return 0;
         }
 
@@ -142,7 +159,12 @@ int channel_mgr::register_channel(int busid, pid_t pid, size_t node_size, size_t
             return ret;
         }
 
-        this->changed = true;
+        ret = notify_channel_change(this->pid, fd);
+        if (ret != 0) {
+            sk_error("cannot send signal: %s", strerror(errno));
+            return ret;
+        }
+
         sk_info("new channel, fd<%d>, owner<%x>, read offset<%lu>, write offset<%lu>.",
                 fd, desc->owner, desc->r_offset, desc->w_offset);
     } while (0);
@@ -163,9 +185,11 @@ void channel_mgr::deregister_channel(int busid) {
 
         desc.closed = 1;
         desc.pid = 0;
-        this->changed = true;
-        sk_info("channel<%x> gets closed.", desc.owner);
 
+        int ret = notify_channel_change(this->pid, i);
+        if (ret != 0) sk_error("cannot send signal: %s", strerror(errno));
+
+        sk_info("channel<%x> gets closed.", desc.owner);
         return;
     }
 }
