@@ -13,7 +13,7 @@
 #define TVN_MASK (TVN_SIZE - 1)
 #define TVR_MASK (TVR_SIZE - 1)
 
-#define TV1_MAX TVR_SIZE
+#define TV1_MAX (1 << (TVR_BITS + 0 * TVN_BITS))
 #define TV2_MAX (1 << (TVR_BITS + 1 * TVN_BITS))
 #define TV3_MAX (1 << (TVR_BITS + 2 * TVN_BITS))
 #define TV4_MAX (1 << (TVR_BITS + 3 * TVN_BITS))
@@ -264,7 +264,7 @@ int register_timeout_callback(int timer_type, TIMEOUT_CALLBACK fn_callback) {
 u64 add_timer(u32 first_interval_sec, u32 repeat_interval_sec,
               int repeat_count, int timer_type,
               const void *cb_data, size_t cb_len) {
-    assert_retval(repeat_count == REPEAT_FOREVER || repeat_count >= 1, -EINVAL);
+    assert_retval(repeat_count == REPEAT_FOREVER || repeat_count >= 1, MID_NULL);
 
     bool in_shm = false;
     bool ok = time_enabled(&in_shm);
