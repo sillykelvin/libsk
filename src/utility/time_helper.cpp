@@ -4,8 +4,8 @@
 
 #define SECONDS_OF_DAY (24 * 3600)
 
-namespace sk {
-namespace time {
+NS_BEGIN(sk)
+NS_BEGIN(time)
 
 struct tm *localtime_safe(time_t t) {
     struct tm *tm = localtime(&t);
@@ -76,5 +76,23 @@ bool is_same_week(time_t t1, time_t t2, int offset_hour) {
     return week1 == week2;
 }
 
-} // namespace time
-} // namespace sk
+void timeval_add(const timeval& tv1, const timeval& tv2, timeval& out) {
+    out.tv_sec = tv1.tv_sec + tv2.tv_sec;
+    out.tv_usec = tv1.tv_usec + tv2.tv_usec;
+    if (out.tv_usec >= 1000000) {
+        out.tv_sec += 1;
+        out.tv_usec -= 1000000;
+    }
+}
+
+void timeval_sub(const timeval& tv1, const timeval& tv2, timeval& out) {
+    out.tv_sec = tv1.tv_sec - tv2.tv_sec;
+    out.tv_usec = tv1.tv_usec - tv2.tv_usec;
+    if (out.tv_usec < 0) {
+        out.tv_sec -= 1;
+        out.tv_usec += 1000000;
+    }
+}
+
+NS_END(time)
+NS_END(sk)
