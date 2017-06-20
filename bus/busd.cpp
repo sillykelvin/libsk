@@ -27,7 +27,7 @@ protected:
     }
 
     virtual int on_stop() {
-        return 0;
+        return router_.stop();
     }
 
     virtual int on_run() {

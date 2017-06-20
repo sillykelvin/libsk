@@ -1,23 +1,14 @@
-#include <string.h>
+#include <libsk.h>
 #include <ifaddrs.h>
-#include <sys/shm.h>
 #include <arpa/inet.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include "bus/bus.h"
-#include "bus_router.h"
 #include "bus_config.h"
-#include "nanomsg/nn.h"
-#include "nanomsg/pair.h"
-#include "utility/config.h"
-#include "common/lock_guard.h"
-#include "utility/string_helper.h"
-#include "shm/detail/shm_segment.h"
+#include "bus_router.h"
+#include <bus/detail/channel_mgr.h>
+#include <shm/detail/shm_segment.h>
 
 #define BUS_KV_PREFIX "bus/"
-#define UPDATE_INITIAL_INTERVAL  1  // update every 1 seconds at initial time
-#define UPDATE_STEADY_INTERVAL   10 // update every 10 seconds at steady time
-#define UPDATE_INITIAL_THRESHOLD 60 // consider the state "steady" after 60 updates
+
+using namespace std::placeholders;
 
 struct bus_message {
     int magic;
@@ -42,6 +33,14 @@ struct bus_message {
     size_t total_length() const {
         return sizeof(*this) + length;
     }
+
+    bus_message *dup() const {
+        size_t len = total_length();
+        bus_message *msg = cast_ptr(bus_message, malloc(len));
+        if (likely(msg)) mempcpy(msg, this, len);
+
+        return msg;
+    }
 };
 static_assert(std::is_pod<bus_message>::value, "bus_message must be a POD type.");
 
@@ -55,7 +54,7 @@ static int retrieve_local_address(std::string& ip) {
         check_continue(ifa->ifa_addr->sa_family == AF_INET);
         check_continue(strcmp(ifa->ifa_name, "lo") != 0);
 
-        void *tmp = &((sockaddr_in *) ifa->ifa_addr)->sin_addr;
+        void *tmp = &(cast_ptr(sockaddr_in, ifa->ifa_addr)->sin_addr);
         char buf[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, tmp, buf, INET_ADDRSTRLEN);
 
@@ -71,11 +70,50 @@ static int retrieve_local_address(std::string& ip) {
     return 0;
 }
 
+bus_router::endpoint::endpoint(bus_router *r, const std::string& host, u16 port)
+    : host_(host),
+      client_(r->reactor_, host, port,
+              std::bind(&bus_router::on_remote_connected, r, this, _1, _2)) {
+    client_.set_read_callback(std::bind(&bus_router::on_local_message_received, r, this, _1, _2, _3));
+    client_.set_write_callback(std::bind(&bus_router::on_local_message_sent, r, this, _1, _2));
+}
+
+int bus_router::endpoint::init() {
+    if (connection_) return 0;
+    return client_.connect();
+}
+
+void bus_router::endpoint::stop() {
+    client_.stop();
+    connection_.reset();
+}
+
+int bus_router::endpoint::send(const bus_message *msg) {
+    sk_assert(connection_);
+
+    ssize_t nbytes = connection_->send(msg, msg->total_length());
+    if (unlikely(nbytes == -1)) return -errno;
+
+    return 0;
+}
+
 int bus_router::init(const bus_config& cfg, bool resume_mode) {
     int ret = 0;
 
-    buffer_capacity_ = 2 * 1024 * 1024;
-    msg_ = cast_ptr(bus_message, malloc(sizeof(bus_message) + buffer_capacity_));
+    ret = sk::time::init_time(0);
+    if (ret != 0) return ret;
+
+    ret = sk::time::init_heap_timer();
+    if (ret != 0) return ret;
+
+    listen_port_ = static_cast<u16>(cfg.listen_port);
+    loop_rate_ = (cfg.msg_per_run > 0) ? cfg.msg_per_run : 200;
+    report_interval_ = cfg.report_interval;
+    running_count_ = 0;
+
+    buffer_capacity_ = 2 * 1024 * 1024; // 2MB
+    size_t total_len = sizeof(bus_message) + buffer_capacity_;
+    msg_ = cast_ptr(bus_message, malloc(total_len));
     if (!msg_) return -ENOMEM;
     msg_->init(buffer_capacity_);
 
@@ -85,43 +123,100 @@ int bus_router::init(const bus_config& cfg, bool resume_mode) {
 
     mgr_ = cast_ptr(sk::detail::channel_mgr, seg.address());
     ret = mgr_->init(seg.shmid, cfg.bus_shm_size, resume_mode);
+
+    reactor_ = sk::net::reactor_epoll::create();
+    if (!reactor_) return -errno;
+
+    consul_ = new sk::consul_client();
+    if (!consul_) return -ENOMEM;
+
+    ret = consul_->init(reactor_, cfg.consul_addr_list);
     if (ret != 0) return ret;
 
-    int socket = nn_socket(AF_SP, NN_PAIR);
-    if (socket < 0) return -1;
-
-    char addr[128] = {0};
-    snprintf(addr, sizeof(addr) - 1, "tcp://*:%d", cfg.listen_port);
-    int endpoint = nn_bind(socket, addr);
-    if (endpoint < 0) return -1;
-
-    ret = agent_.init(cfg.consul_addr_list);
+    ret = consul_->watch(BUS_KV_PREFIX, 0,
+                         std::bind(&bus_router::on_route_watch, this, _1, _2, _3));
     if (ret != 0) return ret;
 
-    ret = retrieve_local_address(local_host_);
+    server_ = new sk::net::tcp_server(reactor_, MAX_BACKLOG, listen_port_,
+                                      std::bind(&bus_router::on_new_connection, this, _1, _2));
+    if (!server_) return -ENOMEM;
+
+    server_->set_read_callback(std::bind(&bus_router::on_remote_message_received, this, _1, _2, _3));
+    server_->set_write_callback(std::bind(&bus_router::on_remote_message_sent, this, _1, _2));
+
+    ret = server_->start();
     if (ret != 0) return ret;
 
-    recv_port_ = cfg.listen_port;
-    receiver_ = socket;
+    sig_watcher_ = sk::signal_watcher::create(reactor_);
+    if (!sig_watcher_) return -errno;
 
-    pending_count_ = 0;
+    ret = sig_watcher_->watch(sk::bus::BUS_MESSAGE_SIGNO);
+    if (ret != 0) return ret;
 
-    update_count_ = 0;
-    last_update_time_ = 0;
+    ret = sig_watcher_->watch(sk::bus::BUS_REGISTRATION_SIGNO);
+    if (ret != 0) return ret;
 
-    loop_rate_ = (cfg.msg_per_run != 0) ? cfg.msg_per_run : 200;
-    report_interval_ = cfg.report_interval;
-    running_count_ = 0;
+    sig_watcher_->set_signal_callback(std::bind(&bus_router::on_signal, this, _1));
+    sig_watcher_->start();
+
+    ret = retrieve_local_address(localhost_);
+    if (ret != 0) return ret;
 
     seg.release();
     return 0;
 }
 
+int bus_router::stop() {
+    consul_->stop();
+    server_->stop();
+    sig_watcher_->stop();
+
+    for (const auto& it : host2endpoints_)
+        it.second->stop();
+
+    if (reactor_->has_pending_event())
+        return 1;
+
+    return 0;
+}
+
 void bus_router::fini() {
+    for (const auto& it : busid2queue_) {
+        for (const auto& msg : it.second)
+            free(msg);
+    }
+    busid2queue_.clear();
+
+    for (const auto& it : host2queue_) {
+        for (const auto& msg : it.second)
+            free(msg);
+    }
+    host2queue_.clear();
+
     if (msg_) {
         free(msg_);
         msg_ = nullptr;
         buffer_capacity_ = 0;
+    }
+
+    if (consul_) {
+        delete consul_;
+        consul_ = nullptr;
+    }
+
+    if (server_) {
+        delete server_;
+        server_ = nullptr;
+    }
+
+    if (sig_watcher_) {
+        delete sig_watcher_;
+        sig_watcher_ = nullptr;
+    }
+
+    if (reactor_) {
+        delete reactor_;
+        reactor_ = nullptr;
     }
 
     if (mgr_) {
@@ -131,23 +226,20 @@ void bus_router::fini() {
 }
 
 void bus_router::reload(const bus_config& cfg) {
-    loop_rate_ = cfg.msg_per_run;
+    u16 listen_port = static_cast<u16>(cfg.listen_port);
+    if (listen_port != listen_port_)
+        sk_warn("listening port hotfix is not supported.");
+
+    loop_rate_ = (cfg.msg_per_run > 0) ? cfg.msg_per_run : 200;
     report_interval_ = cfg.report_interval;
 }
 
 int bus_router::run() {
-    sk::lock_guard<sk::spin_lock> guard(mgr_->lock);
-
     ++running_count_;
     report();
 
-    bool ubusy = update_route();
-    bool rbusy = run_agent();
-    bool fbusy = fetch_msg();
-    bool pbusy = process_msg();
-
-    // return 1 to make the main loop busy running
-    return (ubusy || rbusy || fbusy || pbusy) ? 1 : 0;
+    int count = reactor_->dispatch(10);
+    return count > 0 ? 1 : 0;
 }
 
 void bus_router::report() const {
@@ -158,161 +250,273 @@ void bus_router::report() const {
     if (running_count_ % report_interval_ != 0)
         return;
 
-    std::string info("local processes: [ ");
-    for (const auto& it : local_procs_)
+    sk_info("========== bus report ==========");
+    sk_info("active endpoints: ");
+    for (const auto& it : active_endpoints_) {
+        std::string str_busid = sk::bus::to_string(it.first);
+        sk_info("busid(%s) -> host(%s)", str_busid.c_str(), it.second.c_str());
+    }
+
+    std::string info("inactive endpoints: [");
+    for (const auto& it : inactive_endpoints_)
         info.append(sk::bus::to_string(it)).append(" ");
     info.append("]");
     sk_info("%s", info.c_str());
 
-    for (const auto& it : busid2host_) {
+    sk_info("host -> endpoints: ");
+    for (const auto& it : host2endpoints_)
+        sk_info("host(%s) : %s", it.first.c_str(),
+                it.second->connected() ? "connected" : "not connected");
+
+    sk_info("busid -> queue: ");
+    for (const auto& it : busid2queue_) {
         std::string str_busid = sk::bus::to_string(it.first);
-        sk_info("route map: %s -> %s", str_busid.c_str(), it.second.c_str());
+        sk_info("busid(%s) -> queue size(%lu)", str_busid.c_str(), it.second.size());
     }
+
+    sk_info("host -> queue: ");
+    for (const auto& it : host2queue_)
+        sk_info("host(%s) -> queue size(%lu)", it.first.c_str(), it.second.size());
 
     mgr_->report();
+    sk_info("========== bus report ==========");
 }
 
-bool bus_router::update_route() {
-    using namespace std::placeholders;
+int bus_router::handle_message(const bus_message *msg) {
+    // if the destination gets deregistered, just ignore the message
+    if (inactive_endpoints_.find(msg->dst_busid) != inactive_endpoints_.end()) {
+        sk_warn("busid %x is inactive.", msg->dst_busid);
+        return -EINVAL;
+    }
 
-    time_t now = time(nullptr);
-    time_t interval = UPDATE_STEADY_INTERVAL;
-    if (unlikely(update_count_ < UPDATE_INITIAL_THRESHOLD))
-        interval = UPDATE_INITIAL_INTERVAL;
+    const std::string *host = find_host(msg->dst_busid);
 
-    if (!mgr_->changed && last_update_time_ + interval > now)
-        return false;
+    // if host cannot be found, it must be the destination has not been
+    // registered to consul, so we cache the message to send it later
+    if (unlikely(!host)) {
+        sk_info("host not found for %x, cache the message.", msg->dst_busid);
+        enqueue(msg->dst_busid, msg);
+        return 0;
+    }
 
-    // reset the change, do NOT lock mgr_ here
-    // as we have locked mgr in function run()
-    // sk::lock_guard<sk::spin_lock> guard(mgr_->lock);
-    mgr_->changed = false;
+    // destination is on local host, send directly
+    if (*host == localhost_) return send_local_message(msg);
 
-    for (int i = 0; i < mgr_->descriptor_count; ++i) {
-        const sk::detail::channel_descriptor& desc = mgr_->descriptors[i];
-        auto it = local_procs_.find(desc.owner);
+    // the destination is not localhost
+    endpoint *p = fetch_endpoint(*host);
+    if (unlikely(!p)) {
+        sk_error("cannot fetch endpoint: %s", host->c_str());
+        return -ENOENT;
+    }
 
-        if (desc.closed  && it == local_procs_.end()) continue;
-        if (!desc.closed && it != local_procs_.end()) continue;
+    // the host is found, then the messages in busid's queue
+    // must have been moved into host's queue
+    // we call this function when processing the queue, so
+    // this assertion is false now
+    // sk_assert(busid2queue_.find(msg->dst_busid) == busid2queue_.end());
 
-        // channel registered, but not added to consul
-        if (!desc.closed && it == local_procs_.end()) {
-            std::string key(BUS_KV_PREFIX + sk::bus::to_string(desc.owner));
-            agent_.set(key, local_host_, std::bind(&bus_router::on_route_set, this, _1, _2, _3));
-            pending_count_ += 1;
-            continue;
+    // if the remote host is connected, just send the message
+    if (likely(p->connected())) {
+        sk_assert(host2queue_.find(*host) == host2queue_.end());
+        return p->send(msg);
+    }
+
+    // the remote is not connected, cache the message, send it later
+    sk_info("endpoint %s not connected, cache the message, bus: %x",
+            host->c_str(), msg->dst_busid);
+    enqueue(*host, msg);
+    return 0;
+}
+
+int bus_router::send_local_message(const bus_message *msg) {
+     sk::detail::channel *rc = mgr_->find_read_channel(msg->dst_busid);
+     if (unlikely(!rc)) {
+         sk_error("cannot get channel<%x>.", msg->dst_busid);
+         return -EINVAL;
+     }
+
+     int ret = rc->push(msg->src_busid, msg->dst_busid, msg->data, msg->length);
+     if (unlikely(ret != 0)) {
+         sk_error("push message error<%d>, bus<%x>.", ret, msg->dst_busid);
+         return ret;
+     }
+
+     // TODO: send signal here
+     return 0;
+}
+
+const std::string *bus_router::find_host(int busid) const {
+    auto it = active_endpoints_.find(busid);
+    if (it != active_endpoints_.end())
+        return &(it->second);
+
+    return nullptr;
+}
+
+void bus_router::enqueue(int busid, const bus_message *msg) {
+    bus_message *m = msg->dup();
+    busid2queue_[busid].push_back(m);
+}
+
+void bus_router::enqueue(const std::string& host, const bus_message *msg) {
+    bus_message *m = msg->dup();
+    host2queue_[host].push_back(m);
+}
+
+bus_router::endpoint *bus_router::fetch_endpoint(const std::string& host) {
+    assert_retval(host != localhost_, nullptr);
+
+    auto it = host2endpoints_.find(host);
+    if (it != host2endpoints_.end())
+        return it->second;
+
+    endpoint *p = new endpoint(this, host, listen_port_);
+    assert_retval(p, nullptr);
+
+    int ret = p->init();
+    if (ret != 0) {
+        sk_error("endpoint init error: %d", ret);
+        delete p;
+        return nullptr;
+    }
+
+    host2endpoints_.insert(std::make_pair(host, p));
+    return p;
+}
+
+void bus_router::on_new_connection(int error, const sk::net::tcp_connection_ptr& conn) {
+    if (error != 0) {
+        sk_error("cannot accept: %s", strerror(error));
+        return;
+    }
+
+    sk_debug("client %s connected.", conn->remote_address().to_string().c_str());
+    conn->recv();
+}
+
+void bus_router::on_remote_message_received(int error, const sk::net::tcp_connection_ptr &conn, sk::net::buffer *buf) {
+    if (error == sk::net::tcp_connection::READ_EOF) {
+        sk_debug("get eof, client: %s", conn->remote_address().to_string().c_str());
+        conn->close();
+        return;
+    }
+
+    if (error != 0) {
+        sk_error("cannot read: %s", strerror(error));
+        conn->close();
+        return;
+    }
+
+    const static size_t min_size = sizeof(bus_message);
+    while (buf->size() >= min_size) {
+        const bus_message *msg = reinterpret_cast<const bus_message*>(buf->peek());
+        assert_break(msg->magic == MAGIC);
+
+        if (buf->size() < msg->total_length()) {
+            sk_debug("partial msg, src: %x, dst: %x, size: %lu, total: %lu",
+                     msg->src_busid, msg->dst_busid, buf->size(), msg->total_length());
+            return;
         }
 
-        // channel closed, but not removed from consul
-        if (desc.closed && it != local_procs_.end()) {
-            std::string key(BUS_KV_PREFIX + sk::bus::to_string(desc.owner));
-            agent_.del(key, false, std::bind(&bus_router::on_route_del, this, _1, _2, _3));
-            pending_count_ += 1;
-            continue;
-        }
+        buf->consume(msg->total_length());
 
+        int ret = handle_message(msg);
+        if (ret != 0)
+            sk_error("handle message error: %d, dst_busid: %x", ret, msg->dst_busid);
+    }
+
+    conn->recv();
+}
+
+void bus_router::on_remote_message_sent(int, const sk::net::tcp_connection_ptr& conn) {
+    sk_assert(0);
+    sk_fatal("this function should never be called: %s", conn->remote_address().to_string().c_str());
+}
+
+void bus_router::on_remote_connected(endpoint *p, int error,
+                                     const sk::net::tcp_connection_ptr& conn) {
+    sk_assert(host2endpoints_.find(p->host()) != host2endpoints_.end());
+
+    if (error != 0) {
+        sk_fatal("cannot connect: %s, host: %s", strerror(error), p->host().c_str());
+        return; // TODO: shouldn't we retry here??
+    }
+
+    sk_debug("connected to remote: %s", p->host().c_str());
+    sk_assert(!p->connected());
+    p->set_connection(conn);
+
+    auto it = host2queue_.find(p->host());
+    assert_retnone(it != host2queue_.end());
+
+    message_queue& q = it->second;
+    sk_debug("process queue: %s, size: %lu", p->host().c_str(), q.size());
+
+    sk_assert(!q.empty());
+    while (!q.empty()) {
+        std::unique_ptr<bus_message, void(*)(void*)> msg(q.front(), ::free);
+        q.pop_front();
+
+        int ret = p->send(msg.get());
+        if (ret != 0) // TODO: more robust handling here??
+            sk_error("cannot send msg: %d, host: %s", ret, p->host().c_str());
+    }
+
+    host2queue_.erase(it);
+}
+
+void bus_router::on_local_message_received(bus_router::endpoint *p, int error, const sk::net::tcp_connection_ptr& conn, sk::net::buffer *buf) {
+    sk_assert(host2endpoints_.find(p->host()) != host2endpoints_.end());
+
+    if (error != sk::net::tcp_connection::READ_EOF) {
         sk_assert(0);
+        sk_fatal("this function can only be called by EOF, host: %s", p->host().c_str());
+        return;
     }
 
-    agent_.get_all(BUS_KV_PREFIX, std::bind(&bus_router::on_route_get_all, this, _1, _2));
-    pending_count_ += 1;
-
-    update_count_ += 1;
-    last_update_time_ = now;
-    return true;
+    // TODO: handle eof here, reconnect??
 }
 
-bool bus_router::run_agent() {
-    if (pending_count_ > 0)
-        agent_.run();
+void bus_router::on_local_message_sent(bus_router::endpoint *p, int error, const sk::net::tcp_connection_ptr& conn) {
+    sk_assert(host2endpoints_.find(p->host()) != host2endpoints_.end());
 
-    return pending_count_ > 0;
+    if (error != 0) {
+        sk_error("send error: %s, host: %s", strerror(error), p->host().c_str());
+        return; // TODO: more robust handling here??
+    }
 }
 
-bool bus_router::fetch_msg() {
-    void *buf = nullptr;
-    int nbytes = nn_recv(receiver_, &buf, NN_MSG, NN_DONTWAIT);
-    sk_assert(nbytes > 0 || nbytes == -1);
-
-    if (nbytes == -1) {
-        int error = nn_errno();
-        // EAGAIN means there is no message to fetch
-        if (error != EAGAIN)
-            sk_error("receive message error<%d:%s>.", error, nn_strerror(error));
-
-        return false;
-    }
-
-    struct guard {
-        void *msg;
-        guard(void *msg) : msg(msg) {}
-        ~guard() { if (msg) nn_freemsg(msg); }
-    } g(buf);
-
-    bus_message *msg = cast_ptr(bus_message, buf);
-    sk_assert(msg->magic == MAGIC);
-    sk_assert(msg->waste == 0);
-    sk_assert(msg->src_busid != 0);
-    sk_assert(msg->dst_busid != 0);
-    sk_assert((size_t) nbytes == msg->total_length());
-
-    // the following logic all returns true as there is already a message
-    // fetched from the socket, we should assume there are more to fetch
-
-    if (!is_local_process(msg->dst_busid)) {
-        sk_error("process<%x> is not on this host, src<%x>.", msg->dst_busid, msg->src_busid);
-        return true;
-    }
-
-    sk::detail::channel *rc = mgr_->find_read_channel(msg->dst_busid);
-    if (!rc) {
-        sk_error("cannot find channel<%x>.", msg->dst_busid);
-        return true;
-    }
-
-    int ret = rc->push(msg->src_busid, msg->dst_busid, msg->data, msg->length);
-    if (ret != 0)
-        sk_error("push message error<%d>, bus<%x>.", ret, msg->dst_busid);
-
-    return true;
+void bus_router::on_signal(const signalfd_siginfo *info) {
+    int signo = static_cast<s32>(info->ssi_signo);
+    if (likely(signo == sk::bus::BUS_MESSAGE_SIGNO))
+        on_local_message(info->ssi_int);
+    else if (signo == sk::bus::BUS_REGISTRATION_SIGNO)
+        on_descriptor_change(info->ssi_int);
+    else
+        sk_warn("invalid signal: %d", signo);
 }
 
-bool bus_router::process_msg() {
-    // no channel on this host
-    if (mgr_->descriptor_count <= 0)
-        return false;
+void bus_router::on_local_message(int fd) {
+    if (fd < 0 || fd >= mgr_->descriptor_count) {
+        sk_error("invalid descriptor<%d>.", fd);
+        return;
+    }
 
+    const sk::detail::channel_descriptor& desc = mgr_->descriptors[fd];
+    if (desc.closed) {
+        sk_error("channel<%x> closed.", desc.owner);
+        return;
+    }
+
+    sk::detail::channel *wc = mgr_->get_write_channel(fd);
+
+    // limit the count here to avoid other channels
+    // getting starved if this channel is super busy
     int count = 0;
-    int index = 0;
-    std::set<int> empty_channels;
     while (count < loop_rate_) {
-        const sk::detail::channel_descriptor& desc = mgr_->descriptors[index];
-        if (desc.closed) {
-            empty_channels.insert(desc.owner);
-            index = (index + 1) % mgr_->descriptor_count;
-
-            if (empty_channels.size() < (size_t) mgr_->descriptor_count)
-                continue;
-
-            // all channels are empty
-            return false;
-        }
-
-        sk::detail::channel *wc = mgr_->get_write_channel(index);
-        index = (index + 1) % mgr_->descriptor_count;
-
         msg_->reset(buffer_capacity_);
         int ret = wc->pop(msg_->data, msg_->length, &msg_->src_busid, &msg_->dst_busid);
-
-        // no message in this channel
-        if (ret == 0) {
-            empty_channels.insert(desc.owner);
-            if (empty_channels.size() < (size_t) mgr_->descriptor_count)
-                continue;
-
-            // all channels are empty
-            return false;
-        }
+        if (ret == 0) break;
 
         if (unlikely(ret < 0)) {
             if (ret != -E2BIG) {
@@ -320,7 +524,7 @@ bool bus_router::process_msg() {
                 continue;
             }
 
-            sk_warn("big message, size<%lu>, buffer size<%d>.", msg_->length, buffer_capacity_);
+            sk_warn("big message, size<%lu>, buffer size<%lu>.", msg_->length, buffer_capacity_);
             bus_message *buf = cast_ptr(bus_message, malloc(msg_->total_length()));
             assert_continue(buf);
 
@@ -332,82 +536,21 @@ bool bus_router::process_msg() {
             ret = wc->pop(msg_->data, msg_->length, &msg_->src_busid, &msg_->dst_busid);
             assert_continue(ret != 0);
 
-            if (ret < 0) {
+            if (unlikely(ret < 0)) {
                 sk_assert(ret != -E2BIG);
-                sk_error("pop message error, ret<%d>, process<%d>.", ret, desc.owner);
+                sk_error("pop message error, ret<%d>, process<%x>.", ret, desc.owner);
                 continue;
             }
         }
 
         if (likely(ret == 1)) {
             count += 1;
-
-            auto it = empty_channels.find(desc.owner);
-            if (it != empty_channels.end())
-                empty_channels.erase(it);
-
             if (msg_->src_busid != desc.owner)
                 sk_warn("bus mismatch, message<%x>, channel<%x>.", msg_->src_busid, desc.owner);
 
-            // dst_busid is on local host, just add msg to its read channel
-            if (is_local_process(msg_->dst_busid)) {
-                sk::detail::channel *rc = mgr_->find_read_channel(msg_->dst_busid);
-                if (!rc) {
-                    sk_error("cannot get channel<%x>.", msg_->dst_busid);
-                    continue;
-                }
-
-                int result = rc->push(msg_->src_busid, msg_->dst_busid, msg_->data, msg_->length);
-                if (result != 0)
-                    sk_error("push message error<%d>, bus<%x>.", result, msg_->dst_busid);
-
-                continue;
-            }
-
-            // dst_busid is not on local host
-            const std::string *host = find_host(msg_->dst_busid);
-            if (!host) {
-                sk_warn("no valid destination<%x>, initializing?", msg_->dst_busid);
-                continue;
-            }
-
-            if (unlikely(*host == local_host_)) {
-                sk_assert(0);
-                sk::detail::channel *rc = mgr_->find_read_channel(msg_->dst_busid);
-                if (!rc) {
-                    sk_error("cannot get channel<%x>.", msg_->dst_busid);
-                    continue;
-                }
-
-                int result = rc->push(msg_->src_busid, msg_->dst_busid, msg_->data, msg_->length);
-                if (result != 0)
-                    sk_error("push message error<%d>, bus<%x>.", result, msg_->dst_busid);
-
-                continue;
-            }
-
-            // send message to remote host
-            int *socket = fetch_socket(*host);
-            if (!socket) continue;
-
-            int result = nn_send(*socket, msg_, msg_->total_length(), NN_DONTWAIT);
-            sk_assert(result > 0 || result == -1);
-            if (result > 0) continue;
-
-            int error = nn_errno();
-            if (error != EAGAIN) {
-                sk_error("send message error<%d:%s>, bus<%x>.",
-                         error, nn_strerror(error), msg_->dst_busid);
-                continue;
-            }
-
-            // the error is EAGAIN, try to resend the msg
-            result = nn_send(*socket, msg_, msg_->total_length(), NN_DONTWAIT);
-            if (result > 0) continue;
-
-            error = nn_errno();
-            sk_error("send message error<%d:%s>, bus<%x>.",
-                     error, nn_strerror(error), msg_->dst_busid);
+            int rc = handle_message(msg_);
+            if (rc != 0)
+                sk_error("handle message error: %d, dst_busid: %x", rc, msg_->dst_busid);
 
             continue;
         }
@@ -415,119 +558,147 @@ bool bus_router::process_msg() {
         // it should NOT get here
         sk_assert(0);
     }
-
-    return true;
 }
 
-int *bus_router::fetch_socket(const std::string& host) {
-    auto it = host2sender_.find(host);
-    if (it != host2sender_.end())
-        return &(it->second);
-
-    int socket = nn_socket(AF_SP, NN_PAIR);
-    if (unlikely(socket < 0)) {
-        sk_error("cannot create socket, error<%d:%s>.",
-                 nn_errno(), nn_strerror(nn_errno()));
-        return nullptr;
+void bus_router::on_descriptor_change(int fd) {
+    if (fd < 0 || fd >= mgr_->descriptor_count) {
+        sk_error("invalid descriptor<%d>.", fd);
+        return;
     }
 
-    char addr[128] = {0};
-    snprintf(addr, sizeof(addr) - 1, "tcp://%s:%d", host.c_str(), recv_port_);
-    int endpoint = nn_connect(socket, addr);
-    if (endpoint < 0) {
-        sk_error("cannot connect to %s, error<%d:%s>.",
-                 addr, nn_errno(), nn_strerror(nn_errno()));
-        return nullptr;
+    const sk::detail::channel_descriptor& desc = mgr_->descriptors[fd];
+    bool active = active_endpoints_.find(desc.owner) != active_endpoints_.end();
+    bool inactive = inactive_endpoints_.find(desc.owner) != inactive_endpoints_.end();
+    sk_assert((!active && !inactive) || // not registered at all
+              (active  && !inactive) || // registered
+              (!active && inactive));   // deretistered
+
+    // channel registered, but not added to consul
+    if (!active && !desc.closed) {
+        std::string key(BUS_KV_PREFIX + sk::bus::to_string(desc.owner));
+        sk_info("registering key %s to consul...", key.c_str());
+        consul_->set(key, localhost_, std::bind(&bus_router::on_route_set, this, _1, _2, _3));
+        return;
     }
 
-    sk_info("connected to remote host %s.", addr);
-    host2sender_[host] = socket;
-    it = host2sender_.find(host);
-    assert_retval(it != host2sender_.end(), nullptr);
-
-    return &(it->second);
+    // channel closed, but not removed from consul
+    if (active && desc.closed) {
+        std::string key(BUS_KV_PREFIX + sk::bus::to_string(desc.owner));
+        sk_debug("deregistering key %s from consul...", key.c_str());
+        consul_->del(key, false, std::bind(&bus_router::on_route_del, this, _1, _2, _3));
+        return;
+    }
 }
 
-void bus_router::on_route_get_all(int ret, const consul::string_map *kv_list) {
-    if (pending_count_ <= 0) sk_assert(0);
-    else pending_count_ -= 1;
-
+void bus_router::on_route_watch(int ret, int index,
+                                const std::map<std::string, std::string> *kv_list) {
     if (ret != 0) {
-        sk_error("consul returns error<%d>.", ret);
+        if (ret == -ENOENT)
+            sk_debug("consul returns 404.");
+        else
+            sk_error("consul returns error: %d", ret);
+
+        ret = consul_->watch(BUS_KV_PREFIX, index,
+                             std::bind(&bus_router::on_route_watch, this, _1, _2, _3));
+        if (ret != 0) sk_error("consul watch error: %d", ret);
         return;
     }
 
     assert_retnone(kv_list);
 
     std::string prefix(BUS_KV_PREFIX);
-    std::map<int, std::string> dummy;
+    std::map<int, std::string> active;
     for (const auto& kv : *kv_list) {
         assert_continue(sk::is_prefix(prefix, kv.first));
-        auto str_busid = kv.first.substr(prefix.length());
+        std::string str_busid = kv.first.substr(prefix.length());
         int busid = sk::bus::from_string(str_busid.c_str());
 
-        dummy[busid] = kv.second;
+        active[busid] = kv.second;
+        inactive_endpoints_.erase(busid);
 
-        auto it = busid2host_.find(busid);
-        if (it == busid2host_.end())
-            sk_info("new bus route: %s -> %s",
-                    str_busid.c_str(), kv.second.c_str());
-        else {
-            if (it->second != kv.second)
-                sk_info("update bus route: %s -> %s[old: %s]",
-                        str_busid.c_str(), kv.second.c_str(), it->second.c_str());
-        }
+        // the existing registration must NOT have a queue
+        if (active_endpoints_.find(busid) != active_endpoints_.end())
+            sk_assert(busid2queue_.find(busid) == busid2queue_.end());
+        else
+            sk_info("new bus route: %s", str_busid.c_str());
     }
 
-    for (const auto& it : busid2host_) {
-        if (dummy.find(it.first) == dummy.end()) {
+    for (const auto& it : active_endpoints_) {
+        if (active.find(it.first) == active.end()) {
             std::string str_busid = sk::bus::to_string(it.first);
             sk_info("remove bus route: %s", str_busid.c_str());
+
+            inactive_endpoints_.insert(it.first);
         }
     }
+    active_endpoints_.swap(active);
 
-    busid2host_.swap(dummy);
+    for (const auto& it : active_endpoints_) {
+        int busid = it.first;
+        auto sit = busid2queue_.find(busid);
+        if (sit == busid2queue_.end())
+            continue;
+
+        message_queue& q = sit->second;
+        sk_debug("process queue: %x, size: %lu", busid, q.size());
+        while (!q.empty()) {
+            std::unique_ptr<bus_message, void(*)(void*)> msg(q.front(), ::free);
+            q.pop_front();
+
+            int ret = handle_message(msg.get());
+            if (ret != 0)
+                sk_error("handle message error: %d, dst: %x", ret, msg->dst_busid);
+        }
+
+        busid2queue_.erase(sit);
+    }
+
+    ret = consul_->watch(BUS_KV_PREFIX, index,
+                         std::bind(&bus_router::on_route_watch, this, _1, _2, _3));
+    if (ret != 0) sk_error("consul watch error: %d", ret);
 }
 
 void bus_router::on_route_set(int ret, const std::string& key, const std::string& value) {
-    if (pending_count_ <= 0) sk_assert(0);
-    else pending_count_ -= 1;
-
     if (ret != 0) {
-        sk_error("consul returns error<%d>.", ret);
+        sk_error("consul returns error: %d", ret);
         return;
     }
 
-    sk_assert(value == local_host_);
+    sk_assert(value == localhost_);
 
     std::string prefix(BUS_KV_PREFIX);
     assert_retnone(sk::is_prefix(prefix, key));
 
-    auto str_busid = key.substr(prefix.length());
+    std::string str_busid = key.substr(prefix.length());
     sk_info("local bus registered: %s -> %s", str_busid.c_str(), value.c_str());
 
     int busid = sk::bus::from_string(str_busid.c_str());
-    local_procs_.insert(busid);
+    bool existing = active_endpoints_.find(busid) != active_endpoints_.end();
 
-    auto it = busid2host_.find(busid);
-    if (it == busid2host_.end()) {
-        sk_info("new bus route: %s -> %s", str_busid.c_str(), value.c_str());
-        busid2host_[busid] = value;
-    } else {
-        if (it->second != value) {
-            sk_info("update bus route: %s -> %s[old: %s]",
-                    str_busid.c_str(), value.c_str(), it->second.c_str());
-            it->second = value;
-        }
+    active_endpoints_[busid] = value;
+    inactive_endpoints_.erase(busid);
+
+    auto it = busid2queue_.find(busid);
+    if (existing) sk_assert(it == busid2queue_.end());
+    if (it == busid2queue_.end()) return;
+
+    message_queue& q = it->second;
+    sk_debug("process queue: %x, size: %lu", busid, q.size());
+    while (!q.empty()) {
+        std::unique_ptr<bus_message, void(*)(void*)> msg(q.front(), ::free);
+        q.pop_front();
+
+        int ret = send_local_message(msg.get());
+        if (ret != 0)
+            sk_error("cannot send local message: %d, dst: %x", ret, msg->dst_busid);
     }
+
+    busid2queue_.erase(it);
 }
 
 void bus_router::on_route_del(int ret, bool recursive, const std::string& key) {
-    if (pending_count_ <= 0) sk_assert(0);
-    else pending_count_ -= 1;
-
     if (ret != 0) {
-        sk_error("consul returns error<%d>.", ret);
+        sk_error("consul returns error: %d", ret);
         return;
     }
 
@@ -536,12 +707,10 @@ void bus_router::on_route_del(int ret, bool recursive, const std::string& key) {
     std::string prefix(BUS_KV_PREFIX);
     assert_retnone(sk::is_prefix(prefix, key));
 
-    auto str_busid = key.substr(prefix.length());
+    std::string str_busid = key.substr(prefix.length());
     sk_info("local bus deregistered: %s", str_busid.c_str());
 
     int busid = sk::bus::from_string(str_busid.c_str());
-    local_procs_.erase(busid);
-
-    sk_info("remove bus route: %s", str_busid.c_str());
-    busid2host_.erase(busid);
+    active_endpoints_.erase(busid);
+    inactive_endpoints_.insert(busid);
 }
