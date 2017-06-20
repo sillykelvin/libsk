@@ -193,6 +193,13 @@ rest_client::~rest_client() {
     curl_global_cleanup();
 }
 
+void rest_client::stop() {
+    for (const auto& it : busy_contexts_)
+        it->disable_all();
+
+    if (timer_) timer_->cancel();
+}
+
 int rest_client::get(const char *uri, const fn_on_response& fn,
                      const string_map *parameters, const string_map *headers) {
     context *ctx = fetch_context(uri, parameters, headers, fn);

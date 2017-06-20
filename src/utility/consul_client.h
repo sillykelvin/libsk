@@ -20,6 +20,7 @@ public:
     using fn_on_del = std::function<void(int, bool, const std::string&)>;
 
     int init(net::reactor *r, const string_vector& addr_list);
+    void stop();
 
     int watch(const std::string& prefix, int index, const fn_on_watch& fn);
     int set(const std::string& key, const std::string& value, const fn_on_set& fn);

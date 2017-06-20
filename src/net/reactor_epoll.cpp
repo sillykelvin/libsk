@@ -47,6 +47,7 @@ void reactor_epoll::register_handler(const handler_ptr& h) {
     if (events & handler::EVENT_WRITABLE) e.events |= EPOLLOUT;
     e.data.fd = h->fd();
 
+    sk_trace("handler registration: %d -> %d,%u", h->fd(), op, e.events);
     int ret = epoll_ctl(epfd_, op, h->fd(), &e);
     if (ret != 0) {
         sk_fatal("epoll_ctl error: %s.", strerror(errno));
@@ -63,7 +64,10 @@ void reactor_epoll::register_handler(const handler_ptr& h) {
 
 int reactor_epoll::dispatch(int timeout) {
     static struct epoll_event events[1024];
-    int nfds = epoll_wait(epfd_, events, array_len(events), timeout);
+    int nfds = 0;
+    do {
+        nfds = epoll_wait(epfd_, events, array_len(events), timeout);
+    } while (nfds == -1 && errno == EINTR);
 
     if (nfds == 0) return 0;
 
@@ -71,27 +75,38 @@ int reactor_epoll::dispatch(int timeout) {
         if (errno == EINTR)
             return 0;
 
-        return -1;
-    }
+    if (nfds == 0) return 0;
+    if (nfds == -1) return -1;
 
+    sk_trace("========== before epoll dispatch ==========");
     for (int i = 0; i < nfds; ++i) {
         struct epoll_event *e = events + i;
         int fd = e->data.fd;
         assert_continue(fd >= 0);
 
+        sk_trace("RD(%d) WR(%d) ERR(%d) HUP(%d), RDHUP(%d), fd(%d)",
+                 e->events & EPOLLIN ? 1 : 0, e->events & EPOLLOUT ? 1 : 0,
+                 e->events & EPOLLERR ? 1 : 0, e->events & EPOLLHUP ? 1 : 0,
+                 e->events & EPOLLRDHUP ? 1 : 0, fd);
+
         auto it = handlers_.find(fd);
-        assert_continue(it != handlers_.end());
+        /*
+         * do NOT assert here: assume we have two events #1 and #2,
+         * in the handler of #1, it deregistered handler of #2, so
+         * the assertion will trigger when handling #2. instead, we
+         * just ignore this event, as it's discarded by the user
+         */
+        //assert_continue(it != handlers_.end());
+        if (it == handlers_.end()) {
+            sk_debug("handler<%d> is removed.", fd);
+            continue;
+        }
 
         auto h = it->second.lock();
         if (!h) {
             sk_error("handler<%d> deleted!", fd);
             continue;
         }
-
-        sk_trace("RD(%d) WR(%d) ERR(%d) HUP(%d), RDHUP(%d), fd(%d)",
-                 e->events & EPOLLIN ? 1 : 0, e->events & EPOLLOUT ? 1 : 0,
-                 e->events & EPOLLERR ? 1 : 0, e->events & EPOLLHUP ? 1 : 0,
-                 e->events & EPOLLRDHUP ? 1 : 0, fd);
 
         if (e->events & EPOLLIN)
             h->on_read_event();
@@ -108,6 +123,7 @@ int reactor_epoll::dispatch(int timeout) {
             h->on_error_event();
         }
     }
+    sk_trace("========== after epoll dispatch ==========");
 
     return nfds;
 }

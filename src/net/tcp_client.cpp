@@ -38,6 +38,17 @@ int tcp_client::connect() {
     return 0;
 }
 
+void tcp_client::stop() {
+    if (state_ == state_connecting) {
+        handler_->disable_all();
+    } else if (state_ == state_connected) {
+        sk_assert(connection_);
+        connection_->close();
+    }
+
+    state_ = state_disconnected;
+}
+
 void tcp_client::remove_connection(const tcp_connection_ptr& conn) {
     sk_assert(conn == connection_);
 

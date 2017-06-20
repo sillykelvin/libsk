@@ -29,6 +29,19 @@ int tcp_server::start() {
     return 0;
 }
 
+void tcp_server::stop() {
+    // here we MUST handle the container like this,
+    // as tcp_connection::close() will remove itself
+    // from the container, iterator will get invalid
+    // after close() function call
+    while (!connections_.empty()) {
+        auto it = connections_.begin();
+        (*it)->close();
+    }
+
+    handler_->disable_all();
+}
+
 void tcp_server::remove_connection(const tcp_connection_ptr& conn) {
     auto it = connections_.find(conn);
     if (it == connections_.end()) {

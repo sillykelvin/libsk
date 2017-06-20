@@ -90,6 +90,11 @@ int logger::reload() {
     return ret;
 }
 
+bool logger::level_enabled(const std::string& name, spdlog::level::level_enum level) {
+    auto it = _.name2logger_.find(name);
+    return it != _.name2logger_.end() && it->second.second->should_log(level);
+}
+
 void logger::log(const std::string& name, spdlog::level::level_enum level,
                  const char *file, int line, const char *function, const char *fmt, ...) {
     static char buffer[40960]; // 40KB

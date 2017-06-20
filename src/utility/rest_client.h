@@ -20,6 +20,8 @@ public:
     rest_client(net::reactor *r, const std::string& host, size_t max_cache_count);
     ~rest_client();
 
+    void stop();
+
     /*
      * set connecting timeout value in millisecond, the default
      * value is 15000 (15 seconds), if it's set to 0, libcurl

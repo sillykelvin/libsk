@@ -14,6 +14,7 @@ public:
     ~tcp_client();
 
     int connect();
+    void stop();
 
     bool connecting() const { return state_ == state_connecting; }
     bool disconnected() const { return state_ == state_disconnected; }

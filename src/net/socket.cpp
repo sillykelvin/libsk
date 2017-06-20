@@ -329,6 +329,7 @@ int socket::make_socket(int domain, int type, int protocol) {
         return -1;
     }
 
+    sk_trace("new tcp socket fd: %d", fd);
     return fd;
 }
 

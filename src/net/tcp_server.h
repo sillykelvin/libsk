@@ -15,6 +15,7 @@ public:
     ~tcp_server();
 
     int start();
+    void stop();
 
     void set_read_callback (const fn_on_read&  fn) { fn_on_read_  = fn; }
     void set_write_callback(const fn_on_write& fn) { fn_on_write_ = fn; }

@@ -60,6 +60,10 @@ int consul_client::init(net::reactor *r, const string_vector& addr_list) {
     return 0;
 }
 
+void consul_client::stop() {
+    master_->stop();
+}
+
 int consul_client::watch(const std::string& prefix, int index, const fn_on_watch& fn) {
     std::string uri(KV_STATIC_PREFIX + prefix);
 
@@ -279,7 +283,7 @@ void consul_client::on_del(consul_del_context *ctx,
         return;
     }
 
-    sk_debug("status: %d, body: %s", status, body.c_str());
+    sk_trace("status: %d, body: %s", status, body.c_str());
 
     if (status == 404) {
         ret = -ENOENT;

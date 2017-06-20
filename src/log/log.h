@@ -7,7 +7,7 @@
 #include "formatter.h"
 #include "file_sink.h"
 
-namespace sk {
+NS_BEGIN(sk)
 
 class logger {
 public:
@@ -16,6 +16,8 @@ public:
     static int init(const std::string& conf_file);
 
     static int reload();
+
+    static bool level_enabled(const std::string& name, spdlog::level::level_enum level);
 
     static void log(const std::string& name, spdlog::level::level_enum level,
                     const char *file, int line, const char *function, const char *fmt, ...);
@@ -47,6 +49,13 @@ private:
                        std::shared_ptr<spdlog::logger>>> name2logger_;
 };
 
+#define sk_trace_enabled() sk::logger::level_enabled(sk::logger::DEFAULT_LOGGER, spdlog::level::trace)
+#define sk_debug_enabled() sk::logger::level_enabled(sk::logger::DEFAULT_LOGGER, spdlog::level::debug)
+#define sk_info_enabled()  sk::logger::level_enabled(sk::logger::DEFAULT_LOGGER, spdlog::level::info)
+#define sk_warn_enabled()  sk::logger::level_enabled(sk::logger::DEFAULT_LOGGER, spdlog::level::warn)
+#define sk_error_enabled() sk::logger::level_enabled(sk::logger::DEFAULT_LOGGER, spdlog::level::err)
+#define sk_fatal_enabled() sk::logger::level_enabled(sk::logger::DEFAULT_LOGGER, spdlog::level::critical)
+
 #define sk_trace(fmt, ...) sk::logger::log(sk::logger::DEFAULT_LOGGER, spdlog::level::trace,    __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__)
 #define sk_debug(fmt, ...) sk::logger::log(sk::logger::DEFAULT_LOGGER, spdlog::level::debug,    __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__)
 #define sk_info(fmt, ...)  sk::logger::log(sk::logger::DEFAULT_LOGGER, spdlog::level::info,     __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__)
@@ -54,6 +63,6 @@ private:
 #define sk_error(fmt, ...) sk::logger::log(sk::logger::DEFAULT_LOGGER, spdlog::level::err,      __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__)
 #define sk_fatal(fmt, ...) sk::logger::log(sk::logger::DEFAULT_LOGGER, spdlog::level::critical, __FILE__, __LINE__, __FUNCTION__, fmt, ##__VA_ARGS__)
 
-} // namespace sk
+NS_END(sk)
 
 #endif // LOG_H
