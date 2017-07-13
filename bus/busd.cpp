@@ -15,7 +15,7 @@ protected:
         const bus_config& cfg = config();
         const sk::server_context& ctx = context();
 
-        ret = router_.init(cfg, ctx.resume_mode);
+        ret = router_.init(loop(), signal_watcher(), cfg, ctx.resume_mode);
         if (ret != 0) return ret;
 
         return 0;
@@ -30,10 +30,6 @@ protected:
         return router_.stop();
     }
 
-    virtual int on_run() {
-        return router_.run();
-    }
-
     virtual int on_reload() {
         router_.reload(config());
         return 0;
@@ -43,22 +39,15 @@ protected:
         sk_assert(0);
     }
 
+    virtual void on_signal(const signalfd_siginfo *info) {
+        router_.on_signal(info);
+    }
+
 private:
     bus_router router_;
 };
 
 
 int main(int argc, const char **argv) {
-    server_type& s = server_type::get();
-    int ret = 0;
-
-    ret = s.init(argc, argv);
-    if (ret != 0) return ret;
-
-    s.run();
-
-    ret = s.fini();
-    if (ret != 0) return ret;
-
-    return 0;
+    return server_type::get().start(argc, argv);
 }

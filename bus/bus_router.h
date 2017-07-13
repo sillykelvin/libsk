@@ -5,9 +5,9 @@
 #include <set>
 #include <list>
 #include <string>
-#include <net/tcp_client.h>
-#include <net/tcp_server.h>
-#include <net/tcp_connection.h>
+#include <core/tcp_server.h>
+#include <core/tcp_client.h>
+#include <core/tcp_connection.h>
 
 struct bus_config;
 struct bus_message;
@@ -19,11 +19,13 @@ namespace detail { struct channel_mgr; }}
 
 class bus_router {
 public:
-    int  init(const bus_config& cfg, bool resume_mode);
+    int  init(uv_loop_t *loop, sk::signal_watcher *watcher,
+              const bus_config& cfg, bool resume_mode);
     int  stop();
     void fini();
     void reload(const bus_config& cfg);
-    int  run();
+
+    void on_signal(const signalfd_siginfo *info);
 
 private:
     class endpoint {
@@ -33,7 +35,7 @@ private:
         void stop();
 
         const std::string& host() const { return host_; }
-        void set_connection(const sk::net::tcp_connection_ptr& conn) {
+        void set_connection(const sk::tcp_connection_ptr& conn) {
             this->connection_ = conn;
         }
 
@@ -43,17 +45,18 @@ private:
             return yes;
         }
 
-        int send(const bus_message *msg);
+        int send(bus_message *msg);
 
     private:
+        u32 seed_; // sequence generator
         std::string host_;
-        sk::net::tcp_client client_;
-        sk::net::tcp_connection_ptr connection_;
+        sk::tcp_client client_;
+        sk::tcp_connection_ptr connection_;
     };
 
 private:
     void report() const;
-    int  handle_message(const bus_message *msg);
+    int  handle_message(bus_message *msg);
     int  send_local_message(const bus_message *msg);
     const std::string *find_host(int busid) const;
     void enqueue(int busid, const bus_message *msg);
@@ -62,23 +65,22 @@ private:
 
 private:
     // tcp server callbacks
-    void on_new_connection(int error, const sk::net::tcp_connection_ptr& conn);
-    void on_remote_message_received(int error,
-                                    const sk::net::tcp_connection_ptr& conn,
-                                    sk::net::buffer *buf);
-    void on_remote_message_sent(int error, const sk::net::tcp_connection_ptr& conn);
+    void on_client_connected(int error, const sk::tcp_connection_ptr& conn);
+    void on_client_message_received(int error,
+                                    const sk::tcp_connection_ptr& conn,
+                                    sk::buffer *buf);
+    void on_client_message_sent(int error, const sk::tcp_connection_ptr& conn);
 
     // tcp client callbacks
-    void on_remote_connected(endpoint *p, int error,
-                             const sk::net::tcp_connection_ptr& conn);
-    void on_local_message_received(endpoint *p, int error,
-                                   const sk::net::tcp_connection_ptr& conn,
-                                   sk::net::buffer *buf);
-    void on_local_message_sent(endpoint *p,
-                               int error, const sk::net::tcp_connection_ptr& conn);
+    void on_server_connected(endpoint *p, int error,
+                             const sk::tcp_connection_ptr& conn);
+    void on_server_message_received(endpoint *p, int error,
+                                    const sk::tcp_connection_ptr& conn,
+                                    sk::buffer *buf);
+    void on_server_message_sent(endpoint *p,
+                                int error, const sk::tcp_connection_ptr& conn);
 
     // signal callbacks
-    void on_signal(const signalfd_siginfo *info);
     void on_local_message(int fd);
     void on_descriptor_change(int fd);
 
@@ -93,23 +95,21 @@ private:
 
     u16 listen_port_;
     int loop_rate_;          // how many messages will be processed in one loop
-    size_t report_interval_;
-    size_t running_count_;   // how many loops has been run
 
     bus_message *msg_;
     size_t buffer_capacity_;
     sk::detail::channel_mgr *mgr_;
 
-    sk::net::reactor *reactor_;
+    uv_loop_t *loop_;
+    sk::tcp_server *server_;
     sk::consul_client *consul_;
-    sk::net::tcp_server *server_;
-    sk::signal_watcher *sig_watcher_;
 
     std::string localhost_; // ip of local host
     std::map<int, std::string> active_endpoints_;
     std::set<int> inactive_endpoints_;
 
     std::map<std::string, endpoint*> host2endpoints_;
+    std::map<std::string, u32> host2seq_;  // host -> last received sequence
 
     /*
      * messages whose destination does not exist in

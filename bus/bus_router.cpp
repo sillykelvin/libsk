@@ -6,28 +6,33 @@
 #include <bus/detail/channel_mgr.h>
 #include <shm/detail/shm_segment.h>
 
-#define BUS_KV_PREFIX "bus/"
+#define BUS_KV_PREFIX   "bus/"
+#define MURMURHASH_SEED 77
 
 using namespace std::placeholders;
 
 struct bus_message {
-    int magic;
-    int waste;     // for alignment
-    int src_busid;
-    int dst_busid;
-    size_t length;
+    s32 magic;
+    u32 seq;
+    u32 hash;
+    s32 src_busid;
+    s32 dst_busid;
+    u32 length;
+    u64 ctime;
     char data[0];
 
     void init(size_t capacity) {
         this->magic = MAGIC;
-        this->waste = 0;
+        this->seq = 0;
+        this->hash = 0;
         this->src_busid = 0;
         this->dst_busid = 0;
-        this->length = capacity;
+        this->length = static_cast<u32>(capacity);
+        this->ctime = 0;
     }
 
     void reset(size_t capacity) {
-        length = capacity;
+        length = static_cast<u32>(capacity);
     }
 
     size_t total_length() const {
@@ -40,6 +45,36 @@ struct bus_message {
         if (likely(msg)) mempcpy(msg, this, len);
 
         return msg;
+    }
+
+    void calc_hash() {
+        sk::murmurhash3_x86_32(data, length, MURMURHASH_SEED, &hash);
+    }
+
+    bool verify_hash() const {
+        u32 h = 0;
+        sk::murmurhash3_x86_32(data, length, MURMURHASH_SEED, &h);
+        return h == hash;
+    }
+
+    void ntoh() {
+        magic = ntohs32(magic);
+        seq = ntohu32(seq);
+        hash = ntohu32(hash);
+        src_busid = ntohs32(src_busid);
+        dst_busid = ntohs32(dst_busid);
+        length = ntohu32(length);
+        ctime = ntohu64(ctime);
+    }
+
+    void hton() {
+        magic = htons32(magic);
+        seq = htonu32(seq);
+        hash = htonu32(hash);
+        src_busid = htons32(src_busid);
+        dst_busid = htons32(dst_busid);
+        length = htonu32(length);
+        ctime = htonu64(ctime);
     }
 };
 static_assert(std::is_pod<bus_message>::value, "bus_message must be a POD type.");
@@ -61,6 +96,7 @@ static int retrieve_local_address(std::string& ip) {
         ip = buf;
         sk_info("ip of localhost: %s", ip.c_str());
     }
+    freeifaddrs(addr);
 
     if (ip.empty()) {
         sk_error("no valid network interface.");
@@ -71,11 +107,12 @@ static int retrieve_local_address(std::string& ip) {
 }
 
 bus_router::endpoint::endpoint(bus_router *r, const std::string& host, u16 port)
-    : host_(host),
-      client_(r->reactor_, host, port,
-              std::bind(&bus_router::on_remote_connected, r, this, _1, _2)) {
-    client_.set_read_callback(std::bind(&bus_router::on_local_message_received, r, this, _1, _2, _3));
-    client_.set_write_callback(std::bind(&bus_router::on_local_message_sent, r, this, _1, _2));
+    : seed_(0),
+      host_(host),
+      client_(r->loop_, host, port,
+              std::bind(&bus_router::on_server_connected, r, this, _1, _2)) {
+    client_.set_read_callback(std::bind(&bus_router::on_server_message_received, r, this, _1, _2, _3));
+    client_.set_write_callback(std::bind(&bus_router::on_server_message_sent, r, this, _1, _2));
 }
 
 int bus_router::endpoint::init() {
@@ -88,28 +125,27 @@ void bus_router::endpoint::stop() {
     connection_.reset();
 }
 
-int bus_router::endpoint::send(const bus_message *msg) {
+int bus_router::endpoint::send(bus_message *msg) {
     sk_assert(connection_);
 
-    ssize_t nbytes = connection_->send(msg, msg->total_length());
+    size_t len = msg->total_length();
+    msg->magic = MAGIC;
+    msg->seq = ++seed_;
+    msg->calc_hash();
+    msg->hton();
+    ssize_t nbytes = connection_->send(msg, len);
     if (unlikely(nbytes == -1)) return -errno;
 
     return 0;
 }
 
-int bus_router::init(const bus_config& cfg, bool resume_mode) {
+int bus_router::init(uv_loop_t *loop, sk::signal_watcher *watcher,
+                     const bus_config& cfg, bool resume_mode) {
     int ret = 0;
 
-    ret = sk::time::init_time(0);
-    if (ret != 0) return ret;
-
-    ret = sk::time::init_heap_timer();
-    if (ret != 0) return ret;
-
+    loop_ = loop;
     listen_port_ = static_cast<u16>(cfg.listen_port);
     loop_rate_ = (cfg.msg_per_run > 0) ? cfg.msg_per_run : 200;
-    report_interval_ = cfg.report_interval;
-    running_count_ = 0;
 
     buffer_capacity_ = 2 * 1024 * 1024; // 2MB
     size_t total_len = sizeof(bus_message) + buffer_capacity_;
@@ -124,40 +160,31 @@ int bus_router::init(const bus_config& cfg, bool resume_mode) {
     mgr_ = cast_ptr(sk::detail::channel_mgr, seg.address());
     ret = mgr_->init(seg.shmid, cfg.bus_shm_size, resume_mode);
 
-    reactor_ = sk::net::reactor_epoll::create();
-    if (!reactor_) return -errno;
-
     consul_ = new sk::consul_client();
     if (!consul_) return -ENOMEM;
 
-    ret = consul_->init(reactor_, cfg.consul_addr_list);
+    ret = consul_->init(loop_, cfg.consul_addr_list);
     if (ret != 0) return ret;
 
     ret = consul_->watch(BUS_KV_PREFIX, 0,
                          std::bind(&bus_router::on_route_watch, this, _1, _2, _3));
     if (ret != 0) return ret;
 
-    server_ = new sk::net::tcp_server(reactor_, MAX_BACKLOG, listen_port_,
-                                      std::bind(&bus_router::on_new_connection, this, _1, _2));
+    server_ = new sk::tcp_server(loop_, MAX_BACKLOG, listen_port_,
+                                 std::bind(&bus_router::on_client_connected, this, _1, _2));
     if (!server_) return -ENOMEM;
 
-    server_->set_read_callback(std::bind(&bus_router::on_remote_message_received, this, _1, _2, _3));
-    server_->set_write_callback(std::bind(&bus_router::on_remote_message_sent, this, _1, _2));
+    server_->set_read_callback(std::bind(&bus_router::on_client_message_received, this, _1, _2, _3));
+    server_->set_write_callback(std::bind(&bus_router::on_client_message_sent, this, _1, _2));
 
     ret = server_->start();
     if (ret != 0) return ret;
 
-    sig_watcher_ = sk::signal_watcher::create(reactor_);
-    if (!sig_watcher_) return -errno;
-
-    ret = sig_watcher_->watch(sk::bus::BUS_MESSAGE_SIGNO);
+    ret = watcher->watch(sk::bus::BUS_OUTGOING_SIGNO);
     if (ret != 0) return ret;
 
-    ret = sig_watcher_->watch(sk::bus::BUS_REGISTRATION_SIGNO);
+    ret = watcher->watch(sk::bus::BUS_REGISTRATION_SIGNO);
     if (ret != 0) return ret;
-
-    sig_watcher_->set_signal_callback(std::bind(&bus_router::on_signal, this, _1));
-    sig_watcher_->start();
 
     ret = retrieve_local_address(localhost_);
     if (ret != 0) return ret;
@@ -169,13 +196,9 @@ int bus_router::init(const bus_config& cfg, bool resume_mode) {
 int bus_router::stop() {
     consul_->stop();
     server_->stop();
-    sig_watcher_->stop();
 
     for (const auto& it : host2endpoints_)
         it.second->stop();
-
-    if (reactor_->has_pending_event())
-        return 1;
 
     return 0;
 }
@@ -209,16 +232,6 @@ void bus_router::fini() {
         server_ = nullptr;
     }
 
-    if (sig_watcher_) {
-        delete sig_watcher_;
-        sig_watcher_ = nullptr;
-    }
-
-    if (reactor_) {
-        delete reactor_;
-        reactor_ = nullptr;
-    }
-
     if (mgr_) {
         shmctl(mgr_->shmid, IPC_RMID, 0);
         mgr_ = nullptr;
@@ -231,25 +244,9 @@ void bus_router::reload(const bus_config& cfg) {
         sk_warn("listening port hotfix is not supported.");
 
     loop_rate_ = (cfg.msg_per_run > 0) ? cfg.msg_per_run : 200;
-    report_interval_ = cfg.report_interval;
-}
-
-int bus_router::run() {
-    ++running_count_;
-    report();
-
-    int count = reactor_->dispatch(10);
-    return count > 0 ? 1 : 0;
 }
 
 void bus_router::report() const {
-    // interval == 0 means reporting is disabled
-    if (report_interval_ == 0)
-        return;
-
-    if (running_count_ % report_interval_ != 0)
-        return;
-
     sk_info("========== bus report ==========");
     sk_info("active endpoints: ");
     for (const auto& it : active_endpoints_) {
@@ -282,7 +279,7 @@ void bus_router::report() const {
     sk_info("========== bus report ==========");
 }
 
-int bus_router::handle_message(const bus_message *msg) {
+int bus_router::handle_message(bus_message *msg) {
     // if the destination gets deregistered, just ignore the message
     if (inactive_endpoints_.find(msg->dst_busid) != inactive_endpoints_.end()) {
         sk_warn("busid %x is inactive.", msg->dst_busid);
@@ -309,12 +306,6 @@ int bus_router::handle_message(const bus_message *msg) {
         return -ENOENT;
     }
 
-    // the host is found, then the messages in busid's queue
-    // must have been moved into host's queue
-    // we call this function when processing the queue, so
-    // this assertion is false now
-    // sk_assert(busid2queue_.find(msg->dst_busid) == busid2queue_.end());
-
     // if the remote host is connected, just send the message
     if (likely(p->connected())) {
         sk_assert(host2queue_.find(*host) == host2queue_.end());
@@ -329,20 +320,31 @@ int bus_router::handle_message(const bus_message *msg) {
 }
 
 int bus_router::send_local_message(const bus_message *msg) {
-     sk::detail::channel *rc = mgr_->find_read_channel(msg->dst_busid);
-     if (unlikely(!rc)) {
-         sk_error("cannot get channel<%x>.", msg->dst_busid);
-         return -EINVAL;
-     }
+    int fd = -1;
+    sk::detail::channel *rc = mgr_->find_read_channel(msg->dst_busid, fd);
+    if (unlikely(!rc)) {
+        sk_error("cannot get channel<%x>.", msg->dst_busid);
+        return -EINVAL;
+    }
 
-     int ret = rc->push(msg->src_busid, msg->dst_busid, msg->data, msg->length);
-     if (unlikely(ret != 0)) {
-         sk_error("push message error<%d>, bus<%x>.", ret, msg->dst_busid);
-         return ret;
-     }
+    if (fd < 0 || fd >= mgr_->descriptor_count) {
+        sk_error("invalid descriptor<%d>.", fd);
+        return -EINVAL;
+    }
 
-     // TODO: send signal here
-     return 0;
+    int ret = rc->push(msg->src_busid, msg->dst_busid, msg->ctime, msg->data, msg->length);
+    if (unlikely(ret != 0)) {
+        sk_error("push message error<%d>, bus<%x>.", ret, msg->dst_busid);
+        return ret;
+    }
+
+    sigval value;
+    memset(&value, 0x00, sizeof(value));
+    value.sival_int = fd;
+    ret = sigqueue(mgr_->descriptors[fd].pid, sk::bus::BUS_INCOMING_SIGNO, value);
+    if (ret != 0) sk_warn("cannot send signal: %s", strerror(errno));
+
+    return 0;
 }
 
 const std::string *bus_router::find_host(int busid) const {
@@ -384,57 +386,96 @@ bus_router::endpoint *bus_router::fetch_endpoint(const std::string& host) {
     return p;
 }
 
-void bus_router::on_new_connection(int error, const sk::net::tcp_connection_ptr& conn) {
+void bus_router::on_client_connected(int error, const sk::tcp_connection_ptr& conn) {
     if (error != 0) {
         sk_error("cannot accept: %s", strerror(error));
         return;
     }
 
-    sk_debug("client %s connected.", conn->remote_address().to_string().c_str());
+    auto it = host2seq_.find(conn->remote_address().host());
+    if (it != host2seq_.end()) host2seq_.erase(it);
+    host2seq_[conn->remote_address().host()] = 0;
+
+    sk_info("client %s connected.", conn->remote_address().as_string().c_str());
     conn->recv();
 }
 
-void bus_router::on_remote_message_received(int error, const sk::net::tcp_connection_ptr &conn, sk::net::buffer *buf) {
-    if (error == sk::net::tcp_connection::READ_EOF) {
-        sk_debug("get eof, client: %s", conn->remote_address().to_string().c_str());
+void bus_router::on_client_message_received(int error, const sk::tcp_connection_ptr& conn, sk::buffer *buf) {
+    if (error == sk::tcp_connection::READ_EOF) {
+        sk_info("get eof, client: %s", conn->remote_address().as_string().c_str());
         conn->close();
+
+        auto it = host2seq_.find(conn->remote_address().host());
+        sk_assert(it != host2seq_.end());
+        host2seq_.erase(it);
+
         return;
     }
 
     if (error != 0) {
         sk_error("cannot read: %s", strerror(error));
         conn->close();
+
+        auto it = host2seq_.find(conn->remote_address().host());
+        sk_assert(it != host2seq_.end());
+        host2seq_.erase(it);
+
         return;
     }
 
     const static size_t min_size = sizeof(bus_message);
+    // NOTE: the logic in this while(...) loop is tricky, BE CAREFUL!!
     while (buf->size() >= min_size) {
-        const bus_message *msg = reinterpret_cast<const bus_message*>(buf->peek());
-        assert_break(msg->magic == MAGIC);
+        bus_message *msg = cast_ptr(bus_message, buf->mutable_peek());
+        // ntoh length only, if the message is complete, then ntoh entire header
+        msg->length = ntohu32(msg->length);
 
         if (buf->size() < msg->total_length()) {
-            sk_debug("partial msg, src: %x, dst: %x, size: %lu, total: %lu",
-                     msg->src_busid, msg->dst_busid, buf->size(), msg->total_length());
+            if (sk_trace_enabled())
+                sk_trace("partial msg, src: %x, dst: %x, size: %lu, total: %lu",
+                         htons32(msg->src_busid), htons32(msg->dst_busid),
+                         buf->size(), msg->total_length());
+            msg->length = htonu32(msg->length); // don't forget to set it back
             return;
         }
 
-        buf->consume(msg->total_length());
+        // hton length back, then ntoh entire header
+        msg->length = htonu32(msg->length);
+        msg->ntoh();
 
-        int ret = handle_message(msg);
-        if (ret != 0)
-            sk_error("handle message error: %d, dst_busid: %x", ret, msg->dst_busid);
+        do {
+            // if the magic and hash does not match, the message must be invalid
+            assert_break(msg->magic == MAGIC);
+            assert_break(msg->verify_hash());
+
+            auto it = host2seq_.find(conn->remote_address().host());
+            if (it == host2seq_.end()) {
+                sk_assert(0);
+                host2seq_[conn->remote_address().host()] = msg->seq - 1;
+                it = host2seq_.find(conn->remote_address().host());
+            }
+
+            sk_assert(msg->seq == it->second + 1);
+            it->second = msg->seq;
+
+            int ret = handle_message(msg);
+            if (ret != 0) sk_error("handle message error: %d, dst_busid: %x", ret, msg->dst_busid);
+        } while (0);
+
+        // no matter the message is invalid or not, we consume it
+        buf->consume(msg->total_length());
     }
 
     conn->recv();
 }
 
-void bus_router::on_remote_message_sent(int, const sk::net::tcp_connection_ptr& conn) {
+void bus_router::on_client_message_sent(int, const sk::tcp_connection_ptr& conn) {
     sk_assert(0);
-    sk_fatal("this function should never be called: %s", conn->remote_address().to_string().c_str());
+    sk_fatal("this function should never be called: %s", conn->remote_address().as_string().c_str());
 }
 
-void bus_router::on_remote_connected(endpoint *p, int error,
-                                     const sk::net::tcp_connection_ptr& conn) {
+void bus_router::on_server_connected(endpoint *p, int error,
+                                     const sk::tcp_connection_ptr& conn) {
     sk_assert(host2endpoints_.find(p->host()) != host2endpoints_.end());
 
     if (error != 0) {
@@ -465,19 +506,20 @@ void bus_router::on_remote_connected(endpoint *p, int error,
     host2queue_.erase(it);
 }
 
-void bus_router::on_local_message_received(bus_router::endpoint *p, int error, const sk::net::tcp_connection_ptr& conn, sk::net::buffer *buf) {
+void bus_router::on_server_message_received(endpoint *p, int error, const sk::tcp_connection_ptr& conn, sk::buffer *buf) {
     sk_assert(host2endpoints_.find(p->host()) != host2endpoints_.end());
 
-    if (error != sk::net::tcp_connection::READ_EOF) {
+    if (error != sk::tcp_connection::READ_EOF) {
         sk_assert(0);
         sk_fatal("this function can only be called by EOF, host: %s", p->host().c_str());
         return;
     }
 
+    sk_info("get eof, server: %s", conn->remote_address().as_string().c_str());
     // TODO: handle eof here, reconnect??
 }
 
-void bus_router::on_local_message_sent(bus_router::endpoint *p, int error, const sk::net::tcp_connection_ptr& conn) {
+void bus_router::on_server_message_sent(endpoint *p, int error, const sk::tcp_connection_ptr& conn) {
     sk_assert(host2endpoints_.find(p->host()) != host2endpoints_.end());
 
     if (error != 0) {
@@ -488,7 +530,7 @@ void bus_router::on_local_message_sent(bus_router::endpoint *p, int error, const
 
 void bus_router::on_signal(const signalfd_siginfo *info) {
     int signo = static_cast<s32>(info->ssi_signo);
-    if (likely(signo == sk::bus::BUS_MESSAGE_SIGNO))
+    if (likely(signo == sk::bus::BUS_OUTGOING_SIGNO))
         on_local_message(info->ssi_int);
     else if (signo == sk::bus::BUS_REGISTRATION_SIGNO)
         on_descriptor_change(info->ssi_int);
@@ -515,8 +557,11 @@ void bus_router::on_local_message(int fd) {
     int count = 0;
     while (count < loop_rate_) {
         msg_->reset(buffer_capacity_);
-        int ret = wc->pop(msg_->data, msg_->length, &msg_->src_busid, &msg_->dst_busid);
+        size_t len = msg_->length;
+        int ret = wc->pop(msg_->data, len, &msg_->src_busid, &msg_->dst_busid, &msg_->ctime);
         if (ret == 0) break;
+
+        msg_->length = static_cast<u32>(len);
 
         if (unlikely(ret < 0)) {
             if (ret != -E2BIG) {
@@ -533,8 +578,11 @@ void bus_router::on_local_message(int fd) {
             free(msg_);
             msg_ = buf;
 
-            ret = wc->pop(msg_->data, msg_->length, &msg_->src_busid, &msg_->dst_busid);
+            len = msg_->length;
+            ret = wc->pop(msg_->data, len, &msg_->src_busid, &msg_->dst_busid, &msg_->ctime);
             assert_continue(ret != 0);
+
+            msg_->length = static_cast<u32>(len);
 
             if (unlikely(ret < 0)) {
                 sk_assert(ret != -E2BIG);
