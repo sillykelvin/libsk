@@ -1,22 +1,19 @@
 #ifndef SIGNAL_WATCHER_H
 #define SIGNAL_WATCHER_H
 
-#include <set>
-#include <sys/signalfd.h>
-#include "net/handler.h"
-#include "utility/types.h"
+#include <uv.h>
+#include <unordered_set>
+#include <core/callback.h>
 
 NS_BEGIN(sk)
 
 class signal_watcher {
 public:
-    using fn_on_signal_event = std::function<void(const signalfd_siginfo*)>;
-
     MAKE_NONCOPYABLE(signal_watcher);
 
     ~signal_watcher();
 
-    static signal_watcher *create(net::reactor *r);
+    static signal_watcher *create(uv_loop_t *loop);
 
     int watch(int signal);
     int unwatch(int signal);
@@ -25,23 +22,25 @@ public:
         return watched_signals_.find(signal) != watched_signals_.end();
     }
 
-    void start();
-    void stop();
+    int start();
+    int stop();
 
     void set_signal_callback(const fn_on_signal_event& fn) { fn_on_signal_ = fn; }
 
 private:
-    signal_watcher(int signal_fd, net::reactor *r);
+    signal_watcher(int signal_fd, uv_loop_t *loop);
 
     void on_signal();
+    static void on_signal_event(uv_poll_t *handle, int status, int events);
 
 private:
     int signal_fd_;
-    net::handler_ptr handler_;
+    uv_poll_t poll_;
+    uv_loop_t *loop_;
 
     fn_on_signal_event fn_on_signal_;
 
-    std::set<int> watched_signals_;
+    std::unordered_set<int> watched_signals_;
 };
 
 NS_END(sk)

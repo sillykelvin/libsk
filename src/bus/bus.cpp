@@ -23,6 +23,13 @@ union busid_format {
 };
 static_assert(sizeof(busid_format) == sizeof(int), "invalid type: busid_format");
 
+static u64 time_ns() {
+    struct timespec t;
+    int ret = clock_gettime(CLOCK_MONOTONIC, &t);
+    if (unlikely(ret != 0)) return 0;
+    return static_cast<u64>(t.tv_sec) * 1000000000 + static_cast<u64>(t.tv_nsec);
+}
+
 int from_string(const char *str, int *area_id, int *zone_id, int *func_id, int *inst_id) {
     assert_retval(str, -1);
 
@@ -182,9 +189,10 @@ int send(int dst_busid, const void *data, size_t length) {
     int src_busid = mgr->get_owner_busid(fd);
     assert_retval(src_busid > 0, -1);
 
+    u64 now = time_ns();
     int retry = 3;
     while (retry-- > 0) {
-        int ret = wc->push(src_busid, dst_busid, data, length);
+        int ret = wc->push(src_busid, dst_busid, now, data, length);
         if (likely(ret == 0)) break;
 
         sk_error("failed to write data to bus, ret<%d>, retry<%d>.", ret, retry);
@@ -193,7 +201,7 @@ int send(int dst_busid, const void *data, size_t length) {
     sigval value;
     memset(&value, 0x00, sizeof(value));
     value.sival_int = fd;
-    int ret = sigqueue(mgr->pid, BUS_MESSAGE_SIGNO, value);
+    int ret = sigqueue(mgr->pid, BUS_OUTGOING_SIGNO, value);
     if (ret != 0) sk_warn("cannot send signal: %s", strerror(errno));
 
     return 0;
@@ -208,7 +216,9 @@ int recv(int& src_busid, void *data, size_t& length) {
     assert_retval(rc, -1);
 
     int dst_busid = 0;
-    int count = rc->pop(data, length, &src_busid, &dst_busid);
+    u64 send_time = 0;
+    int count = rc->pop(data, length, &src_busid, &dst_busid, &send_time);
+    // TODO: do some performance counter with send_time here
     if (count == 0 || count == 1)
         return count;
 

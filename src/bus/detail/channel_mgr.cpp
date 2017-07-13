@@ -259,10 +259,12 @@ int channel_mgr::get_owner_busid(int fd) const {
     return descriptors[fd].owner;
 }
 
-channel *channel_mgr::find_read_channel(int busid) {
+channel *channel_mgr::find_read_channel(int busid, int& fd) {
     for (int i = 0; i < descriptor_count; ++i) {
-        if (descriptors[i].owner == busid)
+        if (descriptors[i].owner == busid) {
+            fd = i;
             return get_read_channel(i);
+        }
     }
 
     return nullptr;

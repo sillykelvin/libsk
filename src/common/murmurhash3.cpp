@@ -1,4 +1,4 @@
-#include "murmurhash3.h"
+#include <common/murmurhash3.h>
 
 #define FORCE_INLINE inline __attribute__((always_inline))
 #define BIG_CONSTANT(x) (x##ULL)
@@ -38,7 +38,7 @@ FORCE_INLINE u64 fmix64(u64 k) {
     return k;
 }
 
-namespace sk {
+NS_BEGIN(sk)
 
 void murmurhash3_x86_32 (const void *key, size_t len, u32 seed, u32 out[1]) {
     const u8 *data = (const u8 *) key;
@@ -333,4 +333,4 @@ void murmurhash3_x64_128(const void *key, size_t len, u32 seed, u64 out[2]) {
     out[1] = h2;
 }
 
-} // namespace sk
+NS_END(sk)

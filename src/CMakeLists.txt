@@ -17,6 +17,8 @@ include_directories("${PROJECT_SOURCE_DIR}/deps/pugixml/include")
 include_directories("${PROJECT_SOURCE_DIR}/deps/spdlog/include")
 include_directories("${PROJECT_SOURCE_DIR}/deps/curl/include")
 include_directories("${PROJECT_SOURCE_DIR}/deps/json/include")
+include_directories("${PROJECT_SOURCE_DIR}/deps/libuv/include")
+include_directories("${PROJECT_SOURCE_DIR}/deps/hiredis/include")
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_library(sk ${SRC_LIST})

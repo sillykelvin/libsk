@@ -1,4 +1,3 @@
-#include <errno.h>
 #include <string.h>
 #include "channel.h"
 #include "log/log.h"
@@ -49,7 +48,7 @@ void channel::clear() {
     this->write_pos  = 0;
 }
 
-int channel::push(int src_busid, int dst_busid, const void *data, size_t length) {
+int channel::push(int src_busid, int dst_busid, u64 ctime, const void *data, size_t length) {
     assert_retval(magic == MAGIC, -1);
 
     if (!data || length <= 0)
@@ -96,6 +95,7 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
     head->src_busid = src_busid;
     head->dst_busid = dst_busid;
     head->length = length;
+    head->ctime = ctime;
     sk::murmurhash3_x86_32(data, length, MURMURHASH_SEED, &head->hash);
 
     // start a full memory barrier here
@@ -106,7 +106,7 @@ int channel::push(int src_busid, int dst_busid, const void *data, size_t length)
     return 0;
 }
 
-int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid) {
+int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid, u64 *ctime) {
     assert_retval(magic == MAGIC, -1);
 
     // no data
@@ -162,6 +162,7 @@ int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid) {
 
     if (src_busid) *src_busid = head->src_busid;
     if (dst_busid) *dst_busid = head->dst_busid;
+    if (ctime)     *ctime     = head->ctime;
 
     // start a full memory barrier here
     __sync_synchronize();

@@ -7,14 +7,14 @@
  * Thanks to the author for the great job.
  */
 
-#include "utility/types.h"
+#include <utility/types.h>
 
-namespace sk {
+NS_BEGIN(sk)
 
 void murmurhash3_x86_32 (const void *key, size_t len, u32 seed, u32 out[1]);
 void murmurhash3_x86_128(const void *key, size_t len, u32 seed, u32 out[4]);
 void murmurhash3_x64_128(const void *key, size_t len, u32 seed, u64 out[2]);
 
-} // namespace sk
+NS_END(sk)
 
 #endif // MURMURHASH3_H

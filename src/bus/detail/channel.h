@@ -7,16 +7,17 @@ NS_BEGIN(sk)
 NS_BEGIN(detail)
 
 struct channel_message {
-    int magic;
+    s32 magic;
     u32 hash;       // hash value of the data block, for verification
-    int src_busid;  // which process this message comes from
-    int dst_busid;  // which process this message goes to
+    s32 src_busid;  // which process this message comes from
+    s32 dst_busid;  // which process this message goes to
+    u64 ctime;      // message creation time, in nanoseconds
     size_t length;  // message length
     char data[0];   // real message follows this struct
 };
 
 struct channel {
-    int magic;
+    s32 magic;
     size_t node_count;          // total node count of this channel
     size_t node_size;           // the size of a node
     size_t node_size_shift;     // 2 ^ node_size_shift = node_size
@@ -38,11 +39,12 @@ struct channel {
      * @brief push a message into the channel
      * @param src_busid: from which bus this message is sent
      * @param dst_busid: which bus this message is sent to
+     * @param ctime: creation time of this message, in nanoseconds
      * @param data: the message data
      * @param length: the length of the message
      * @return 0 if succeeds, error code otherwise
      */
-    int push(int src_busid, int dst_busid, const void *data, size_t length);
+    int push(int src_busid, int dst_busid, u64 ctime, const void *data, size_t length);
 
     /**
      * @brief pop a message from the channel
@@ -52,11 +54,12 @@ struct channel {
      *                message, if data is NULL, this field is discarded
      * @param src_busid: store source bus id, can be NULL
      * @param dst_busid: store destination bus id, can be NULL
+     * @param ctime: store message creation time, can be NULL
      * @return count of popped message, should be 0 or 1, or negative error code:
      *         1. -E2BIG: the message is too big to store in provided buffer
      *         2. -1: assert error
      */
-    int pop(void *data, size_t& length, int *src_busid, int *dst_busid);
+    int pop(void *data, size_t& length, int *src_busid, int *dst_busid, u64 *ctime);
 
     size_t message_count() const;
 

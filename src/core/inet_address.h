@@ -3,36 +3,33 @@
 
 #include <string>
 #include <netdb.h>
-#include "utility/types.h"
+#include <utility/types.h>
 
 NS_BEGIN(sk)
-NS_BEGIN(net)
 
 class inet_address {
 public:
     explicit inet_address(u16 port);
     inet_address(const std::string& ip, u16 port);
-    inet_address(const struct sockaddr_in& addr);
-
-    struct sockaddr *address() {
-        return cast_ptr(sockaddr, &addr_);
-    }
+    explicit inet_address(const struct sockaddr_in& addr);
 
     const struct sockaddr *address() const {
         return reinterpret_cast<const struct sockaddr*>(&addr_);
     }
 
-    socklen_t length() const {
-        return sizeof(addr_);
-    }
+    const std::string& as_string() const { return full_; }
+    const std::string& host() const { return host_; }
+    u16 port() const { return ntohs(addr_.sin_port); }
 
-    std::string to_string() const;
+private:
+    void set_string();
 
 private:
     struct sockaddr_in addr_;
+    std::string host_; // host only
+    std::string full_; // full address presented as host:port
 };
 
-NS_END(net)
 NS_END(sk)
 
 #endif // INET_ADDRESS_H

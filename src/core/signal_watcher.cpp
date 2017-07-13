@@ -1,15 +1,15 @@
-#include <signal.h>
-#include <unistd.h>
-#include "log/log.h"
-#include "signal_watcher.h"
-#include "utility/assert_helper.h"
+#include <string.h>
+#include <log/log.h>
+#include <core/signal_watcher.h>
+#include <utility/assert_helper.h>
 
 NS_BEGIN(sk)
 
-signal_watcher::signal_watcher(int signal_fd, net::reactor *r)
+signal_watcher::signal_watcher(int signal_fd, uv_loop_t *loop)
     : signal_fd_(signal_fd),
-      handler_(new net::handler(r, signal_fd)) {
-    handler_->set_read_callback(std::bind(&signal_watcher::on_signal, this));
+      loop_(loop) {
+    memset(&poll_, 0x00, sizeof(poll_));
+    poll_.data = this;
 }
 
 signal_watcher::~signal_watcher() {
@@ -29,14 +29,14 @@ signal_watcher::~signal_watcher() {
     }
 }
 
-signal_watcher *signal_watcher::create(net::reactor *r) {
+signal_watcher *signal_watcher::create(uv_loop_t *loop) {
     sigset_t mask;
     sigemptyset(&mask);
 
     int sfd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
     if (sfd == -1) return nullptr;
 
-    return new signal_watcher(sfd, r);
+    return new signal_watcher(sfd, loop);
 }
 
 int signal_watcher::watch(int signal) {
@@ -98,12 +98,30 @@ int signal_watcher::unwatch(int signal) {
     return 0;
 }
 
-void signal_watcher::start() {
-    handler_->enable_reading();
+int signal_watcher::start() {
+    int ret = uv_poll_init(loop_, &poll_, signal_fd_);
+    if (ret != 0) {
+        sk_error("uv_poll_init: %s", uv_err_name(ret));
+        return ret;
+    }
+
+    ret = uv_poll_start(&poll_, UV_READABLE | UV_WRITABLE | UV_DISCONNECT, on_signal_event);
+    if (ret != 0) {
+        sk_error("uv_poll_start: %s", uv_err_name(ret));
+        return ret;
+    }
+
+    return 0;
 }
 
-void signal_watcher::stop() {
-    handler_->disable_reading();
+int signal_watcher::stop() {
+    int ret = uv_poll_stop(&poll_);
+    if (ret != 0) {
+        sk_error("uv_poll_stop: %s", uv_err_name(ret));
+        return ret;
+    }
+
+    return 0;
 }
 
 void signal_watcher::on_signal() {
@@ -131,6 +149,25 @@ void signal_watcher::on_signal() {
             if (fn_on_signal_) fn_on_signal_(siginfo);
         }
     }
+}
+
+void signal_watcher::on_signal_event(uv_poll_t *handle, int status, int events) {
+    signal_watcher *w = cast_ptr(signal_watcher, handle->data);
+    sk_assert(&w->poll_ == handle);
+
+    if (status != 0) {
+        sk_error("on_signal_event: %s", uv_err_name(status));
+        return;
+    }
+
+    if (unlikely(events & UV_WRITABLE))
+        sk_warn("writable events!");
+
+    if (unlikely(events & UV_DISCONNECT))
+        sk_warn("disconnect events!");
+
+    if (events & UV_READABLE)
+        return w->on_signal();
 }
 
 NS_END(sk)

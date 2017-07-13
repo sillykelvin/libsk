@@ -1,10 +1,9 @@
 #include <json.hpp>
 #include <log/log.h>
+#include <core/consul_client.h>
 #include <utility/assert_helper.h>
-#include <utility/consul_client.h>
 #include <utility/string_helper.h>
 
-#define MAX_CACHED_SIZE    5
 #define DEFAULT_WATCH_TIME "10m"
 #define KV_STATIC_PREFIX   "/v1/kv/"
 #define INDEX_HEADER_NAME  "X-Consul-Index"
@@ -38,19 +37,19 @@ private:
 
 NS_BEGIN(sk)
 
-int consul_client::init(net::reactor *r, const string_vector& addr_list) {
+int consul_client::init(uv_loop_t *loop, const string_vector& addr_list) {
     if (addr_list.empty()) {
         sk_error("at least one consul address should be provided.");
         return -1;
     }
 
-    master_ = std::make_shared<rest_client>(r, addr_list[0].c_str(), MAX_CACHED_SIZE);
+    master_ = std::make_shared<rest_client>(loop, addr_list[0].c_str());
     assert_retval(master_, -1);
 
     master_->set_transfer_timeout(0);
 
     for (size_t i = 1; i < addr_list.size(); ++i) {
-        auto backup = std::make_shared<rest_client>(r, addr_list[i].c_str(), MAX_CACHED_SIZE);
+        auto backup = std::make_shared<rest_client>(loop, addr_list[i].c_str());
         assert_continue(backup);
 
         backup->set_transfer_timeout(0);
@@ -64,7 +63,7 @@ void consul_client::stop() {
     master_->stop();
 }
 
-int consul_client::watch(const std::string& prefix, int index, const fn_on_watch& fn) {
+int consul_client::watch(const std::string& prefix, int index, const fn_on_consul_watch& fn) {
     std::string uri(KV_STATIC_PREFIX + prefix);
 
     string_map parameters;
@@ -77,7 +76,7 @@ int consul_client::watch(const std::string& prefix, int index, const fn_on_watch
                         &parameters, nullptr);
 }
 
-int consul_client::set(const std::string& key, const std::string& value, const fn_on_set& fn) {
+int consul_client::set(const std::string& key, const std::string& value, const fn_on_consul_set& fn) {
     if (key.empty()) {
         sk_error("invalid key.");
         return -EINVAL;
@@ -93,7 +92,7 @@ int consul_client::set(const std::string& key, const std::string& value, const f
                         nullptr, nullptr);
 }
 
-int consul_client::del(const std::string& key, bool recursive, const fn_on_del& fn) {
+int consul_client::del(const std::string& key, bool recursive, const fn_on_consul_del& fn) {
     if (key.empty()) {
         sk_error("invalid key.");
         return -EINVAL;
@@ -114,7 +113,7 @@ int consul_client::del(const std::string& key, bool recursive, const fn_on_del& 
 void consul_client::on_watch(int ret, int status,
                              const string_map& headers,
                              const std::string& body,
-                             const fn_on_watch& fn) {
+                             const fn_on_consul_watch& fn) {
     if (ret != 0) {
         sk_error("curl error<%d>.", ret);
         fn(ret, 0, nullptr);
@@ -213,7 +212,7 @@ void consul_client::on_set(consul_set_context *ctx,
                            int ret, int status,
                            const string_map& headers,
                            const std::string& body,
-                           const fn_on_set& fn) {
+                           const fn_on_consul_set& fn) {
     (void) headers;
     guard<consul_set_context> g(ctx);
 
@@ -273,7 +272,7 @@ void consul_client::on_del(consul_del_context *ctx,
                            int ret, int status,
                            const string_map& headers,
                            const std::string& body,
-                           const fn_on_del& fn) {
+                           const fn_on_consul_del& fn) {
     (void) headers;
     guard<consul_del_context> g(ctx);
 

@@ -1,15 +1,17 @@
 #include <unistd.h>
+#include <string.h>
+#include <log/log.h>
 #include <sys/inotify.h>
-#include "log/log.h"
-#include "file_watcher.h"
-#include "utility/assert_helper.h"
+#include <core/file_watcher.h>
+#include <utility/assert_helper.h>
 
 NS_BEGIN(sk)
 
-file_watcher::file_watcher(int inotify_fd, net::reactor *r)
+file_watcher::file_watcher(int inotify_fd, uv_loop_t *loop)
     : inotify_fd_(inotify_fd),
-      handler_(new net::handler(r, inotify_fd)) {
-    handler_->set_read_callback(std::bind(&file_watcher::on_inotify_read, this));
+      loop_(loop) {
+    memset(&poll_, 0x00, sizeof(poll_));
+    poll_.data = this;
 }
 
 file_watcher::~file_watcher() {
@@ -25,11 +27,11 @@ file_watcher::~file_watcher() {
     }
 }
 
-file_watcher *file_watcher::create(sk::net::reactor *r) {
+file_watcher *file_watcher::create(uv_loop_t *loop) {
     int ifd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
     if (ifd == -1) return nullptr;
 
-    return new file_watcher(ifd, r);
+    return new file_watcher(ifd, loop);
 }
 
 void file_watcher::watch(const std::string& file) {
@@ -63,12 +65,30 @@ bool file_watcher::has_watch(const std::string& file) const {
     return found;
 }
 
-void file_watcher::start() {
-    handler_->enable_reading();
+int file_watcher::start() {
+    int ret = uv_poll_init(loop_, &poll_, inotify_fd_);
+    if (ret != 0) {
+        sk_error("uv_poll_init: %s", uv_err_name(ret));
+        return ret;
+    }
+
+    ret = uv_poll_start(&poll_, UV_READABLE | UV_WRITABLE | UV_DISCONNECT, on_inotify_event);
+    if (ret != 0) {
+        sk_error("uv_poll_start: %s", uv_err_name(ret));
+        return ret;
+    }
+
+    return 0;
 }
 
-void file_watcher::stop() {
-    handler_->disable_reading();
+int file_watcher::stop() {
+    int ret = uv_poll_stop(&poll_);
+    if (ret != 0) {
+        sk_error("uv_poll_stop: %s", uv_err_name(ret));
+        return ret;
+    }
+
+    return 0;
 }
 
 void file_watcher::on_inotify_read() {
@@ -120,6 +140,25 @@ void file_watcher::on_inotify_read() {
                 fn_on_file_delete_(it->second);
         }
     }
+}
+
+void file_watcher::on_inotify_event(uv_poll_t *handle, int status, int events) {
+    file_watcher *w = cast_ptr(file_watcher, handle->data);
+    sk_assert(&w->poll_ == handle);
+
+    if (status != 0) {
+        sk_error("on_inotify_event: %s", uv_err_name(status));
+        return;
+    }
+
+    if (unlikely(events & UV_WRITABLE))
+        sk_warn("writable events!");
+
+    if (unlikely(events & UV_DISCONNECT))
+        sk_warn("disconnect events!");
+
+    if (events & UV_READABLE)
+        return w->on_inotify_read();
 }
 
 NS_END(sk)

@@ -2,7 +2,6 @@
 #include "time.h"
 #include "shm/shm_ptr.h"
 #include "time/shm_timer.h"
-#include "time/heap_timer.h"
 
 struct time_mgr {
     bool in_shm;      // true if this instance is allocated in shared memory
@@ -34,9 +33,6 @@ struct time_mgr {
             for (u64 i = 0; i < tick_count; ++i) {
                 if (sk::time::shm_timer_enabled())
                     sk::time::run_shm_timer();
-
-                if (sk::time::heap_timer_enabled())
-                    sk::time::run_heap_timer();
 
                 ++current_tick;
             }

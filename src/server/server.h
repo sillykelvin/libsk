@@ -4,13 +4,15 @@
 #include <memory>
 #include <fcntl.h>
 #include <signal.h>
+#include <bus/bus.h>
+#include <log/log.h>
 #include <sys/file.h>
-#include "bus/bus.h"
-#include "log/log.h"
-#include "time/time.h"
-#include "shm/shm_mgr.h"
-#include "spdlog/spdlog.h"
-#include "server/option_parser.h"
+#include <time/time.h>
+#include <shm/shm_mgr.h>
+#include <spdlog/spdlog.h>
+#include <core/heap_timer.h>
+#include <core/signal_watcher.h>
+#include <server/option_parser.h>
 
 NS_BEGIN(sk)
 
@@ -29,8 +31,6 @@ struct server_context {
     std::string pid_file;  // pid file location
     std::string log_conf;  // log config location
     std::string proc_conf; // process config location
-    int max_idle_count;    // max idle count allowed
-    int idle_sleep_ms;     // how long server will sleep when idle
     bool resume_mode;      // if the process is running under resume mode
     bool disable_shm;      // disable shared memory manager explicitly
     bool disable_bus;      // disable bus explicitly
@@ -40,34 +40,19 @@ struct server_context {
 
     // do NOT touch the following fields unless you know what you are doing
 
-    // if reloading is true, reload() will be called in next loop
-    bool reloading;
-    // if stopping is true, stop() will be called in main loop regularly,
-    // to do clean up job
-    bool stopping;
     // if hotfixing is true, main loop will exit directly, there must be
     // a monitor process to resume this process
     bool hotfixing;
-    // if clean up job is done, set exiting to true to break the main loop
-    bool exiting;
-
-    int idle_count; // current idle count
 
     server_context() :
         id(0),
-        max_idle_count(0),
-        idle_sleep_ms(0),
         resume_mode(false),
         disable_shm(false),
         disable_bus(false),
         bus_key(0),
         bus_node_size(0),
         bus_node_count(0),
-        reloading(false),
-        stopping(false),
-        hotfixing(false),
-        exiting(false),
-        idle_count(0)
+        hotfixing(false)
     {}
 };
 
@@ -82,12 +67,14 @@ struct server_context {
 template<typename Config, typename Derived>
 class server {
 public:
+    using this_type = server<Config, Derived>;
+
     MAKE_NONCOPYABLE(server);
 
     static const size_t MAX_MSG_PER_PROC = 1000; // process 1000 messages in one run
 
     static Derived& get() {
-        if (instance_)
+        if (likely(instance_))
             return *instance_;
 
         instance_ = new Derived();
@@ -96,6 +83,26 @@ public:
 
     virtual ~server() = default;
 
+    int start(int argc, const char **argv) {
+        int ret = 0;
+
+        ret = init(argc, argv);
+        if (ret != 0) return ret;
+
+        run();
+
+        ret = fini();
+        if (ret != 0) return ret;
+
+        return 0;
+    }
+
+    const Config& config() const { return cfg_; }
+    const server_context& context() const { return ctx_; }
+    uv_loop_t *loop() const { return loop_; }
+    sk::signal_watcher *signal_watcher() const { return sig_watcher_; }
+
+private:
     int init(int argc, const char **argv) {
         int ret = 0;
 
@@ -103,7 +110,7 @@ public:
         ret = init_parser(p);
         if (ret != 0) return ret;
 
-        ret = p.parse(argc, argv, NULL);
+        ret = p.parse(argc, argv, nullptr);
         if (ret != 0) return ret;
 
         ret = init_context(basename(argv[0]));
@@ -135,10 +142,19 @@ public:
         ret = register_bus();
         if (ret != 0) return ret;
 
-        set_signal_handler();
+        ret = create_loop();
+        if (ret != 0) return ret;
+
+        ret = watch_signal();
+        if (ret != 0) return ret;
 
         ret = on_init();
         if (ret != 0) return ret;
+
+        if (sk::time::time_enabled(nullptr)) {
+            ret = start_tick_timer(1000);
+            if (ret != 0) return ret;
+        }
 
         /*
          * in guid.cpp, we create a guid based on current
@@ -157,127 +173,67 @@ public:
         return 0;
     }
 
+    void run() {
+        sk_info("enter run()");
+        uv_run(loop_, UV_RUN_DEFAULT);
+        sk_info("exit run()");
+    }
+
     int fini() {
         sk_info("enter fini()");
+        int ret = 0;
 
-        if (ctx_.hotfixing) {
-            sk_info("hotfixing, exit.");
-            sk_info("exit fini()");
-            return 0;
-        }
+        do {
+            if (ctx_.hotfixing) {
+                sk_info("hotfixing, exit.");
+                break;
+            }
 
-        int ret = on_fini();
+            ret = on_fini();
 
-        if (buf_) {
-            free(buf_);
-            buf_ = NULL;
-            buf_len_ = 0;
-        }
+            if (buf_) {
+                free(buf_);
+                buf_ = nullptr;
+                buf_len_ = 0;
+            }
 
-        if (!ctx_.disable_bus)
-            sk::bus::deregister_bus();
+            if (sig_watcher_) {
+                delete sig_watcher_;
+                sig_watcher_ = nullptr;
+            }
 
-        if (!ctx_.disable_shm)
-            sk::shm_mgr_fini();
+            if (!ctx_.disable_bus)
+                sk::bus::deregister_bus();
+
+            if (!ctx_.disable_shm)
+                sk::shm_mgr_fini();
+        } while (0);
 
         sk_info("exit fini()");
-
         return ret;
     }
 
-    int stop() {
+    void stop() {
         sk_info("enter stop()");
-        int ret = on_stop();
-        if (ret == 0) {
-            ctx_.exiting = true;
-            sk_info("exit stop()");
-            return 0;
+        sk_assert(!stop_timer_);
+
+        sig_watcher_->stop();
+        if (tick_timer_) tick_timer_->stop();
+
+        stop_timer_ = std::unique_ptr<heap_timer>(new heap_timer(loop_,
+                                                                 std::bind(&this_type::on_stop_timeout,
+                                                                           this, std::placeholders::_1)));
+        if (stop_timer_) {
+            stop_timer_->start_once(0);
+            return;
         }
 
-        sk_info("on_stop() returns %d, continue running.", ret);
-        return 0;
+        sk_error("cannot create timer.");
+        uv_stop(loop_);
+        sk_info("exit stop()");
     }
 
-    int hotfix() {
-        sk_info("enter hotfix()");
-        ctx_.exiting = true;
-        sk_info("exit hotfix()");
-        return 0;
-    }
-
-    int run() {
-        sk_info("enter run()");
-
-        while (!ctx_.exiting) {
-            if (ctx_.hotfixing)
-                hotfix();
-
-            if (ctx_.stopping)
-                stop();
-
-            if (ctx_.reloading)
-                reload();
-
-            if (sk::time::time_enabled(nullptr))
-                sk::time::update_time();
-
-            bool bus_idle = true;
-            if (!ctx_.disable_bus) {
-                int ret = 0;
-                size_t total = 0;
-                while (total < MAX_MSG_PER_PROC) {
-                    int src_busid = -1;
-                    size_t len = buf_len_;
-                    ret = sk::bus::recv(src_busid, buf_, len);
-
-                    if (ret == 0)
-                        break;
-
-                    if (ret < 0) {
-                        if (ret == -E2BIG) {
-                            sk_warn("big msg, size<%lu>.", len);
-
-                            void *old = buf_;
-                            buf_ = malloc(len);
-                            if (!buf_) {
-                                sk_assert(0);
-                                buf_ = old;
-                                break;
-                            }
-
-                            free(old);
-                            buf_len_ = len;
-                            continue;
-                        }
-
-                        sk_error("bus recv error<%d>.", ret);
-                        break;
-                    }
-
-                    sk_assert(ret == 1);
-                    on_msg(src_busid, buf_, len);
-                    ++total;
-                }
-
-                if (ret != 0)
-                    bus_idle = false;
-            }
-
-            int ret = on_run();
-            if (ret == 0 && bus_idle) {
-                ++ctx_.idle_count;
-                if (ctx_.idle_count >= ctx_.max_idle_count) {
-                    ctx_.idle_count = 0;
-                    usleep(ctx_.idle_sleep_ms * 1000);
-                }
-            }
-        }
-
-        sk_info("exit run()");
-        return 0;
-    }
-
-    int reload() {
+    void reload() {
         sk_info("enter reload()");
 
         int ret = 0;
@@ -297,14 +253,15 @@ public:
         if (ret != 0)
             sk_error("on_reload returns error: %d", ret);
 
-        ctx_.reloading = false;
-
         sk_info("exit reload()");
-        return ret;
     }
 
-    const Config& config() const { return cfg_; }
-    const server_context& context() const { return ctx_; }
+    void hotfix() {
+        sk_info("enter hotfix()");
+        ctx_.hotfixing = true;
+        uv_stop(loop_);
+        sk_info("exit hotfix()");
+    }
 
 protected:
     server() = default;
@@ -319,31 +276,146 @@ protected:
      */
     virtual int on_stop() = 0;
 
-    /**
-     * @brief on_run will be called in every main loop
-     * @return 0 means it is an idle run, server will increase idle count
-     * if on_run() returns 0 and bus is idle, if idle count reaches the
-     * configured count, server will sleep for some time until next run,
-     * otherwise server will call on_run() again without any pause
-     */
-    virtual int on_run() = 0;
     virtual int on_reload() = 0;
 
     virtual void on_msg(int src_busid, const void *buf, size_t len) = 0;
 
+    /**
+     * @brief on_signal will be called when there is a registered signal is caught
+     * @param info: the signal information
+     *
+     * NOTE: the derived class should override this function if it registered
+     * own signals with sig_watcher_, otherwise, no override is needed
+     */
+    virtual void on_signal(const signalfd_siginfo *info) {}
+
+    /**
+     * @brief on_tick will be called every fixed milliseconds, the interval
+     * is specified at start_tick_timer(...) call
+     *
+     * NOTE: this function will never be called if the tick timer is not enabled,
+     * see @start_tick_timer() for more information
+     */
+    virtual void on_tick() {}
+
+    /**
+     * @brief start_tick_timer will start the tick timer
+     * @param tick_ms: the interval(in ms) that the tick timer will run
+     * @return 0 if started successfully, error otherwise
+     *
+     * NOTE: if the derived class initializes own time manager with
+     * sk::time::init_time(...) in on_init(...) call, the base class
+     * will call this function to start a tick timer which runs every
+     * 1 second to update the time manager's current time, however,
+     * the derived class can also call this function to start the tick
+     * timer, but if the time manager is enabled, it's better to start
+     * the tick timer with a interval <= 1 second.
+     */
+    int start_tick_timer(u64 tick_ms) {
+        if (tick_timer_) return 0;
+
+        tick_timer_ = std::unique_ptr<heap_timer>(new heap_timer(loop_,
+                                                                 std::bind(&this_type::on_tick_timeout,
+                                                                           this, std::placeholders::_1)));
+        if (!tick_timer_) return -ENOMEM;
+
+        tick_timer_->start_forever(tick_ms, tick_ms);
+        return 0;
+    }
+
 private:
-    static void sig_on_stop(int) {
-        instance_->ctx_.stopping = true;
+    void recv_bus_msg() {
+        assert_retnone(!ctx_.disable_bus);
+
+        int ret = 0;
+        size_t total = 0;
+        while (total < MAX_MSG_PER_PROC) {
+            int src_busid = -1;
+            size_t len = buf_len_;
+            ret = sk::bus::recv(src_busid, buf_, len);
+
+            if (ret == 0)
+                break;
+
+            if (unlikely(ret < 0)) {
+                if (ret == -E2BIG) {
+                    sk_warn("big msg, size<%lu>.", len);
+
+                    void *old = buf_;
+                    buf_ = malloc(len);
+                    if (!buf_) {
+                        sk_assert(0);
+                        buf_ = old;
+                        break;
+                    }
+
+                    free(old);
+                    buf_len_ = len;
+                    continue;
+                }
+
+                sk_error("bus recv error<%d>.", ret);
+                break;
+            }
+
+            sk_assert(ret == 1);
+            on_msg(src_busid, buf_, len);
+            ++total;
+        }
     }
 
-    static void sig_on_reload(int) {
-        instance_->ctx_.reloading = true;
+    void handle_signal(const signalfd_siginfo *info) {
+        int signal = static_cast<int>(info->ssi_signo);
+        switch (signal) {
+        case SIGPIPE:
+            break;
+        case SIGTERM:
+        case SIGQUIT:
+        case SIGINT:
+            stop();
+            break;
+        case SIGUSR1:
+            reload();
+            break;
+        case SIGUSR2:
+            hotfix();
+            break;
+        default:
+            if (signal == bus::BUS_INCOMING_SIGNO) {
+                recv_bus_msg();
+                break;
+            }
+
+            return on_signal(info);
+        }
     }
 
-    static void sig_on_hotfix(int) {
-        instance_->ctx_.hotfixing = true;
+    void on_stop_timeout(heap_timer *timer) {
+        sk_assert(timer == stop_timer_.get());
+
+        int ret = on_stop();
+        if (ret == 0) {
+            // do NOT call stop here, let the loop quit
+            // automatically after all handles get closed
+            // uv_stop(loop_);
+            sk_info("exit stop()");
+            return;
+        }
+
+        sk_info("on_stop() returns %d, continue.", ret);
+        stop_timer_->start_once(500);
     }
 
+    void on_tick_timeout(heap_timer *timer) {
+        sk_assert(timer == tick_timer_.get());
+
+        if (sk::time::time_enabled(nullptr))
+            sk::time::update_time();
+
+        return on_tick();
+    }
+
+private:
     int init_parser(option_parser& p) {
         int ret = 0;
 
@@ -359,19 +431,13 @@ private:
         ret = p.register_option(0, "proc-conf", "process config location", "CONF", false, &ctx_.proc_conf);
         if (ret != 0) return ret;
 
-        ret = p.register_option(0, "idle-count", "how many idle count will be counted before a sleep", "COUNT", false, &ctx_.max_idle_count);
+        ret = p.register_option(0, "resume", "process start in resume mode or not", nullptr, false, &ctx_.resume_mode);
         if (ret != 0) return ret;
 
-        ret = p.register_option(0, "idle-sleep", "how long server will sleep when idle, in milliseconds", "MS", false, &ctx_.idle_sleep_ms);
+        ret = p.register_option(0, "disable-shm", "do NOT use shm", nullptr, false, &ctx_.disable_shm);
         if (ret != 0) return ret;
 
-        ret = p.register_option(0, "resume", "process start in resume mode or not", NULL, false, &ctx_.resume_mode);
-        if (ret != 0) return ret;
-
-        ret = p.register_option(0, "disable-shm", "do NOT use shm", NULL, false, &ctx_.disable_shm);
-        if (ret != 0) return ret;
-
-        ret = p.register_option(0, "disable-bus", "do NOT use bus", NULL, false, &ctx_.disable_bus);
+        ret = p.register_option(0, "disable-bus", "do NOT use bus", nullptr, false, &ctx_.disable_bus);
         if (ret != 0) return ret;
 
         ret = p.register_option(0, "bus-key", "shm key of bus, 1799 by default", "KEY", false, &ctx_.bus_key);
@@ -413,16 +479,6 @@ private:
             char buf[256] = {0};
             snprintf(buf, sizeof(buf), "../cfg/%s_conf.xml_%s", program, ctx_.str_id.c_str());
             ctx_.proc_conf = buf;
-        }
-
-        // the command line option does not provide an idle count
-        if (ctx_.max_idle_count == 0) {
-            ctx_.max_idle_count = 10;
-        }
-
-        // the command line option does not provide an idle sleep
-        if (ctx_.idle_sleep_ms == 0) {
-            ctx_.idle_sleep_ms = 3;
         }
 
         // the command line option does not provide a bus key
@@ -520,41 +576,50 @@ private:
         return sk::bus::register_bus(ctx_.bus_key, ctx_.id, ctx_.bus_node_size, ctx_.bus_node_count);
     }
 
-    void set_signal_handler() {
-        struct sigaction act;
+    int create_loop() {
+        loop_ = uv_default_loop();
+        if (!loop_) return -1;
+        return 0;
+    }
 
-        sk_info("setting signal handler...");
+    int watch_signal() {
+        sig_watcher_ = signal_watcher::create(loop_);
+        if (!sig_watcher_) return -1;
 
-        memset(&act, 0x00, sizeof(act));
-        sigfillset(&act.sa_mask);
+        int ret = 0;
+        sig_watcher_->set_signal_callback(std::bind(&this_type::handle_signal,
+                                                    this, std::placeholders::_1));
 
         // NOTE: it's important to ignore SIGPIPE
-        act.sa_handler = SIG_IGN;
-        sigaction(SIGPIPE, &act, NULL);
         sk_info("signal: SIGPIPE(%d), action: ignore", SIGPIPE);
+        ret = sig_watcher_->watch(SIGPIPE);
+        if (ret != 0) return ret;
 
-        act.sa_handler = server::sig_on_stop;
-        sigaction(SIGTERM, &act, NULL);
-        sk_info("signal: SIGTERM(%d), action: call server::stop", SIGTERM);
+        sk_info("signal: SIGTERM(%d), action: stop", SIGTERM);
+        ret = sig_watcher_->watch(SIGTERM);
+        if (ret != 0) return ret;
 
-        sigaction(SIGQUIT, &act, NULL);
-        sk_info("signal: SIGQUIT(%d), action: call server::stop", SIGQUIT);
+        sk_info("signal: SIGQUIT(%d), action: stop", SIGQUIT);
+        ret = sig_watcher_->watch(SIGQUIT);
+        if (ret != 0) return ret;
 
-        sigaction(SIGINT, &act, NULL);
-        sk_info("signal: SIGINT(%d), action: call server::stop", SIGINT);
+        sk_info("signal: SIGINT(%d), action: stop", SIGINT);
+        ret = sig_watcher_->watch(SIGINT);
+        if (ret != 0) return ret;
 
-        sigaction(SIGABRT, &act, NULL);
-        sk_info("signal: SIGABRT(%d), action: call server::stop", SIGABRT);
+        sk_info("signal: SIGUSR1(%d), action: reload", SIGUSR1);
+        ret = sig_watcher_->watch(SIGUSR1);
+        if (ret != 0) return ret;
 
-        act.sa_handler = server::sig_on_reload;
-        sigaction(SIGUSR1, &act, NULL);
-        sk_info("signal: SIGUSR1(%d), action: call server::reload", SIGUSR1);
+        sk_info("signal: SIGUSR2(%d), action: hotfix", SIGUSR2);
+        ret = sig_watcher_->watch(SIGUSR2);
+        if (ret != 0) return ret;
 
-        act.sa_handler = server::sig_on_hotfix;
-        sigaction(SIGUSR2, &act, NULL);
-        sk_info("signal: SIGUSR2(%d), action: call server::hotfix", SIGUSR2);
+        sk_info("signal: BUS_INCOMING(%d), action: recv", sk::bus::BUS_INCOMING_SIGNO);
+        ret = sig_watcher_->watch(sk::bus::BUS_INCOMING_SIGNO);
+        if (ret != 0) return ret;
 
-        sk_info("signal hander set.");
+        return sig_watcher_->start();
     }
 
 private:
@@ -564,10 +629,14 @@ private:
     size_t buf_len_;
     Config cfg_;
     server_context ctx_;
+    uv_loop_t *loop_;
+    sk::signal_watcher *sig_watcher_;
+    std::unique_ptr<heap_timer> stop_timer_;
+    std::unique_ptr<heap_timer> tick_timer_;
 };
 
 template<typename C, typename D>
-D *server<C, D>::instance_ = NULL;
+D *server<C, D>::instance_ = nullptr;
 
 NS_END(sk)
 

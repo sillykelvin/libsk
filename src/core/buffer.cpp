@@ -1,7 +1,6 @@
-#include "buffer.h"
+#include <core/buffer.h>
 
 NS_BEGIN(sk)
-NS_BEGIN(net)
 
 buffer::buffer(size_t buffer_size) {
     capacity_ = buffer_size;
@@ -35,32 +34,35 @@ buffer::~buffer() {
     windex_ = 0;
 }
 
-void buffer::append(const void *data, size_t len) {
-    if (!data || len <= 0) return;
-
-    ensure_space(len);
-    memcpy(sk::byte_offset<void>(address_, windex_), data, len);
-    windex_ += len;
+void buffer::commit(size_t n) {
+    sk_assert(capacity_ >= windex_);
+    sk_assert(windex_ + n <= capacity_);
+    windex_ += n;
 }
 
-void buffer::consume(size_t len) {
-    size_t sz = size();
-    sk_assert(len <= sz);
-    rindex_ += len;
+void *buffer::prepare(size_t n) {
+    ensure_space(n);
+    return sk::byte_offset<void>(address_, windex_);
+}
 
-    if (len >= sz) {
+void buffer::consume(size_t n) {
+    size_t sz = size();
+    sk_assert(n <= sz);
+    rindex_ += n;
+
+    if (n >= sz) {
         rindex_ = 0;
         windex_ = 0;
     }
 }
 
-void buffer::ensure_space(size_t len) {
+void buffer::ensure_space(size_t n) {
     sk_assert(capacity_ >= windex_);
     size_t available = capacity_ - windex_;
-    if (available >= len) return;
+    if (available >= n) return;
 
-    // there is available space inside buffer, just move the data
-    if (rindex_ + available >= len) {
+    // there is enough space inside buffer, just move the data
+    if (rindex_ + available >= n) {
         sk_assert(rindex_ > 0);
 
         size_t sz = size();
@@ -74,7 +76,7 @@ void buffer::ensure_space(size_t len) {
     }
 
     size_t sz = size();
-    size_t cap = windex_ + len;
+    size_t cap = windex_ + n;
     void *addr = malloc(cap);
     sk_assert(addr);
 
@@ -88,5 +90,4 @@ void buffer::ensure_space(size_t len) {
     address_ = addr;
 }
 
-NS_END(net)
 NS_END(sk)

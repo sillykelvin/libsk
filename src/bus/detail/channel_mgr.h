@@ -49,7 +49,7 @@ struct channel_mgr {
     const channel *get_write_channel(int fd) const;
     int get_owner_busid(int fd) const;
 
-    channel *find_read_channel(int busid);
+    channel *find_read_channel(int busid, int& fd);
 };
 
 } // namespace detail
