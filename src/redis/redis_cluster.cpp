@@ -56,8 +56,16 @@ redis_cluster *redis_cluster::create(uv_loop_t *loop, const string_vector& hosts
 }
 
 void redis_cluster::stop() {
-    for (const auto& it : connections_)
-        it.second->disconnect();
+    // disconnect() might be not async, its callback on_disconnect() will be
+    // called directly, in the callback, the connection will be erased from the
+    // container, then the iterator here will be invalid.
+    // for (const auto& it : connections_)
+    //     it.second->disconnect();
+
+    while (!connections_.empty()) {
+        auto it = connections_.begin();
+        it->second->disconnect();
+    }
 }
 
 int redis_cluster::exec(const std::string& key,

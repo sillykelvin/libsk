@@ -29,7 +29,7 @@ public:
 
     ~redis_command() = default;
 
-    void dec_ttl() { ttl_ -= 1; }
+    void dec_ttl();
 
     void on_reply(int ret, redisReply *r);
 

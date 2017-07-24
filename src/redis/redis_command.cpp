@@ -61,6 +61,16 @@ redis_command_ptr redis_command::create(const fn_on_redis_reply& fn,
     return cmd;
 }
 
+void redis_command::dec_ttl() {
+    ttl_ -= 1;
+    auto pos = debug_str_.find(',');
+    if (pos != debug_str_.npos) {
+        std::stringstream ss;
+        ss << "[ttl: " << ttl_ << debug_str_.substr(pos);
+        debug_str_ = ss.str();
+    }
+}
+
 void redis_command::on_reply(int ret, redisReply *r) {
     // this command might have been released in fn_
     // call, do NOT use any member field after that

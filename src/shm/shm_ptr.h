@@ -23,6 +23,7 @@ struct dereference<void> {
 
 template<typename T>
 struct shm_ptr {
+    typedef shm_ptr<T>                            self;
     typedef T*                                    pointer;
     typedef typename detail::dereference<T>::type reference;
 
@@ -98,6 +99,7 @@ struct shm_ptr {
     }
 
     explicit operator bool() const { return mid != MID_NULL; }
+    bool operator<(const self& that) const { return this->mid < that.mid; }
 };
 
 } // namespace sk
