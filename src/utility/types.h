@@ -6,6 +6,12 @@
 
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 
+/*
+ * sometimes, we need a magic code to identify something
+ * "code feed" :-)
+ */
+#define SK_MAGIC 0xC0DEFEED
+
 #define likely(x)   __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 

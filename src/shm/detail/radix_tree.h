@@ -1,7 +1,7 @@
 #ifndef RADIX_TREE_H
 #define RADIX_TREE_H
 
-#include <shm/shm_mgr.h>
+#include <shm/shm.h>
 
 NS_BEGIN(sk)
 NS_BEGIN(detail)
@@ -45,7 +45,8 @@ public:
         if (lv0_[i0]) {
             v1 = lv0_[i0].template as<node_v1>();
         } else {
-            lv0_[i0] = sk::shm_mgr::allocate_metadata(sizeof(node_v1));
+            size_t size = sizeof(node_v1);
+            lv0_[i0] = shm_allocate_metadata(&size);
             assert_retnone(lv0_[i0]);
 
             v1 = lv0_[i0].template as<node_v1>();
@@ -57,7 +58,8 @@ public:
         if (v1->lv1[i1]) {
             v2 = v1->lv1[i1].template as<node_v2>();
         } else {
-            v1->lv1[i1] = sk::shm_mgr::allocate_metadata(sizeof(node_v2));
+            size_t size = sizeof(node_v2);
+            v1->lv1[i1] = shm_allocate_metadata(&size);
             assert_retnone(v1->lv1[i1]);
 
             v2 = v1->lv1[i1].template as<node_v2>();

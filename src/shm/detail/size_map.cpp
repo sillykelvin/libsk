@@ -85,12 +85,12 @@ int size_map::init() {
                 psize += shm_config::PAGE_SIZE;
         } while ((psize / size) < cast_size(chunk_to_alloc));
 
-        const size_t this_page_count = psize >> shm_config::PAGE_SHIFT;
+        const size_t this_page_count = psize >> shm_config::PAGE_BITS;
         if (sc > 1 && this_page_count == class2pages_[sc - 1]) {
             // see if we can merge this into the previous class without
             // increasing the fragmentation of the previous class
-            const size_t this_chunk_count = (this_page_count << shm_config::PAGE_SHIFT) / size;
-            const size_t prev_chunk_count = (class2pages_[sc - 1] << shm_config::PAGE_SHIFT) / class2size_[sc - 1];
+            const size_t this_chunk_count = (this_page_count << shm_config::PAGE_BITS) / size;
+            const size_t prev_chunk_count = (class2pages_[sc - 1] << shm_config::PAGE_BITS) / class2size_[sc - 1];
 
             if (this_chunk_count == prev_chunk_count) {
                 // adjust last class to include this size

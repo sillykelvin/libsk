@@ -42,27 +42,6 @@ public:
         return *this;
     }
 
-    template<typename U>
-    shm_ptr& operator=(const shm_ptr<U>& that) {
-        this->addr_ = that.address();
-        return *this;
-    }
-
-    template<typename U>
-    bool operator==(const shm_ptr<U>& that) const {
-        return this->addr_ == that.address();
-    }
-
-    template<typename U>
-    bool operator!=(const shm_ptr<U>& that) const {
-        return this->addr_ != that.address();
-    }
-
-    template<typename U>
-    bool operator<(const shm_ptr<U>& that) const {
-        return this->get() < that.get();
-    }
-
     pointer operator->() {
         pointer ptr = get();
         sk_assert(ptr);

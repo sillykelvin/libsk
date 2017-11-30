@@ -24,20 +24,19 @@ private:
     shm_address carve(shm_address sp, size_t page_count);
     void link(shm_address sp);
 
-    shm_address new_span(block_t block, page_t start_page, size_t page_count);
+    shm_address new_span(shm_page_t start_page, size_t page_count);
     void del_span(shm_address sp);
 
-    // TODO: the page might overflow as we limited it to MAX_PAGE_BITS
-    // be careful to check this
-    shm_address get_span_map(block_t block, page_t page) const;
-    void set_span_map(block_t block, page_t page, shm_address sp);
+    shm_address get_span_map(shm_page_t page) const;
+    void set_span_map(shm_page_t page, shm_address sp);
 
     bool grow_heap(size_t page_count);
 
 private:
-    static const size_t LV2_BITS = shm_config::MAX_PAGE_BITS / 2;
-    static const size_t LV1_BITS = shm_config::MAX_PAGE_BITS - LV2_BITS;
-    static const size_t LV0_BITS = shm_config::MAX_BLOCK_BITS;
+    static const size_t MAX_BITS = shm_config::ADDRESS_BITS - shm_config::PAGE_BITS;
+    static const size_t LV0_BITS = 5;
+    static const size_t LV1_BITS = 10;
+    static const size_t LV2_BITS = MAX_BITS - (LV0_BITS + LV1_BITS); // 20
 
     radix_tree<shm_address, LV0_BITS, LV1_BITS, LV2_BITS> span_map_;
     metadata_allocator<span> span_allocator_;

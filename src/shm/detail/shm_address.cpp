@@ -1,16 +1,16 @@
-#include <shm/shm_mgr.h>
-#include <utility/math_helper.h>
+#include <shm/shm.h>
+#include <shm/detail/shm_address.h>
 
 using namespace sk::detail;
 
-shm_address shm_address::from_ptr(void *ptr) {
-    return shm_mgr::ptr2addr(ptr);
-}
-
-const void *shm_address::get() const {
-    return shm_mgr::addr2ptr(*this);
+shm_address shm_address::from_ptr(const void *ptr) {
+    return shm_ptr2addr(ptr);
 }
 
 void *shm_address::get() {
-    return shm_mgr::addr2ptr(*this);
+    return shm_addr2ptr(*this);
+}
+
+const void *shm_address::get() const {
+    return shm_addr2ptr(*this);
 }

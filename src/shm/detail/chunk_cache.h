@@ -9,8 +9,8 @@ NS_BEGIN(detail)
 
 class chunk_cache {
 public:
-    shm_address allocate(size_t bytes, u8 sc);
-    void deallocate(shm_address addr);
+    shm_address allocate_chunk(size_t bytes, u8 sc);
+    void deallocate_chunk(shm_address addr, shm_address sp);
 
 private:
     struct class_cache {

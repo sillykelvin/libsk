@@ -1,39 +1,45 @@
 #ifndef METADATA_ALLOCATOR_H
 #define METADATA_ALLOCATOR_H
 
+#include <shm/shm.h>
 #include <shm/shm_config.h>
 #include <utility/math_helper.h>
-#include <shm/detail/shm_address.h>
 
 NS_BEGIN(sk)
 NS_BEGIN(detail)
 
 template<typename T>
 class metadata_allocator {
+    // how many bytes to be fetched from the system when there is no enough space
+    static const size_t ALLOCATION_SIZE = 128 * 1024;
+
+    static_assert(sizeof(T) <= ALLOCATION_SIZE, "sizeof(T) overflow");
     static_assert(sizeof(T) >= sizeof(shm_address), "sizeof(T) underflow");
-    static_assert(sizeof(T) <= shm_config::METADATA_ALLOCATION_SIZE, "sizeof(T) overflow");
+
 public:
     shm_address allocate() {
         do {
             if (free_list_) break;
 
-            shm_address space = shm_mgr::allocate_metadata(shm_config::METADATA_ALLOCATION_SIZE);
+            size_t size = ALLOCATION_SIZE;
+            shm_address space = sk::shm_allocate_metadata(&size);
             if (!space) return nullptr;
 
-            shm_address block(space.block());
+            sk_assert(space.serial() == shm_config::METADATA_SERIAL_NUM);
+            shm_address block(space.serial(), 0);
 
             char *base = char_ptr(block.get());
             char *ptr  = char_ptr(space.get());
-            char *end  = sk::byte_offset<char>(ptr, shm_config::METADATA_ALLOCATION_SIZE);
+            char *end  = sk::byte_offset<char>(ptr, size);
             while (ptr + sizeof(T) <= end) {
                 *cast_ptr(shm_address, ptr) = free_list_;
-                free_list_ = shm_address(space.block(), ptr - base);
+                free_list_ = shm_address(space.serial(), ptr - base);
                 ptr += sizeof(T);
             }
 
             sk_assert(ptr <= end);
             stat_.waste_size += (end - ptr);
-            stat_.total_size += shm_config::METADATA_ALLOCATION_SIZE;
+            stat_.total_size += size;
         } while (0);
 
         assert_retval(free_list_, nullptr);
