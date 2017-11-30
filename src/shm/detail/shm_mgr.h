@@ -22,6 +22,10 @@ public:
     shm_ptr<void> malloc(size_t bytes);
     void free(shm_ptr<void> ptr);
 
+    bool has_singleton(int id);
+    shm_ptr<void> get_singleton(int id, size_t bytes, bool *first_call);
+    void free_singleton(int id);
+
     shm_address allocate_metadata(size_t *bytes);
     shm_address allocate_userdata(size_t *bytes);
 
@@ -61,7 +65,7 @@ private:
     shm_serial_t serial_;
     size_t default_mmap_size_;
     char basename_[shm_config::MAX_PATH_SIZE];
-    shm_address singletons_[MAX_SINGLETON_COUNT];
+    shm_ptr<void> singletons_[MAX_SINGLETON_COUNT];
 
     // blocks_[METADATA_BLOCK] for metadata allocation
     // blocks_[USERDATA_BLOCK] for userdata allocation

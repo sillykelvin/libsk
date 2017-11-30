@@ -33,13 +33,7 @@
 #define cast_int(value) cast_value(int, (value))
 #define cast_size(value) cast_value(size_t, (value))
 
-
 #define array_len(array)    (sizeof(array) / sizeof(array[0]))
-
-#define SHM_NULL    sk::shm_ptr<void>()
-#define IDX_NULL    (-1)
-#define MID_NULL    0
-#define OFFSET_NULL 0
 
 #define NS_BEGIN(name) namespace name {
 #define NS_END(name) }

@@ -1,9 +1,9 @@
 #ifndef BUS_H
 #define BUS_H
 
-#include <signal.h>
 #include <string>
-#include "utility/types.h"
+#include <signal.h>
+#include <utility/types.h>
 
 NS_BEGIN(sk)
 NS_BEGIN(bus)
@@ -105,13 +105,13 @@ int inst_id(int bus_id);
 
 /**
  * @brief register bus for process whose bus id is busid
- * @param bus_key: shm key of bus
+ * @param shm_path: shm object path of bus
  * @param busid: bus id of current process
  * @param node_size: size of a single data node
  * @param node_count: total count of data nodes
  * @return 0 if succeeds, error code otherwise
  */
-int register_bus(key_t bus_key, int busid,
+int register_bus(const char *shm_path, int busid,
                  size_t node_size = DEFAULT_BUS_NODE_SIZE,
                  size_t node_count = DEFAULT_BUS_NODE_COUNT);
 

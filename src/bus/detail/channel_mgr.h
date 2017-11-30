@@ -19,7 +19,7 @@ struct channel_descriptor {
 struct channel_mgr {
     static const int MAX_DESCRIPTOR_COUNT = 128;
 
-    int magic;
+    u32 magic;
     int shmid;        // id of this shm segment
     pid_t pid;        // pid of the busd process
     size_t shm_size;  // total size of this shm segment

@@ -6,8 +6,8 @@
 #include <signal.h>
 #include <bus/bus.h>
 #include <log/log.h>
+#include <shm/shm.h>
 #include <sys/file.h>
-#include <shm/shm_mgr.h>
 #include <spdlog/spdlog.h>
 #include <time/shm_timer.h>
 #include <time/heap_timer.h>
@@ -25,10 +25,20 @@ inline std::string default_pid_file(int area_id, int zone_id,
     return buf;
 }
 
+inline std::string default_shm_path(int area_id, int zone_id,
+                                    int func_id, int inst_id,
+                                    const char *program) {
+    char buf[256];
+    snprintf(buf, sizeof(buf), "/%s_%d.%d.%d.%d",
+             program, area_id, zone_id, func_id, inst_id);
+    return buf;
+}
+
 struct server_context {
-    int id;                // id of this server, it is also the bus id & shm key
+    int id;                // id of this server, it is also the bus id
     std::string str_id;    // string id of this server, like "x.x.x.x"
     std::string pid_file;  // pid file location
+    std::string shm_path;  // shm object location prefix
     std::string log_conf;  // log config location
     std::string proc_conf; // process config location
     bool resume_mode;      // if the process is running under resume mode
@@ -206,7 +216,7 @@ private:
                 sk::bus::deregister_bus();
 
             if (!ctx_.disable_shm)
-                sk::shm_mgr_fini();
+                sk::shm_fini();
         } while (0);
 
         sk_info("exit fini()");
@@ -297,16 +307,6 @@ protected:
      * see @start_tick_timer() for more information
      */
     virtual void on_tick() {}
-
-    /**
-     * @brief estimate_shm_space will estmate the shared memory required
-     * @return the required shared memory size
-     *
-     * NOTE: the derived class should estimate shared memory usage and
-     * return the size by this function, 0 should be returned if no
-     * shared memory is required
-     */
-    virtual size_t estimate_shm_space() = 0;
 
     /**
      * @brief start_tick_timer will start the tick timer
@@ -435,6 +435,9 @@ private:
         ret = p.register_option(0, "pid-file", "pid file location", "PID", false, &ctx_.pid_file);
         if (ret != 0) return ret;
 
+        ret = p.register_option(0, "shm-path", "shm object location prefix", "PATH", false, &ctx_.shm_path);
+        if (ret != 0) return ret;
+
         ret = p.register_option(0, "log-conf", "log config location", "CONF", false, &ctx_.log_conf);
         if (ret != 0) return ret;
 
@@ -473,9 +476,11 @@ private:
 
         // the command line option does not provide a pid file
         if (ctx_.pid_file.empty())
-            ctx_.pid_file = default_pid_file(area_id, zone_id,
-                                             func_id, inst_id,
-                                             program);
+            ctx_.pid_file = default_pid_file(area_id, zone_id, func_id, inst_id, program);
+
+        // the command line option does not provide a shm path
+        if (ctx_.shm_path.empty())
+            ctx_.shm_path = default_shm_path(area_id, zone_id, func_id, inst_id, program);
 
         // the command line option does not provide a log config
         if (ctx_.log_conf.empty()) {
@@ -530,18 +535,10 @@ private:
         if (cfg_.shm_size <= 0)
             ctx_.disable_shm = true;
 
-        size_t bytes = estimate_shm_space();
-        if (bytes == 0 && !ctx_.disable_shm)
-            sk_warn("the application disables shm, but the config does not.");
-        if (bytes > 0 && ctx_.disable_shm)
-            sk_warn("the application enables shm, but the config does not.");
-        if (bytes > 0 && !ctx_.disable_shm && bytes > cfg_.shm_size)
-            sk_warn("the configured shm size<%lu> might be not enough, estimated: %lu.", cfg_.shm_size, bytes);
-
         if (ctx_.disable_shm)
             return 0;
 
-        return sk::shm_mgr_init(ctx_.id, cfg_.shm_size, ctx_.resume_mode);
+        return sk::shm_init(ctx_.shm_path.c_str(), ctx_.resume_mode);
     }
 
     int make_daemon() {

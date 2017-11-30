@@ -2,15 +2,15 @@
 #define SHM_RBTREE_H
 
 #include <iterator>
-#include "shm/shm_mgr.h"
-#include "shm/shm_ptr.h"
-#include "log/log.h"
-#include "utility/types.h"
-#include "utility/utility.h"
-#include "utility/assert_helper.h"
+#include <log/log.h>
+#include <shm/shm.h>
+#include <shm/shm_ptr.h>
+#include <utility/types.h>
+#include <utility/utility.h>
+#include <utility/assert_helper.h>
 
-namespace sk {
-namespace detail {
+NS_BEGIN(sk)
+NS_BEGIN(detail)
 
 template<typename V>
 struct shm_rbtree_node {
@@ -49,7 +49,7 @@ struct shm_rbtree_iterator {
     tree_pointer t;
     node_pointer n;
 
-    explicit shm_rbtree_iterator(tree_pointer t) : t(t), n(SHM_NULL) {}
+    explicit shm_rbtree_iterator(tree_pointer t) : t(t), n(nullptr) {}
     shm_rbtree_iterator(tree_pointer t, node_pointer n) : t(t), n(n) {}
 
     /*
@@ -84,7 +84,7 @@ struct shm_rbtree_iterator {
     bool operator!=(const shm_rbtree_iterator<T, !C>& x) const { return !(*this == x); }
 };
 
-} // namespace detail
+NS_END(detail)
 
 /*
  * K: key
@@ -108,7 +108,7 @@ struct shm_rbtree {
     size_t  node_count;
     pointer root;
 
-    shm_rbtree() : node_count(0), root(SHM_NULL) { __check(); }
+    shm_rbtree() : node_count(0), root(nullptr) { __check(); }
     ~shm_rbtree() { clear(); }
 
     shm_rbtree(const shm_rbtree& tree) = delete;
@@ -156,13 +156,12 @@ struct shm_rbtree {
         if (n && n->parent)
             return n->parent->parent;
 
-        return SHM_NULL;
+        return nullptr;
     }
 
     pointer __uncle(pointer n) {
         pointer gp = __grand_parent(n);
-        if (!gp)
-            return SHM_NULL;
+        if (!gp) return nullptr;
 
         if (n->parent == gp->left)
             return gp->right;
@@ -192,7 +191,7 @@ struct shm_rbtree {
         sk_assert(count == node_count);
 
         node_count = 0;
-        root = SHM_NULL;
+        root = nullptr;
     }
 
     iterator find(const K& key) {
@@ -277,7 +276,7 @@ struct shm_rbtree {
     int insert(const V& value) {
         F f;
         pointer x = root;
-        pointer p = SHM_NULL;
+        pointer p = nullptr;
         while (x) {
             p = x;
             if (__eq(f(value), f(x->value)))
@@ -388,7 +387,7 @@ struct shm_rbtree {
         assert_retnone(z);
 
         pointer y = z;
-        pointer x = SHM_NULL;
+        pointer x = nullptr;
         pointer xp = z->parent; // x's new parent
         bool is_black = !__red(y);
 
@@ -454,7 +453,7 @@ struct shm_rbtree {
                             w->right->color = black;
                         __rotate_left(xp);
                         x = root;
-                        xp = SHM_NULL;
+                        xp = nullptr;
                     }
                 } else {
                     pointer w = xp->left;
@@ -481,7 +480,7 @@ struct shm_rbtree {
                             w->left->color = black;
                         __rotate_right(xp);
                         x = root;
-                        xp = SHM_NULL;
+                        xp = nullptr;
                     }
                 }
             }
@@ -565,7 +564,7 @@ struct shm_rbtree {
     }
 
     pointer __min(pointer n) {
-        if (!n) return SHM_NULL;
+        if (!n) return nullptr;
 
         if (!n->left)
             return n;
@@ -574,7 +573,7 @@ struct shm_rbtree {
     }
 
     const_pointer __min(const_pointer n) const {
-        if (!n) return SHM_NULL;
+        if (!n) return nullptr;
 
         if (!n->left)
             return n;
@@ -583,7 +582,7 @@ struct shm_rbtree {
     }
 
     pointer __max(pointer n) {
-        if (!n) return SHM_NULL;
+        if (!n) return nullptr;
 
         if (!n->right)
             return n;
@@ -592,7 +591,7 @@ struct shm_rbtree {
     }
 
     const_pointer __max(const_pointer n) const {
-        if (!n) return SHM_NULL;
+        if (!n) return nullptr;
 
         if (!n->right)
             return n;
@@ -602,7 +601,7 @@ struct shm_rbtree {
 
     pointer __next(pointer n) {
         if (!n)
-            return SHM_NULL;
+            return nullptr;
 
         if (n->right)
             return __min(n->right);
@@ -612,7 +611,7 @@ struct shm_rbtree {
 
             // 1. n is root and has no right child, so it is the last one
             if (!p)
-                return SHM_NULL;
+                return nullptr;
 
             // 2. n has no right child, and it is the left child of its parent
             if (n == p->left)
@@ -625,7 +624,7 @@ struct shm_rbtree {
 
     const_pointer __next(const_pointer n) const {
         if (!n)
-            return SHM_NULL;
+            return nullptr;
 
         if (n->right)
             return __min(n->right);
@@ -635,7 +634,7 @@ struct shm_rbtree {
 
             // 1. n is root and has no right child, so it is the last one
             if (!p)
-                return SHM_NULL;
+                return nullptr;
 
             // 2. n has no right child, and it is the left child of its parent
             if (n == p->left)
@@ -648,7 +647,7 @@ struct shm_rbtree {
 
     pointer __prev(pointer n) {
         if (!n)
-            return SHM_NULL;
+            return nullptr;
 
         if (n->left)
             return __max(n->left);
@@ -657,7 +656,7 @@ struct shm_rbtree {
             pointer p = n->parent;
 
             if (!p)
-                return SHM_NULL;
+                return nullptr;
 
             if (n == p->right)
                 return p;
@@ -668,7 +667,7 @@ struct shm_rbtree {
 
     const_pointer __prev(const_pointer n) const {
         if (!n)
-            return SHM_NULL;
+            return nullptr;
 
         if (n->left)
             return __max(n->left);
@@ -677,7 +676,7 @@ struct shm_rbtree {
             pointer p = n->parent;
 
             if (!p)
-                return SHM_NULL;
+                return nullptr;
 
             if (n == p->right)
                 return p;
@@ -720,7 +719,7 @@ struct shm_rbtree {
 
     // property 3: all leaves (null node) are black
     bool __check_prop3() {
-        return !__red(SHM_NULL);
+        return !__red(nullptr);
     }
 
     // property 4: every red node must have two black children
@@ -763,6 +762,6 @@ struct shm_rbtree {
     }
 };
 
-} // namespace sk
+NS_END(sk)
 
 #endif // SHM_RBTREE_H

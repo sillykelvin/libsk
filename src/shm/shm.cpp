@@ -22,7 +22,19 @@ void shm_free(shm_ptr<void> ptr) {
     ctx->mgr->free(ptr);
 }
 
-size_map  *shm_size_map() {
+bool shm_has_singleton(int id) {
+    return ctx->mgr->has_singleton(id);
+}
+
+shm_ptr<void> shm_get_singleton(int id, size_t bytes, bool *first_call) {
+    return ctx->mgr->get_singleton(id, bytes, first_call);
+}
+
+void shm_free_singleton(int id) {
+    return ctx->mgr->free_singleton(id);
+}
+
+size_map *shm_size_map() {
     return ctx->mgr->size_map();
 }
 

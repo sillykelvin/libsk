@@ -7,7 +7,7 @@ NS_BEGIN(sk)
 NS_BEGIN(detail)
 
 struct channel_message {
-    s32 magic;
+    u32 magic;
     u32 hash;       // hash value of the data block, for verification
     s32 src_busid;  // which process this message comes from
     s32 dst_busid;  // which process this message goes to
@@ -17,7 +17,7 @@ struct channel_message {
 };
 
 struct channel {
-    s32 magic;
+    u32 magic;
     size_t node_count;          // total node count of this channel
     size_t node_size;           // the size of a node
     size_t node_size_shift;     // 2 ^ node_size_shift = node_size

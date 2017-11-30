@@ -1,11 +1,10 @@
 #include <string.h>
-#include "channel.h"
-#include "log/log.h"
-#include "shm/detail/shm_segment.h"
-#include "utility/assert_helper.h"
-#include "utility/config.h"
-#include "utility/math_helper.h"
-#include "common/murmurhash3.h"
+#include <log/log.h>
+#include <common/murmurhash3.h>
+#include <bus/detail/channel.h>
+#include <utility/math_helper.h>
+#include <utility/assert_helper.h>
+#include <shm/detail/shm_object.h>
 
 #define MURMURHASH_SEED 77
 
@@ -21,9 +20,9 @@ int channel::init(size_t node_size, size_t node_count) {
     assert_retval((node_size & (node_size - 1)) == 0, -1);
     assert_retval(node_size >= sizeof(channel_message), -1);
 
-    this->magic = MAGIC;
+    this->magic = SK_MAGIC;
     this->node_count = node_count;
-    this->node_size = node_size;
+    this->node_size  = node_size;
     this->push_count = 0;
     this->pop_count  = 0;
     this->read_pos   = 0;
@@ -40,7 +39,7 @@ int channel::init(size_t node_size, size_t node_count) {
 }
 
 void channel::clear() {
-    assert_retnone(magic == MAGIC);
+    assert_retnone(magic == SK_MAGIC);
 
     this->push_count = 0;
     this->pop_count  = 0;
@@ -49,7 +48,7 @@ void channel::clear() {
 }
 
 int channel::push(int src_busid, int dst_busid, u64 ctime, const void *data, size_t length) {
-    assert_retval(magic == MAGIC, -1);
+    assert_retval(magic == SK_MAGIC, -1);
 
     if (!data || length <= 0)
         return 0;
@@ -91,7 +90,7 @@ int channel::push(int src_busid, int dst_busid, u64 ctime, const void *data, siz
         memcpy(addr, data, length);
     }
 
-    head->magic = MAGIC;
+    head->magic = SK_MAGIC;
     head->src_busid = src_busid;
     head->dst_busid = dst_busid;
     head->length = length;
@@ -107,20 +106,20 @@ int channel::push(int src_busid, int dst_busid, u64 ctime, const void *data, siz
 }
 
 int channel::pop(void *data, size_t& length, int *src_busid, int *dst_busid, u64 *ctime) {
-    assert_retval(magic == MAGIC, -1);
+    assert_retval(magic == SK_MAGIC, -1);
 
     // no data
     if (read_pos == write_pos) return 0;
 
     const channel_message *head = __channel_message(read_pos);
-    assert_retval(head->magic == MAGIC, -1);
+    assert_retval(head->magic == SK_MAGIC, -1);
     assert_retval(head->length > 0, -1);
 
     const size_t used_count = __calc_node_count(head->length);
     const size_t new_read_pos = (read_pos + used_count) % node_count;
     if (new_read_pos != write_pos) {
         const channel_message *h = __channel_message(new_read_pos);
-        sk_assert(h->magic == MAGIC);
+        sk_assert(h->magic == SK_MAGIC);
         sk_assert(h->length > 0);
     }
 

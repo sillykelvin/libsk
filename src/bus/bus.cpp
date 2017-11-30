@@ -1,9 +1,9 @@
-#include "bus.h"
-#include "log/log.h"
-#include "bus/detail/channel_mgr.h"
-#include "bus/detail/channel.h"
-#include "shm/detail/shm_segment.h"
-#include "utility/assert_helper.h"
+#include <bus/bus.h>
+#include <log/log.h>
+#include <bus/detail/channel.h>
+#include <utility/assert_helper.h>
+#include <shm/detail/shm_object.h>
+#include <bus/detail/channel_mgr.h>
 
 NS_BEGIN(sk)
 NS_BEGIN(bus)
@@ -131,24 +131,26 @@ int inst_id(int bus_id) {
     return f.inst_id;
 }
 
-int register_bus(key_t bus_key, int busid, size_t node_size, size_t node_count) {
+int register_bus(const char *shm_path, int busid, size_t node_size, size_t node_count) {
     if (fd != -1) {
         sk_error("bus<%x> already registered.", busid);
         return -EINVAL;
     }
 
     int ret = 0;
+    size_t shm_size = 0;
 
-    detail::shm_segment seg;
-    ret = seg.init(bus_key, 0, true);
-    if (ret != 0) return ret;
+    int shmfd = detail::shm_object_attach(shm_path, &shm_size);
+    if (shmfd == -1) return shmfd;
 
-    mgr = cast_ptr(detail::channel_mgr, seg.address());
-    assert_retval(mgr, -1);
+    void *addr = detail::shm_object_map(shmfd, &shm_size, 0);
+    if (!addr) {
+        close(shmfd);
+        return -1;
+    }
 
-    // no matter it will succeed or not in the following logic, we
-    // release the control here
-    seg.release();
+    close(shmfd);
+    mgr = cast_ptr(detail::channel_mgr, addr);
 
     pid_t pid = getpid();
     ret = mgr->register_channel(busid, pid, node_size, node_count, fd);

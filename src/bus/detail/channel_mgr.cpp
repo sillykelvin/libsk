@@ -1,15 +1,14 @@
 #include <signal.h>
 #include <string.h>
 #include <errno.h>
-#include "channel_mgr.h"
-#include "bus/bus.h"
-#include "log/log.h"
-#include "utility/math_helper.h"
-#include "shm/detail/shm_segment.h"
-#include "utility/assert_helper.h"
-#include "utility/config.h"
-#include "common/lock_guard.h"
-#include "bus/detail/channel.h"
+#include <bus/bus.h>
+#include <log/log.h>
+#include <common/lock_guard.h>
+#include <bus/detail/channel.h>
+#include <utility/math_helper.h>
+#include <utility/assert_helper.h>
+#include <shm/detail/shm_object.h>
+#include <bus/detail/channel_mgr.h>
 
 NS_BEGIN(sk)
 NS_BEGIN(detail)
@@ -23,7 +22,7 @@ static int notify_channel_change(int bus_pid, int fd) {
 
 int channel_mgr::init(int shmid, size_t shm_size, bool resume) {
     if (resume) {
-        assert_retval(this->magic == MAGIC, -1);
+        assert_retval(this->magic == SK_MAGIC, -1);
         assert_retval(this->shmid == shmid, -1);
         assert_retval(this->shm_size == shm_size, -1);
 
@@ -44,7 +43,7 @@ int channel_mgr::init(int shmid, size_t shm_size, bool resume) {
         __sync_synchronize();
 
         // we set magic at the last, to ensure all fields are initialized
-        this->magic = MAGIC;
+        this->magic = SK_MAGIC;
     }
 
     return 0;
@@ -64,7 +63,7 @@ void channel_mgr::report() const {
 }
 
 int channel_mgr::register_channel(int busid, pid_t pid, size_t node_size, size_t node_count, int& fd) {
-    if (magic != MAGIC) {
+    if (magic != SK_MAGIC) {
         sk_error("channel mgr has not been initialized.");
         return -EINVAL;
     }
@@ -93,11 +92,11 @@ int channel_mgr::register_channel(int busid, pid_t pid, size_t node_size, size_t
             sk_info("channel<%x> closed, reopen it.", busid);
 
             channel *rc = sk::byte_offset<channel>(this, desc.r_offset);
-            assert_retval(rc->magic == MAGIC, -1);
+            assert_retval(rc->magic == SK_MAGIC, -1);
             rc->clear();
 
             channel *wc = sk::byte_offset<channel>(this, desc.w_offset);
-            assert_retval(wc->magic == MAGIC, -1);
+            assert_retval(wc->magic == SK_MAGIC, -1);
             wc->clear();
 
             sk_assert(rc->node_size == wc->node_size);
@@ -204,7 +203,7 @@ channel *channel_mgr::get_read_channel(int fd) {
     }
 
     channel *rc = sk::byte_offset<channel>(this, desc.r_offset);
-    assert_retval(rc->magic == MAGIC, nullptr);
+    assert_retval(rc->magic == SK_MAGIC, nullptr);
 
     return rc;
 }
@@ -219,7 +218,7 @@ channel *channel_mgr::get_write_channel(int fd) {
     }
 
     channel *wc = sk::byte_offset<channel>(this, desc.w_offset);
-    assert_retval(wc->magic == MAGIC, nullptr);
+    assert_retval(wc->magic == SK_MAGIC, nullptr);
 
     return wc;
 }
@@ -234,7 +233,7 @@ const channel *channel_mgr::get_read_channel(int fd) const {
     }
 
     const channel *rc = sk::byte_offset<channel>(this, desc.r_offset);
-    assert_retval(rc->magic == MAGIC, nullptr);
+    assert_retval(rc->magic == SK_MAGIC, nullptr);
 
     return rc;
 }
@@ -249,7 +248,7 @@ const channel *channel_mgr::get_write_channel(int fd) const {
     }
 
     const channel *wc = sk::byte_offset<channel>(this, desc.w_offset);
-    assert_retval(wc->magic == MAGIC, nullptr);
+    assert_retval(wc->magic == SK_MAGIC, nullptr);
 
     return wc;
 }

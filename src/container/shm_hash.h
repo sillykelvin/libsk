@@ -2,12 +2,12 @@
 #define SHM_HASH_H
 
 #include <iterator>
-#include "log/log.h"
-#include "shm/shm_ptr.h"
-#include "utility/utility.h"
+#include <log/log.h>
+#include <shm/shm.h>
+#include <utility/utility.h>
 
-namespace sk {
-namespace detail {
+NS_BEGIN(sk)
+NS_BEGIN(detail)
 
 inline size_t hashfunc(const s32& key) {
     return static_cast<size_t>(key);
@@ -106,7 +106,7 @@ struct shm_hash_iterator {
     bool operator!=(const shm_hash_iterator<T, !C>& x) const { return !(*this == x); }
 };
 
-} // namespace detail
+NS_END(detail)
 
 /**
  * K: hash key type
@@ -165,7 +165,7 @@ struct shm_hash {
     }
 
     pointer __search(const K& k) {
-        check_retval(!empty(), SHM_NULL);
+        check_retval(!empty(), nullptr);
 
         size_t hashcode = F(k);
         size_t idx = hashcode % bucket_size;
@@ -179,7 +179,7 @@ struct shm_hash {
             p = p->next;
         }
 
-        return SHM_NULL;
+        return nullptr;
     }
 
     node *__next(node *n) {
@@ -240,7 +240,7 @@ struct shm_hash {
         pointer p = base_addr[idx];
         assert_retval(p, NULL);
 
-        pointer prev = SHM_NULL;
+        pointer prev = nullptr;
         while (p) {
             if (p.get() == n)
                 break;
@@ -287,7 +287,7 @@ struct shm_hash {
         pointer p = base_addr[idx];
         assert_retval(p, NULL);
 
-        pointer prev = SHM_NULL;
+        pointer prev = nullptr;
         while (p) {
             if (p.get() == n)
                 break;
@@ -366,7 +366,7 @@ struct shm_hash {
 
         bool found = false;
         pointer *base_addr = buckets.get();
-        pointer prev = SHM_NULL;
+        pointer prev = nullptr;
         pointer p = base_addr[idx];
         while (p) {
             if (p->data.first == k) {
@@ -388,7 +388,7 @@ struct shm_hash {
             prev->next = p->next;
         }
 
-        shm_del(p);
+        shm_delete(p);
         --used_node_count;
 
         return;
@@ -400,11 +400,11 @@ struct shm_hash {
             pointer p = base_addr[i];
             while (p) {
                 pointer next = p->next;
-                shm_del(p);
+                shm_delete(p);
                 p = next;
             }
 
-            base_addr[i] = SHM_NULL;
+            base_addr[i] = nullptr;
         }
 
         used_node_count = 0;
@@ -414,10 +414,9 @@ struct shm_hash {
         size_t idx = 0;
 
         pointer *base_addr = buckets.get();
-        pointer p = SHM_NULL;
+        pointer p = nullptr;
         while (!p) {
             check_break(idx < bucket_size);
-
             p = base_addr[idx++];
         }
 
@@ -428,10 +427,9 @@ struct shm_hash {
         size_t idx = 0;
 
         pointer *base_addr = buckets.get();
-        pointer p = SHM_NULL;
+        pointer p = nullptr;
         while (!p) {
             check_break(idx < bucket_size);
-
             p = base_addr[idx++];
         }
 
@@ -442,6 +440,6 @@ struct shm_hash {
     const_iterator end() const { return const_iterator(this); }
 };
 
-} // namespace sk
+NS_END(sk)
 
 #endif // SHM_HASH_H

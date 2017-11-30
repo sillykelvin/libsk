@@ -177,6 +177,35 @@ void shm_mgr::free(shm_ptr<void> ptr) {
     chunk_cache_->deallocate_chunk(addr, sp);
 }
 
+bool shm_mgr::has_singleton(int id) {
+    assert_retval(id >= 0 && id < MAX_SINGLETON_COUNT, false);
+    return !!singletons_[id];
+}
+
+shm_ptr<void> shm_mgr::get_singleton(int id, size_t bytes, bool *first_call) {
+    assert_retval(id >= 0 && id < MAX_SINGLETON_COUNT, nullptr);
+
+    if (first_call) *first_call = false;
+    if (!singletons_[id]) {
+        shm_ptr<void> ptr = malloc(bytes);
+        if (!ptr) return nullptr;
+
+        if (first_call) *first_call = true;
+        singletons_[id] = ptr;
+    }
+
+    return singletons_[id];
+}
+
+void shm_mgr::free_singleton(int id) {
+    assert_retnone(id >= 0 && id < MAX_SINGLETON_COUNT);
+
+    if (singletons_[id]) {
+        free(singletons_[id]);
+        singletons_[id] = nullptr;
+    }
+}
+
 shm_address shm_mgr::allocate_metadata(size_t *bytes) {
     ++stat_.metadata_alloc_count;
     return sbrk(METADATA_BLOCK, bytes);

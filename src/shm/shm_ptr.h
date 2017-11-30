@@ -42,6 +42,10 @@ public:
         return *this;
     }
 
+    bool operator==(const shm_ptr& that) const {
+        return this->addr_ == that.addr_;
+    }
+
     pointer operator->() {
         pointer ptr = get();
         sk_assert(ptr);

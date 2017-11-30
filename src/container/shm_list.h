@@ -2,11 +2,11 @@
 #define SHM_LIST_H
 
 #include <iterator>
-#include "shm/shm_ptr.h"
-#include "utility/utility.h"
+#include <shm/shm.h>
+#include <utility/utility.h>
 
-namespace sk {
-namespace detail {
+NS_BEGIN(sk)
+NS_BEGIN(detail)
 
 template<typename T>
 struct shm_list_node {
@@ -73,7 +73,7 @@ struct shm_list_iterator {
     bool operator!=(const shm_list_iterator<T, !C>& x) const { return !(*this == x); }
 };
 
-} // namespace detail
+NS_END(detail)
 
 template<typename T>
 struct shm_list {
@@ -149,13 +149,13 @@ struct shm_list {
         }
 
         --count;
-        shm_del(p);
+        shm_delete(p);
     }
 
     pointer __ptr2shmptr(node *n) {
-        check_retval(n, SHM_NULL);
+        check_retval(n, nullptr);
 
-        pointer p = SHM_NULL;
+        pointer p = nullptr;
         if (n->prev)
             p = n->prev->next;
         else if (n->next)
@@ -254,12 +254,12 @@ struct shm_list {
         pointer p = head;
         while (p) {
             pointer next = p->next;
-            shm_del(p);
+            shm_delete(p);
             p = next;
         }
 
         count = 0;
-        head = tail = SHM_NULL;
+        head = tail = nullptr;
     }
 
     iterator begin() { return iterator(this, head.get()); }
@@ -268,6 +268,6 @@ struct shm_list {
     const_iterator end() const   { return const_iterator(this); }
 };
 
-} // namespace sk
+NS_END(sk)
 
 #endif // SHM_LIST_H
