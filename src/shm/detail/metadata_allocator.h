@@ -1,93 +1,71 @@
 #ifndef METADATA_ALLOCATOR_H
 #define METADATA_ALLOCATOR_H
 
-#include "shm/shm_mgr.h"
-#include "log/log.h"
-#include "utility/types.h"
-#include "utility/config.h"
-#include "utility/assert_helper.h"
-#include "shm/detail/offset_ptr.h"
+#include <shm/shm_config.h>
+#include <utility/math_helper.h>
+#include <shm/detail/shm_address.h>
 
-namespace sk {
-namespace detail {
+NS_BEGIN(sk)
+NS_BEGIN(detail)
 
-/**
- * An allocator to allocate space for metadata objects.
- */
 template<typename T>
-struct metadata_allocator {
-    static_assert(sizeof(T) <= META_ALLOC_INCREMENT, "T must NOT be so big");
+class metadata_allocator {
+    static_assert(sizeof(T) >= sizeof(shm_address), "sizeof(T) underflow");
+    static_assert(sizeof(T) <= shm_config::METADATA_ALLOCATION_SIZE, "sizeof(T) overflow");
+public:
+    shm_address allocate() {
+        do {
+            if (free_list_) break;
 
-    offset_ptr<T> free_list;
-    offset_t      free_space;
-    size_t        space_left;
+            shm_address space = shm_mgr::allocate_metadata(shm_config::METADATA_ALLOCATION_SIZE);
+            if (!space) return nullptr;
 
-    struct {
-        size_t total_size;  // total size allocated from shared memory
+            shm_address block(space.block());
+
+            char *base = char_ptr(block.get());
+            char *ptr  = char_ptr(space.get());
+            char *end  = sk::byte_offset<char>(ptr, shm_config::METADATA_ALLOCATION_SIZE);
+            while (ptr + sizeof(T) <= end) {
+                *cast_ptr(shm_address, ptr) = free_list_;
+                free_list_ = shm_address(space.block(), ptr - base);
+                ptr += sizeof(T);
+            }
+
+            sk_assert(ptr <= end);
+            stat_.waste_size += (end - ptr);
+            stat_.total_size += shm_config::METADATA_ALLOCATION_SIZE;
+        } while (0);
+
+        assert_retval(free_list_, nullptr);
+
+        shm_address addr = free_list_;
+        free_list_ = *free_list_.as<shm_address>();
+        stat_.alloc_count += 1;
+        return addr;
+    }
+
+    void deallocate(shm_address addr) {
+        assert_retnone(addr);
+
+        *addr.as<shm_address>() = free_list_;
+        free_list_ = addr;
+        stat_.free_count += 1;
+    }
+
+private:
+    shm_address free_list_;
+
+    struct stat {
+        stat() { memset(this, 0x00, sizeof(*this)); }
+
+        size_t total_size;  // total memory size fetched from system
         size_t waste_size;  // wasted memory size
-        size_t alloc_count; // how many allocation of T has happened
-        size_t free_count;  // how many deallocation of T has happened
-    } stat;
-
-    void init() {
-        free_list.set_null();
-        free_space = OFFSET_NULL;
-        space_left = 0;
-
-        memset(&stat, 0x00, sizeof(stat));
-    }
-
-    void report() {
-        sk_info("metadata allocator => sizeof(T): %lu.", sizeof(T));
-        sk_info("metadata allocator => allocated size: %lu, wasted size: %lu.",
-                stat.total_size, stat.waste_size);
-        sk_info("metadata allocator => allocation count: %lu, deallocation count: %lu.",
-                stat.alloc_count, stat.free_count);
-    }
-
-    offset_ptr<T> allocate() {
-        // 1. if there are objects in free list
-        if (free_list) {
-            offset_ptr<T> ret = free_list;
-            free_list = *cast_ptr(offset_ptr<T>, free_list.get());
-            stat.alloc_count += 1;
-            return ret;
-        }
-
-        // 2. if no enough space in free space
-        if (space_left < sizeof(T)) {
-            offset_ptr<void> ptr(shm_mgr::get()->allocate_metadata(META_ALLOC_INCREMENT));
-            if (!ptr)
-                return offset_ptr<T>::null();
-
-            stat.waste_size += space_left;
-            space_left = META_ALLOC_INCREMENT;
-            free_space = ptr.offset;
-            stat.total_size += space_left;
-        }
-
-        offset_ptr<T> ptr(free_space);
-
-        space_left -= sizeof(T);
-        free_space += sizeof(T);
-        stat.alloc_count += 1;
-
-        return ptr;
-    }
-
-    void deallocate(offset_ptr<T> ptr) {
-        if (!ptr) {
-            sk_assert(0);
-            return;
-        }
-
-        *cast_ptr(offset_ptr<T>, ptr.get()) = free_list;
-        free_list = ptr;
-        stat.free_count += 1;
-    }
+        size_t alloc_count; // allocation count
+        size_t free_count;  // deallocation count
+    } stat_;
 };
 
-} // namespace detail
-} // namespace sk
+NS_END(detail)
+NS_END(sk)
 
 #endif // METADATA_ALLOCATOR_H

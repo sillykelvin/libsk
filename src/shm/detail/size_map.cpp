@@ -1,11 +1,20 @@
-#include "libsk.h"
-#include "size_map.h"
+#include <shm/shm_config.h>
+#include <shm/detail/size_map.h>
 
-namespace sk {
-namespace detail {
+using namespace sk::detail;
 
-static int lg_floor(size_t n) {
-    int log = 0;
+static int chunk_count(size_t bytes) {
+    if (bytes == 0) return 0;
+
+    int num = cast_int(64.0 * 1024.0 / bytes);
+    if (num < 2)  num = 2;
+    if (num > 32) num = 32;
+
+    return num;
+}
+
+size_t size_map::lg_floor(size_t n) {
+    size_t log = 0;
     for (int i = 4; i >= 0; --i) {
         int shift = 1 << i;
         size_t x = n >> shift;
@@ -19,110 +28,114 @@ static int lg_floor(size_t n) {
     return log;
 }
 
-static int calc_alignment(size_t bytes) {
-    const int min_align = 16;
-    int alignment = ALIGNMENT;
+size_t size_map::calc_alignment(size_t bytes) {
+    size_t alignment = BASE_ALIGNMENT;
 
-    if (bytes > MAX_SIZE)
-        alignment = PAGE_SIZE;
-    else if (bytes >= 128)
-        alignment = (1 << lg_floor(bytes)) / 8;
-    else if (bytes >= (size_t) min_align)
-        alignment = min_align;
+    do {
+        if (bytes > MAX_SIZE) {
+            alignment = shm_config::PAGE_SIZE;
+            break;
+        }
 
-    if (alignment > PAGE_SIZE)
-        alignment = PAGE_SIZE;
+        if (bytes >= 128) {
+            alignment = (1ULL << lg_floor(bytes)) / 8;
+            break;
+        }
 
-    sk_assert(bytes < (size_t) min_align || alignment >= min_align);
+        if (bytes >= MIN_ALIGNMENT) {
+            alignment = MIN_ALIGNMENT;
+            break;
+        }
+    } while (0);
+
+    if (alignment > shm_config::PAGE_SIZE)
+        alignment = shm_config::PAGE_SIZE;
+
+    sk_assert(bytes < MIN_ALIGNMENT || alignment >= MIN_ALIGNMENT);
     sk_assert((alignment & (alignment - 1)) == 0);
     return alignment;
 }
 
-static int chunk_count(size_t bytes) {
-    if (bytes == 0) return 0;
-
-    int num = static_cast<int>(64.0 * 1024.0 / bytes);
-    if (num < 2) num = 2;
-    if (num > 512) num = 512;
-
-    return num;
-}
-
 int size_map::init() {
-    if (__index(0) != 0) {
-        sk_error("invalid class index for 0: %u.", __index(0));
+    if (class_index(0) != 0) {
+        sk_error("invalid class index for 0: %lu", class_index(0));
         return -1;
     }
 
-    if (__index(MAX_SIZE) >= array_len(index2class)) {
-        sk_error("invalid class index for MAX_SIZE: %u.", __index(MAX_SIZE));
+    if (class_index(MAX_SIZE) >= sizeof(index2class_)) {
+        sk_error("invalid class index for MAX_SIZE: %lu", class_index(MAX_SIZE));
         return -1;
     }
 
     memset(this, 0x00, sizeof(*this));
 
-    int sc = 0;
-    int alignment = ALIGNMENT;
-    for (size_t size = ALIGNMENT; size <= MAX_SIZE; size += alignment) {
+    u8 sc = 1;
+    size_t alignment = BASE_ALIGNMENT;
+    for (size_t size = BASE_ALIGNMENT; size <= MAX_SIZE; size += alignment) {
         alignment = calc_alignment(size);
-        assert_retval(size % alignment == 0, -1);
+        sk_assert(size % alignment == 0);
 
         int chunk_to_alloc = chunk_count(size) / 4;
         size_t psize = 0;
         do {
-            psize += PAGE_SIZE;
-            // make sure the wasted space is at most 1/8 of total space
-            while ((psize % size) > (psize >> 3)) psize += PAGE_SIZE;
-        } while ((psize / size) < (size_t) chunk_to_alloc);
+            psize += shm_config::PAGE_SIZE;
+            // allocate enough pages so leftover is less than 1/8
+            // of total, this bounds wasted space to at most 12.5%
+            while ((psize % size) > (psize >> 3))
+                psize += shm_config::PAGE_SIZE;
+        } while ((psize / size) < cast_size(chunk_to_alloc));
 
-        const int this_page_count = psize >> PAGE_SHIFT;
-        if (sc > 0 && this_page_count == class2pages[sc - 1]) {
-            const int this_chunk_count = (this_page_count << PAGE_SHIFT) / size;
-            const int prev_chunk_count = (class2pages[sc - 1] << PAGE_SHIFT) / class2size[sc - 1];
+        const size_t this_page_count = psize >> shm_config::PAGE_SHIFT;
+        if (sc > 1 && this_page_count == class2pages_[sc - 1]) {
+            // see if we can merge this into the previous class without
+            // increasing the fragmentation of the previous class
+            const size_t this_chunk_count = (this_page_count << shm_config::PAGE_SHIFT) / size;
+            const size_t prev_chunk_count = (class2pages_[sc - 1] << shm_config::PAGE_SHIFT) / class2size_[sc - 1];
 
-            // chunk count of this size class is same as the previous one, so we merge
-            // the two size class into one to reduce fragmentation
             if (this_chunk_count == prev_chunk_count) {
-                class2size[sc - 1] = size;
+                // adjust last class to include this size
+                class2size_[sc - 1] = size;
                 continue;
             }
         }
 
-        class2pages[sc] = this_page_count;
-        class2size[sc] = size;
+        // add new class
+        class2pages_[sc] = this_page_count;
+        class2size_[sc] = size;
         ++sc;
     }
 
-    if (sc != SIZE_CLASS_COUNT) {
-        sk_error("wrong number of size classes, found: %d, expected: %d.", sc, SIZE_CLASS_COUNT);
+    if (sc > SIZE_CLASS_COUNT) {
+        sk_error("too many size classes, found: %u, max: %u", sc, SIZE_CLASS_COUNT);
         return -1;
     }
 
-    // fill the size -> index -> size class map
-    int next_size = 0;
-    for (int c = 0; c < SIZE_CLASS_COUNT; ++c) {
-        const int size = class2size[c];
-        for (int s = next_size; s <= size; s+= ALIGNMENT)
-            index2class[__index(s)] = c;
+    size_t next_size = 0;
+    const u8 class_count = sc;
+    for (u8 c = 1; c < class_count; ++c) {
+        const size_t max_size_in_class = class2size_[c];
+        for (size_t s = next_size; s <= max_size_in_class; s += BASE_ALIGNMENT)
+            index2class_[class_index(s)] = c;
 
-        next_size = size + ALIGNMENT;
+        next_size = max_size_in_class + BASE_ALIGNMENT;
     }
 
     for (size_t size = 0; size <= MAX_SIZE;) {
-        const int sc = size_class(size);
-        if (sc < 0 || sc >= SIZE_CLASS_COUNT) {
-            sk_error("bad size class, class: %d, size: %lu.", sc, size);
+        u8 sc = 0;
+        bool ok = size2class(size, &sc);
+        if (!ok || sc <= 0 || sc >= class_count) {
+            sk_error("bad size class, class: %u, size: %lu", sc, size);
             return -1;
         }
 
-        if (sc > 0 && size <= class2size[sc - 1]) {
-            sk_error("size class too large, class: %d, size: %lu.", sc, size);
+        if (sc > 1 && size <= class2size_[sc - 1]) {
+            sk_error("size class too large, class: %u, size: %lu", sc, size);
             return -1;
         }
 
-        const size_t s = class2size[sc];
+        const size_t s = class2size_[sc];
         if (size > s || s == 0) {
-            sk_error("bad class: %d, size: %lu.", sc, size);
+            sk_error("bad class: %u, size: %lu", sc, size);
             return -1;
         }
 
@@ -134,6 +147,3 @@ int size_map::init() {
 
     return 0;
 }
-
-} // namespace detail
-} // namespace sk

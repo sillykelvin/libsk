@@ -25,7 +25,7 @@ struct channel {
     volatile size_t pop_count;  // total message count popped from this channel
     volatile size_t read_pos;   // current read position
     volatile size_t write_pos;  // current write position
-    offset_t node_offset;       // offset of the first node
+    size_t node_offset;         // offset of the first node
 
     static size_t calc_space(size_t node_size, size_t node_count) {
         return sizeof(channel) + node_size * node_count;

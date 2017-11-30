@@ -1,39 +1,41 @@
 #ifndef SHM_SEGMENT_H
 #define SHM_SEGMENT_H
 
-namespace sk {
-namespace detail {
+#include <string>
+#include <utility/types.h>
 
-struct shm_segment {
-    void *base_addr;
-    int shmid;
-    bool owner;
+NS_BEGIN(sk)
+NS_BEGIN(detail)
 
-    shm_segment() : base_addr(nullptr), shmid(-1), owner(true) {}
-    ~shm_segment() { if (owner && shmid != -1) fini(); }
+class shm_segment {
+public:
+    shm_segment() : owner_(true), addr_(nullptr), size_(0) {}
+    ~shm_segment() { if (owner_) fini(); }
 
-    int __create(key_t key, size_t size);
+    MAKE_NONCOPYABLE(shm_segment);
 
-    int __attach(key_t key);
+    int init(const char *path, size_t size, size_t alignment, void *fixed_addr, bool resume_mode);
+    int fini();
 
-    int init(key_t key, size_t size, bool resume);
+    void *address() const { return addr_; }
+    size_t size()   const { return size_; }
 
-    void fini();
+    void release() { owner_ = false; }
 
-    /*
-     * if the shared memory is released from this segment, it
-     * will NOT be destroyed when the segment is destructed.
-     */
-    void release() {
-        owner = false;
-    }
+private:
+    int create(const char *path, size_t size, size_t page_size, size_t alignment, void *fixed_addr);
+    int attach(const char *path, size_t size, size_t page_size, size_t alignment, void *fixed_addr);
 
-    void *address() {
-        return base_addr;
-    }
+    int do_mmap(const char *path, size_t size, size_t page_size, size_t alignment, int shmfd, void *fixed_addr);
+
+private:
+    bool owner_;
+    void *addr_;
+    size_t size_;
+    std::string path_;
 };
 
-} // namespace detail
-} // namespace sk
+NS_END(detail)
+NS_END(sk)
 
 #endif // SHM_SEGMENT_H

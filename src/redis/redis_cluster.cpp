@@ -56,14 +56,24 @@ redis_cluster *redis_cluster::create(uv_loop_t *loop, const string_vector& hosts
 }
 
 void redis_cluster::stop() {
-    // disconnect() might be not async, its callback on_disconnect() will be
-    // called directly, in the callback, the connection will be erased from the
-    // container, then the iterator here will be invalid.
-    // for (const auto& it : connections_)
-    //     it.second->disconnect();
-
     while (!connections_.empty()) {
         auto it = connections_.begin();
+        if (it->second->disconnected()) {
+            sk_error("disconnected connection<%s> exists!", it->first.c_str());
+            connections_.erase(it);
+            continue;
+        }
+
+        bool all_done = false;
+        while (it->second->disconnecting()) {
+            if (++it == connections_.end()) {
+                all_done = true;
+                break;
+            }
+        }
+
+        if (all_done) break;
+
         it->second->disconnect();
     }
 }
@@ -274,6 +284,7 @@ redis_connection_ptr redis_cluster::fetch_connection(const redis_node& n) {
 }
 
 void redis_cluster::on_cluster_slot_reply(int ret, const redis_command_ptr& cmd, redisReply *r) {
+    unused_parameter(cmd);
     sk_assert(state_ == slot_updating);
     bool ok = false;
 

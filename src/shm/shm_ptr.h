@@ -1,107 +1,98 @@
 #ifndef SHM_PTR_H
 #define SHM_PTR_H
 
-#include "utility/types.h"
-#include "utility/config.h"
-#include "utility/assert_helper.h"
-#include "shm/shm_mgr.h"
+#include <utility/utility.h>
+#include <shm/detail/shm_address.h>
 
-namespace sk {
-namespace detail {
+NS_BEGIN(sk)
 
-template<typename T>
-struct dereference {
-    typedef T& type;
-};
-
-template<>
-struct dereference<void> {
-    typedef void type;
-};
-
-} // namespace detail
+NS_BEGIN(detail)
+template<typename T> struct shm_ptr_traits { typedef T& reference; };
+template<> struct shm_ptr_traits<void> { typedef void reference; };
+NS_END(detail)
 
 template<typename T>
-struct shm_ptr {
-    typedef shm_ptr<T>                            self;
-    typedef T*                                    pointer;
-    typedef typename detail::dereference<T>::type reference;
+class shm_ptr {
+public:
+    typedef T*                                            pointer;
+    typedef const T*                                      const_pointer;
+    typedef typename detail::shm_ptr_traits<T>::reference reference;
+    typedef typename std::add_const<reference>::type      const_reference;
 
-    u64 mid;
+    shm_ptr() : addr_(nullptr) {}
+    shm_ptr(std::nullptr_t) : addr_(nullptr) {}
 
-    shm_ptr() : mid(MID_NULL) {}
-
-    explicit shm_ptr(u64 mid) : mid(mid) {}
-
-    template<typename U>
-    shm_ptr(shm_ptr<U> ptr) : mid(ptr.mid) {}
+    explicit shm_ptr(detail::shm_address addr) : addr_(addr) {}
 
     template<typename U>
-    shm_ptr& operator=(const shm_ptr<U>& ptr) {
-        this->mid = ptr.mid;
+    explicit shm_ptr(const shm_ptr<U>& ptr) : addr_(ptr.address()) {}
+
+    const detail::shm_address& address() const { return addr_; }
+
+    pointer get() {
+        return addr_.as<T>();
+    }
+
+    const_pointer get() const {
+        return addr_.as<T>();
+    }
+
+    shm_ptr& operator=(std::nullptr_t) {
+        addr_ = nullptr;
         return *this;
     }
 
     template<typename U>
-    bool operator==(const shm_ptr<U>& ptr) const {
-        return this->mid == ptr.mid;
+    shm_ptr& operator=(const shm_ptr<U>& that) {
+        this->addr_ = that.address();
+        return *this;
     }
 
     template<typename U>
-    bool operator!=(const shm_ptr<U>& ptr) const {
-        return this->mid != ptr.mid;
+    bool operator==(const shm_ptr<U>& that) const {
+        return this->addr_ == that.address();
     }
 
-    void *__ptr() const {
-        check_retval(mid != MID_NULL, NULL);
-        return shm_mgr::get()->mid2ptr(mid);
+    template<typename U>
+    bool operator!=(const shm_ptr<U>& that) const {
+        return this->addr_ != that.address();
     }
 
-    void *__ptr() {
-        check_retval(mid != MID_NULL, NULL);
-        return shm_mgr::get()->mid2ptr(mid);
-    }
-
-    pointer get() const {
-        return cast_ptr(T, __ptr());
-    }
-
-    pointer get() {
-        return cast_ptr(T, __ptr());
-    }
-
-    pointer operator->() const {
-        pointer ptr = get();
-        sk_assert(ptr);
-
-        return ptr;
+    template<typename U>
+    bool operator<(const shm_ptr<U>& that) const {
+        return this->get() < that.get();
     }
 
     pointer operator->() {
         pointer ptr = get();
         sk_assert(ptr);
-
         return ptr;
     }
 
-    reference operator*() const {
-        pointer ptr = get();
+    const_pointer operator->() const {
+        const_pointer ptr = get();
         sk_assert(ptr);
-
-        return *ptr;
+        return ptr;
     }
 
     reference operator*() {
         pointer ptr = get();
         sk_assert(ptr);
-
         return *ptr;
     }
 
-    explicit operator bool() const { return mid != MID_NULL; }
-    bool operator<(const self& that) const { return this->mid < that.mid; }
+    const_reference operator*() const {
+        const_pointer ptr = get();
+        sk_assert(ptr);
+        return *ptr;
+    }
+
+    explicit operator bool() const { return !!addr_; }
+
+private:
+    detail::shm_address addr_;
 };
 
-} // namespace sk
+NS_END(sk)
 
 #endif // SHM_PTR_H

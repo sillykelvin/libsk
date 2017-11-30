@@ -12,8 +12,8 @@ struct channel_descriptor {
     int owner;         // owner bus id of this channel
     int closed;        // close the R/W channels if the owner is stopped
     pid_t pid;         // pid of the channel owner process
-    offset_t r_offset; // offset of read channel
-    offset_t w_offset; // offset of write channel
+    size_t r_offset;   // offset of read channel
+    size_t w_offset;   // offset of write channel
 };
 
 struct channel_mgr {

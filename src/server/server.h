@@ -7,10 +7,10 @@
 #include <bus/bus.h>
 #include <log/log.h>
 #include <sys/file.h>
-#include <time/time.h>
 #include <shm/shm_mgr.h>
 #include <spdlog/spdlog.h>
-#include <core/heap_timer.h>
+#include <time/shm_timer.h>
+#include <time/heap_timer.h>
 #include <core/signal_watcher.h>
 #include <server/option_parser.h>
 
@@ -299,6 +299,16 @@ protected:
     virtual void on_tick() {}
 
     /**
+     * @brief estimate_shm_space will estmate the shared memory required
+     * @return the required shared memory size
+     *
+     * NOTE: the derived class should estimate shared memory usage and
+     * return the size by this function, 0 should be returned if no
+     * shared memory is required
+     */
+    virtual size_t estimate_shm_space() = 0;
+
+    /**
      * @brief start_tick_timer will start the tick timer
      * @param tick_ms: the interval(in ms) that the tick timer will run
      * @return 0 if started successfully, error otherwise
@@ -519,6 +529,14 @@ private:
     int init_shm() {
         if (cfg_.shm_size <= 0)
             ctx_.disable_shm = true;
+
+        size_t bytes = estimate_shm_space();
+        if (bytes == 0 && !ctx_.disable_shm)
+            sk_warn("the application disables shm, but the config does not.");
+        if (bytes > 0 && ctx_.disable_shm)
+            sk_warn("the application enables shm, but the config does not.");
+        if (bytes > 0 && !ctx_.disable_shm && bytes > cfg_.shm_size)
+            sk_warn("the configured shm size<%lu> might be not enough, estimated: %lu.", cfg_.shm_size, bytes);
 
         if (ctx_.disable_shm)
             return 0;

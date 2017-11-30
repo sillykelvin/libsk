@@ -1,14 +1,14 @@
 #ifndef GUID_H
 #define GUID_H
 
-#include "utility/types.h"
+#include <utility/types.h>
 
-namespace sk {
-namespace guid {
+NS_BEGIN(sk)
+NS_BEGIN(guid)
 
 int create(u64& guid);
 
-} // namespace guid
-} // namespace sk
+NS_END(guid)
+NS_END(sk)
 
 #endif // GUID_H

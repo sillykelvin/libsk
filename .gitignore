@@ -3,6 +3,7 @@
 *.files
 *.includes
 *.creator.user
+CMakeLists.txt.user
 
 *.o
 *.d
@@ -11,6 +12,7 @@ examples/server
 examples/client
 
 .clang_complete
+compile_commands.json
 
 GPATH
 GTAGS
@@ -18,3 +20,6 @@ GRTAGS
 
 lib/
 build/
+.idea/
+.vscode/
+cmake-build-debug/

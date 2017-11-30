@@ -15,7 +15,7 @@ redis_connection::redis_connection(redis_cluster *cluster,
     : state_(s), id_(n.id()), ctx_(ctx), cluster_(cluster) {}
 
 redis_connection::~redis_connection() {
-    if (state_ != disconnected) sk_warn("active state: %d", state_);
+    if (state_ != state_disconnected) sk_warn("active state: %d", state_);
 }
 
 redis_connection_ptr redis_connection::create(uv_loop_t *loop,
@@ -43,7 +43,7 @@ redis_connection_ptr redis_connection::create(uv_loop_t *loop,
     redisAsyncSetConnectCallback(ctx, on_connected);
     redisAsyncSetDisconnectCallback(ctx, on_disconnected);
 
-    redis_connection *conn = new redis_connection(cluster, ctx, connecting, n);
+    redis_connection *conn = new redis_connection(cluster, ctx, state_connecting, n);
     if (!conn) {
         sk_fatal("cannot allocate connection.");
         redisAsyncFree(ctx);
@@ -55,11 +55,11 @@ redis_connection_ptr redis_connection::create(uv_loop_t *loop,
 }
 
 void redis_connection::disconnect() {
-    if (state_ == disconnected || state_ == disconnecting)
+    if (state_ == state_disconnected || state_ == state_disconnecting)
         return;
 
     redisAsyncDisconnect(ctx_);
-    state_ = disconnecting;
+    state_ = state_disconnecting;
 }
 
 int redis_connection::exec(const redis_command_ptr& cmd) {
@@ -68,7 +68,7 @@ int redis_connection::exec(const redis_command_ptr& cmd) {
         return -ELOOP;
     }
 
-    if (state_ == disconnecting || state_ == disconnected) {
+    if (state_ == state_disconnecting || state_ == state_disconnected) {
         sk_error("connection %s is disconnecting(ed), state: %d", c_str(), state_);
         return -EINVAL;
     }
@@ -157,7 +157,7 @@ void redis_connection::on_connected(const redisAsyncContext *ctx, int status) {
         return;
     }
 
-    conn->state_ = connected;
+    conn->state_ = state_connected;
     sk_info("connected to %s", conn->c_str());
 }
 
@@ -166,7 +166,7 @@ void redis_connection::on_disconnected(const redisAsyncContext *ctx, int status)
     if (status != REDIS_OK)
         sk_fatal("disconnect error, connection: %s", conn->c_str());
 
-    conn->state_ = disconnected;
+    conn->state_ = state_disconnected;
     sk_info("connection disconnected: %s", conn->c_str());
     conn->cluster_->release_connection(conn->shared_from_this());
 }

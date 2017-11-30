@@ -1,9 +1,9 @@
 #include <map>
-#include <time.h>
-#include "guid.h"
-#include "bus/bus.h"
-#include "time/time.h"
-#include "utility/assert_helper.h"
+#include <bus/bus.h>
+#include <utility/guid.h>
+#include <time/shm_timer.h>
+
+using namespace sk::guid;
 
 static const int      INST_BIT_COUNT = 3;
 static const int      FUNC_BIT_COUNT = 5;
@@ -46,9 +46,6 @@ struct GUID_KEY {
 
 static std::map<GUID_KEY, GUID_VALUE> key2guid;
 
-namespace sk {
-namespace guid {
-
 int create(u64& guid) {
     guid = 0;
 
@@ -84,7 +81,7 @@ int create(u64& guid) {
 
     GUID_VALUE& value = it->second;
 
-    time_t t = time::now();
+    time_t t = sk::time::now();
     if (value.last_sec != t) {
         value.last_sec = t;
         value.last_serial = 0;
@@ -107,6 +104,3 @@ int create(u64& guid) {
 
     return 0;
 }
-
-} // namespace guid
-} // namespace sk

@@ -58,7 +58,7 @@ template<typename T, typename B>
 inline typename sk::if_<std::is_const<B>::value,
                         typename std::add_const<T>::type*,
                         typename std::remove_const<T>::type*>::type
-byte_offset(B *base, offset_t offset) {
+byte_offset(B *base, size_t offset) {
     typedef typename std::remove_const<B>::type* mutable_b_pointer;
     typedef typename std::remove_const<T>::type* mutable_t_pointer;
 

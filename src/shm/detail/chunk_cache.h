@@ -1,48 +1,50 @@
 #ifndef CHUNK_CACHE_H
 #define CHUNK_CACHE_H
 
-#include "utility/config.h"
-#include "shm/detail/span.h"
-#include "shm/detail/offset_ptr.h"
+#include <shm/detail/span.h>
+#include <shm/detail/size_map.h>
 
-namespace sk {
-namespace detail {
+NS_BEGIN(sk)
+NS_BEGIN(detail)
 
-struct class_cache {
-    span free_list;
-    int span_count;
+class chunk_cache {
+public:
+    shm_address allocate(size_t bytes, u8 sc);
+    void deallocate(shm_address addr);
 
-    struct {
-        size_t alloc_count; // how many allocation has happened
-        size_t free_count;  // how many deallocation has happened
-        size_t used_size;   // how many bytes has been used currently
-        size_t total_size;  // total bytes managed by this class cache
-    } stat;
+private:
+    struct class_cache {
+        span free_list;
+        int span_count;
 
-    void init();
+        struct {
+            size_t alloc_count; // how many allocations has happened
+            size_t free_count;  // how many deallocations has happened
+            size_t used_size;   // how many bytes has been used currently
+            size_t total_size;  // total bytes managed by this class cache
+        } stat;
+
+        class_cache() {
+            shm_address head = free_list.addr();
+            span_list_init(head);
+            span_count = 0;
+            memset(&stat, 0x00, sizeof(stat));
+        }
+    } caches_[size_map::SIZE_CLASS_COUNT];
+
+    struct stat {
+        stat() { memset(this, 0x00, sizeof(*this)); }
+
+        size_t span_alloc_count; // how many spans has allocated from heap
+        size_t span_free_count;  // how many spans has returned to heap
+        size_t alloc_count;      // how many allocations has happened
+        size_t free_count;       // how many deallocations has happened
+        size_t used_size;        // how many bytes has been used currently
+        size_t total_size;       // total bytes managed by chunk cache
+    } stat_;
 };
 
-struct chunk_cache {
-    class_cache caches[SIZE_CLASS_COUNT];
-
-    struct {
-        size_t span_alloc_count; // how many span has allocated from heap
-        size_t span_free_count;  // how many span has returned to heap
-        size_t alloc_count; // how many allocation has happened
-        size_t free_count;  // how many deallocation has happened
-        size_t used_size;   // how many bytes has been used currently
-        size_t total_size;  // total bytes managed by chunk cache
-    } stat;
-
-    void init();
-
-    void report();
-
-    offset_ptr<void> allocate(size_t bytes);
-    void deallocate(offset_ptr<void> ptr);
-};
-
-} // namespace detail
-} // namespace sk
+NS_END(detail)
+NS_END(sk)
 
 #endif // CHUNK_CACHE_H

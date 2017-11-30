@@ -1,59 +1,61 @@
 #ifndef PAGE_HEAP_H
 #define PAGE_HEAP_H
 
-#include "shm/detail/span.h"
-#include "shm/detail/page_map.h"
-#include "shm/detail/offset_ptr.h"
-#include "shm/detail/metadata_allocator.h"
-#include "utility/config.h"
+#include <shm/detail/span.h>
+#include <shm/detail/radix_tree.h>
+#include <shm/detail/metadata_allocator.h>
 
-namespace sk {
-namespace detail {
+NS_BEGIN(sk)
+NS_BEGIN(detail)
 
-/**
- * Heap for page level allocation.
- */
-struct page_heap {
-    page_map span_map;
-    span free_lists[MAX_PAGES];
-    span large_list;
-    metadata_allocator<span> span_allocator;
+class page_heap {
+public:
+    page_heap();
 
-    struct {
+    shm_address allocate_span(size_t page_count);
+    void deallocate_span(shm_address sp);
+    void register_span(shm_address sp);
+    shm_address find_span(shm_address addr);
+
+private:
+    shm_address search_existing(size_t page_count);
+    shm_address allocate_large(size_t page_count);
+
+    shm_address carve(shm_address sp, size_t page_count);
+    void link(shm_address sp);
+
+    shm_address new_span(block_t block, page_t start_page, size_t page_count);
+    void del_span(shm_address sp);
+
+    // TODO: the page might overflow as we limited it to MAX_PAGE_BITS
+    // be careful to check this
+    shm_address get_span_map(block_t block, page_t page) const;
+    void set_span_map(block_t block, page_t page, shm_address sp);
+
+    bool grow_heap(size_t page_count);
+
+private:
+    static const size_t LV2_BITS = shm_config::MAX_PAGE_BITS / 2;
+    static const size_t LV1_BITS = shm_config::MAX_PAGE_BITS - LV2_BITS;
+    static const size_t LV0_BITS = shm_config::MAX_BLOCK_BITS;
+
+    radix_tree<shm_address, LV0_BITS, LV1_BITS, LV2_BITS> span_map_;
+    metadata_allocator<span> span_allocator_;
+    span free_lists_[shm_config::MAX_PAGES];
+    span large_list_;
+
+    struct stat {
+        stat() { memset(this, 0x00, sizeof(*this)); }
+
         size_t used_size;   // how many pages has been used currently
         size_t total_size;  // total pages managed by page heap
         size_t grow_count;  // how many times has heap grown
         size_t alloc_count; // how many allocation has happened
         size_t free_count;  // how many deallocation has happened
-    } stat;
-
-    /*
-     * estimate the metadata space needed by given size "bytes"
-     */
-    static size_t estimate_space(size_t bytes);
-
-    void init();
-
-    void report();
-
-    offset_ptr<span> allocate_span(int page_count);
-    void deallocate_span(offset_ptr<span> ptr);
-    offset_ptr<span> find_span(page_t page);
-    void register_span(offset_ptr<span> ptr);
-
-    offset_ptr<span> __search_existing(int page_count);
-    offset_ptr<span> __allocate_large(int page_count);
-
-    offset_ptr<span> __carve(offset_ptr<span> ptr, int page_count);
-    void __link(offset_ptr<span> ptr);
-
-    offset_ptr<span> __new_span();
-    void __del_span(offset_ptr<span> ptr);
-
-    bool __grow_heap(int page_count);
+    } stat_;
 };
 
-} // namespace detail
-} // namespace sk
+NS_END(detail)
+NS_END(sk)
 
 #endif // PAGE_HEAP_H

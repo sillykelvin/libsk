@@ -22,13 +22,19 @@ public:
 
     void disconnect();
 
+    bool disconnected()  const { return state_ == state_disconnected; }
+    bool disconnecting() const { return state_ == state_disconnecting; }
+
     int exec(const redis_command_ptr& cmd);
 
     const std::string& id() const { return id_; }
     const char *c_str() const { return id_.c_str(); }
 
 private:
-    enum state { connecting, connected, disconnecting, disconnected };
+    enum state {
+        state_connecting, state_connected,
+        state_disconnecting, state_disconnected
+    };
 
 private:
     redis_connection(redis_cluster *cluster,

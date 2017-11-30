@@ -1,389 +1,374 @@
-#include "libsk.h"
-#include "shm/shm_mgr.h"
-#include "shm/detail/span.h"
-#include "shm/detail/size_map.h"
-#include "shm/detail/chunk_cache.h"
-#include "shm/detail/page_heap.h"
-#include "shm/detail/shm_segment.h"
-#include "utility/config.h"
-#include "utility/math_helper.h"
+#include <shm/shm_mgr.h>
+#include <utility/config.h>
+#include <utility/math_helper.h>
+#include <shm/detail/size_map.h>
+#include <shm/detail/block_mgr.h>
+#include <shm/detail/page_heap.h>
+#include <shm/detail/chunk_cache.h>
+#include <shm/detail/shm_segment.h>
 
-static sk::shm_mgr *mgr = NULL;
+using namespace sk;
+using namespace sk::detail;
 
-static const size_t SERIAL_BIT_COUNT = 28;
-static const size_t OFFSET_BIT_COUNT = 64 - SERIAL_BIT_COUNT;
-static_assert(OFFSET_BIT_COUNT >= MAX_MEM_SHIFT, "offset not enough");
-
-struct shm_mid {
-    u64 offset: OFFSET_BIT_COUNT;
-    u64 serial: SERIAL_BIT_COUNT;
-};
-static_assert(sizeof(shm_mid) == sizeof(u64), "shm_mid must be sizeof(u64)");
+static shm_mgr *mgr = nullptr;
 
 struct shm_meta {
-    u64 magic:  OFFSET_BIT_COUNT;
-    u64 serial: SERIAL_BIT_COUNT;
+    size_t serial: shm_config::MAX_SERIAL_BITS;
+    size_t magic:  sizeof(size_t) * CHAR_BIT - shm_config::MAX_SERIAL_BITS;
 };
-static_assert(sizeof(shm_meta) == sizeof(u64), "shm_meta must be sizeof(u64)");
+static_assert(sizeof(shm_meta) == sizeof(size_t), "invalid shm_meta");
 
-namespace sk {
-
-int shm_mgr_init(key_t key, size_t size_hint, bool resume) {
-    mgr = shm_mgr::create(key, size_hint, resume);
-    if (!mgr)
-        return -EINVAL;
-
-    return mgr->init(resume);
-}
-
-int shm_mgr_fini() {
-    if (!mgr)
+int shm_mgr::init(const char *basename, bool resume_mode) {
+    if (mgr) {
+        sk_error("shm mgr already initialized.");
         return 0;
-
-    shmctl(mgr->shmid, IPC_RMID, 0);
-
-    mgr = NULL;
-    return 0;
-}
-
-int shm_mgr::init(bool resume) {
-    assert_retval(shmid != 0, -1);
-    assert_retval(used_size != 0, -1);
-    assert_retval(total_size != 0, -1);
-
-    char *base_addr = char_ptr(this);
-    base_addr += sizeof(*this);
-
-    // 0. init size map
-    {
-        size_map = cast_ptr(detail::size_map, base_addr);
-        base_addr += sizeof(detail::size_map);
-        if (!resume) {
-            int ret = size_map->init();
-            if (ret != 0) {
-                sk_error("size map init failure: %d.", ret);
-                return ret;
-            }
-        }
     }
 
-    // 1. init chunk cache
-    {
-        chunk_cache = cast_ptr(detail::chunk_cache, base_addr);
-        base_addr += sizeof(detail::chunk_cache);
-        if (!resume)
-            chunk_cache->init();
-    }
+    char path[shm_config::MAX_PATH_SIZE];
+    snprintf(path, sizeof(path), "%s-mgr.mmap", basename);
 
-    // 2. init page heap
-    {
-        page_heap = cast_ptr(detail::page_heap, base_addr);
-        base_addr += sizeof(detail::page_heap);
-        if (!resume)
-            page_heap->init();
-    }
+    size_t total_bytes = 0;
+    total_bytes += sizeof(shm_mgr);
+    total_bytes += sizeof(detail::size_map);
+    total_bytes += sizeof(detail::block_mgr);
 
-    // 3. init metadata block
-    {
-        if (!resume) {
-            metadata_offset = base_addr - char_ptr(this);
-            metadata_left = used_size - metadata_offset;
-        }
-        base_addr += metadata_left;
-    }
-
-    return 0;
-}
-
-void shm_mgr::report() {
-    sk_info("=============================================================================");
-    chunk_cache->report();
-    page_heap->report();
-
-    sk_info("shm mgr => total: %lu, used: %lu (%.2lf%%), meta left: %lu.",
-            total_size, used_size, (used_size * 100.0 / total_size), metadata_left);
-    sk_info("shm mgr => allocation count: %lu, deallocation count: %lu.",
-            stat.alloc_count, stat.free_count);
-    sk_info("shm mgr => raw memory allocation count: %lu, meta data allocation count: %lu.",
-            stat.raw_alloc_count, stat.meta_alloc_count);
-    sk_info("=============================================================================");
-}
-
-shm_mgr *shm_mgr::create(key_t key, size_t size_hint, bool resume) {
-    if (size_hint < MIN_SHM_SPACE)
-        size_hint = MIN_SHM_SPACE;
-
-    size_t metadata_size = detail::page_heap::estimate_space(size_hint);
-    // the calculated size is the maximum possible size, so
-    // we multiple a factor to get the final size
-    metadata_size = static_cast<size_t>(metadata_size * 0.5);
-    if (metadata_size < MIN_METADATA_SPACE)
-        metadata_size = MIN_METADATA_SPACE;
-
-    size_t shm_size = 0;
-    shm_size += sizeof(shm_mgr);
-    shm_size += sizeof(detail::size_map);
-    shm_size += sizeof(detail::chunk_cache);
-    shm_size += sizeof(detail::page_heap);
-    shm_size += metadata_size;
-    shm_size += size_hint;
-
-    sk_info("shm mgr creation, size_hint: %lu, fixed size: %lu.", size_hint, shm_size);
-
-    detail::shm_segment seg;
-    int ret = seg.init(key, shm_size, resume);
+    shm_segment seg;
+    const size_t alignment = cast_size(getpagesize());
+    int ret = seg.init(path, total_bytes, alignment, nullptr, resume_mode);
     if (ret != 0) {
-        sk_error("cannot create shm_mgr, key<%d>, size<%lu>.", key, shm_size);
-        return NULL;
+        sk_error("cannot init shm: %s, ret: %d.", path, ret);
+        return ret;
     }
 
-    shm_mgr *self = cast_ptr(shm_mgr, seg.address());
-
-    if (!resume) {
-        memset(self, 0x00, sizeof(*self));
-
-        self->shmid = seg.shmid;
-        self->total_size = shm_size;
-
-        self->used_size = 0;
-        self->used_size += sizeof(*self);
-        self->used_size += sizeof(detail::size_map);
-        self->used_size += sizeof(detail::chunk_cache);
-        self->used_size += sizeof(page_heap);
-        self->used_size += metadata_size;
-
-        // do page alignment
-        offset_t offset = ((self->used_size + PAGE_SIZE - 1) >> PAGE_SHIFT) << PAGE_SHIFT;
-        assert_retval(self->used_size <= offset, NULL);
-        self->used_size = offset;
+    shm_mgr *x_mgr = cast_ptr(shm_mgr, seg.address());
+    if (!resume_mode) {
+        new (x_mgr) shm_mgr();
+        ret = x_mgr->on_create(basename);
     } else {
-        assert_retval(self->shmid == seg.shmid, NULL);
-        assert_retval(self->total_size == shm_size, NULL);
+        ret = x_mgr->on_resume(basename);
     }
 
-    seg.release();
-    return self;
-}
+    if (ret == 0) {
+        seg.release();
+        mgr = x_mgr;
+    }
 
-shm_mgr *shm_mgr::get() {
-    assert_retval(mgr, NULL);
-    return mgr;
+    return ret;
 }
 
 shm_ptr<void> shm_mgr::malloc(size_t bytes) {
     // this function will almost never fail, so we increase
     // this count at the beginning of this function
-    ++stat.alloc_count;
+    ++mgr->stat_.alloc_count;
 
     // extra 8 bytes to store shm_meta struct
     bytes += sizeof(shm_meta);
+    shm_address addr;
 
-    detail::offset_ptr<void> ptr;
     do {
-        if (bytes <= MAX_SIZE) {
-            ptr = chunk_cache->allocate(bytes);
+        u8 sc = 0;
+        bool ok = mgr->size_map()->size2class(bytes, &sc);
+        if (ok) {
+            addr = mgr->chunk_cache()->allocate(bytes, sc);
             break;
         }
 
-        int page_count = (bytes >> PAGE_SHIFT) + ((bytes & (PAGE_SIZE - 1)) > 0 ? 1 : 0);
-        detail::offset_ptr<detail::span> sp = page_heap->allocate_span(page_count);
+        size_t page_count = (bytes + shm_config::PAGE_MASK) >> shm_config::PAGE_SHIFT;
+        shm_address sp = mgr->page_heap()->allocate_span(page_count);
         if (sp) {
-            detail::span *s = sp.get();
-            ptr = detail::offset_ptr<void>(s->start << PAGE_SHIFT);
-            break;
+            span *s = sp.as<span>();
+            addr = shm_address(s->block, s->start_page << shm_config::PAGE_SHIFT);
         }
     } while (0);
 
-    if (!ptr)
-        return SHM_NULL;
+    if (!addr) return nullptr;
 
-    ++serial;
-    if (serial >= (1ULL << SERIAL_BIT_COUNT))
-        serial = 1;
+    ++mgr->serial_;
+    if (mgr->serial_ == shm_config::SPECIAL_SERIAL) ++mgr->serial_;
+    if (mgr->serial_ >= shm_config::MAX_SERIAL_NUM) mgr->serial_ = 1;
 
-    u64 mid = MID_NULL;
-    shm_mid *pmid = cast_ptr(shm_mid, &mid);
-    pmid->offset = ptr.offset;
-    pmid->serial = serial;
+    shm_meta *meta = addr.as<shm_meta>();
+    meta->magic  = cast_u32(MAGIC);
+    meta->serial = mgr->serial_;
 
-    shm_meta *pmeta = ptr.as<shm_meta>().get();
-    pmeta->magic  = static_cast<u32>(MAGIC);
-    pmeta->serial = serial;
+    memset(sk::byte_offset<void>(meta, sizeof(shm_meta)), 0x00, bytes - sizeof(shm_meta));
 
-    do {
-        char *p = sk::byte_offset<char>(pmeta, sizeof(*pmeta));
-        size_t s = bytes - sizeof(shm_meta);
-        memset(p, 0x00, s);
-    } while (0);
+    sk_trace("=> shm_mgr::malloc(): size<%lu>, serial<%lu>, block<%lu>, offset<%lu>, addr<%lu>.",
+             bytes, mgr->serial_, addr.block(), addr.offset(), *cast_ptr(size_t, &addr));
 
-    sk_trace("=> shm_mgr::malloc(): size<%lu>, serial<%lu>, offset<%lu>, mid<%lu>.",
-             bytes, serial, ptr.offset, mid);
-
-#ifdef NDEBUG
-#define COUNT 10000
-#else
-#define COUNT 100
-#endif
-
-    if (stat.alloc_count % COUNT == 0)
-        report();
-
-#undef COUNT
-
-    return shm_ptr<void>(mid);
+    return shm_ptr<void>(addr);
 }
 
-void shm_mgr::free(shm_ptr<void> ptr) {
+void shm_mgr::free(const shm_ptr<void>& ptr) {
     assert_retnone(ptr);
 
-    ++stat.free_count;
+    ++mgr->stat_.free_count;
 
-    u64 mid = ptr.mid;
-    const shm_mid *pmid = cast_ptr(shm_mid, &mid);
-    assert_retnone(pmid->offset != OFFSET_NULL);
+    shm_address addr = ptr.address();
+    assert_retnone(addr.offset() >= sizeof(shm_meta));
 
-    detail::offset_ptr<void> offset(pmid->offset);
-    shm_meta *pmeta = offset.as<shm_meta>().get();
-    if (pmeta->magic != static_cast<u32>(MAGIC) || pmeta->serial != pmid->serial) {
-        sk_warn("invalid free, expected<serial: %lu>, actual<serial: %lu>.",
-                pmid->serial, pmeta->serial);
+    shm_meta *meta = addr.as<shm_meta>();
+    if (meta->magic != cast_u32(MAGIC) || meta->serial != addr.serial()) {
+        sk_warn("invalid free, expected<serial: %lu>, actual<serial: %lu>, addr<%lu>.",
+                addr.serial(), meta->serial, *cast_ptr(size_t, &addr));
         return;
     }
 
-    pmeta->magic = 0;
-    pmeta->serial = 0;
+    meta->magic  = 0;
+    meta->serial = 0;
 
-    page_t page = offset2page(pmid->offset);
-    detail::offset_ptr<detail::span> sp = page_heap->find_span(page);
+    shm_address sp = mgr->page_heap()->find_span(addr);
     assert_retnone(sp);
 
-    detail::span *s = sp.get();
+    span *s = sp.as<span>();
     if (s->size_class < 0) {
         sk_assert(!s->chunk_list);
         sk_assert(s->used_count == 0);
 
-        return page_heap->deallocate_span(sp);
+        return mgr->page_heap()->deallocate_span(sp);
     }
 
     // TODO: the function below will search for span again, it's better to
     // take the searched span as a parameter to improve performance
-    chunk_cache->deallocate(offset);
+    mgr->chunk_cache()->deallocate(addr);
 }
 
-shm_ptr<void> shm_mgr::get_singleton(int type, size_t bytes, bool& first_call) {
-    assert_retval(type >= 0 && type < MAX_SINGLETON_COUNT, SHM_NULL);
+bool shm_mgr::has_singleton(int type) {
+    assert_retval(type >= 0 && type < MAX_SINGLETON_COUNT, false);
+    return !!mgr->singletons_[type];
+}
 
-    first_call = false;
-    if (singletons[type] == MID_NULL) {
+shm_ptr<void> shm_mgr::get_singleton(int type, size_t bytes, bool *first_call) {
+    assert_retval(type >= 0 && type < MAX_SINGLETON_COUNT, nullptr);
+
+    if (first_call) *first_call = false;
+    if (!mgr->singletons_[type]) {
         shm_ptr<void> ptr = malloc(bytes);
-        if (!ptr)
-            return SHM_NULL;
+        if (!ptr) return nullptr;
 
-        first_call = true;
-        singletons[type] = ptr.mid;
+        if (first_call) *first_call = true;
+        mgr->singletons_[type] = ptr;
     }
 
-    return shm_ptr<void>(singletons[type]);
+    return mgr->singletons_[type];
 }
 
-offset_t shm_mgr::__sbrk(size_t bytes) {
-    // no enough memory, return
-    if (used_size + bytes > total_size) {
-        sk_error("no enough memory, used: %lu, total: %lu, needed: %lu.", used_size, total_size, bytes);
-        return OFFSET_NULL;
+void shm_mgr::free_singleton(int type) {
+    assert_retnone(type >= 0 && type < MAX_SINGLETON_COUNT);
+
+    if (mgr->singletons_[type]) {
+        free(mgr->singletons_[type]);
+        mgr->singletons_[type] = nullptr;
+    }
+}
+
+void *shm_mgr::addr2ptr(shm_address addr) {
+    assert_retval(addr, nullptr);
+
+    const shm_block *block = mgr->block_mgr()->get_block(addr.block());
+    assert_retval(block, nullptr);
+    assert_retval(block->size > addr.offset(), nullptr);
+
+    if (addr.serial() == shm_config::SPECIAL_SERIAL)
+        return sk::byte_offset<void>(block->addr, addr.offset());
+
+    shm_meta *meta = sk::byte_offset<shm_meta>(block->addr, addr.offset());
+    if (meta->magic != cast_u32(MAGIC) || meta->serial != addr.serial()) {
+        sk_warn("object freed? expected<serial: %lu>, actual<serial: %lu>, addr<%lu>.",
+                addr.serial(), meta->serial, *cast_ptr(size_t, &addr));
+        return nullptr;
     }
 
-    offset_t offset = used_size;
-    used_size += bytes;
-
-    return offset;
+    return sk::byte_offset<void>(meta, sizeof(shm_meta));
 }
 
-offset_t shm_mgr::allocate(size_t bytes) {
-    if (bytes % PAGE_SIZE != 0) {
-        sk_info("bytes: %lu to be fixed.", bytes);
-        bytes = ((bytes + PAGE_SIZE - 1) >> PAGE_SHIFT) << PAGE_SHIFT;
+shm_address shm_mgr::ptr2addr(void *ptr) {
+    assert_retval(ptr, nullptr);
+
+    const shm_block *block = mgr->block_mgr()->find_block(ptr);
+    if (!block) return nullptr;
+
+    void *end = sk::byte_offset<void>(block->addr, block->size);
+    assert_retval(ptr < end, nullptr);
+
+    offset_t offset = reinterpret_cast<offset_t>(ptr) - reinterpret_cast<offset_t>(block->addr);
+    return shm_address(block->id, offset);
+}
+
+detail::size_map *shm_mgr::size_map() {
+    return mgr->size_map_;
+}
+
+detail::block_mgr *shm_mgr::block_mgr() {
+    return mgr->block_mgr_;
+}
+
+detail::page_heap *shm_mgr::page_heap() {
+    return mgr->page_heap_;
+}
+
+detail::chunk_cache *shm_mgr::chunk_cache() {
+    return mgr->chunk_cache_;
+}
+
+shm_address shm_mgr::allocate(size_t in_bytes, size_t *out_bytes) {
+    static bool calling = false;
+    struct guard {
+        guard() { sk_assert(!calling); calling = true; }
+        ~guard() { calling = false; }
+    } guard;
+
+    const shm_block *block = mgr->block_mgr()->allocate_block(in_bytes);
+    if (!block) return nullptr;
+
+    // TODO: if the newly allocated block is adjacent to another existing block,
+    // we might try to merge the two blocks, and further more, we might specify
+    // the address after a block when allocating, if the returned address is the
+    // address we specified, then we merge the two blocks, but there is a little
+    // limitation we might check: due to MAX_PAGE_BITS defined in shm_config, we
+    // can only have a block with maximum size 4GB
+
+    sk_assert(block->size >= in_bytes);
+    mgr->block_mgr()->register_block(block->id, false);
+
+    if (out_bytes) *out_bytes = block->size;
+    return shm_address(block->id);
+}
+
+shm_address shm_mgr::allocate_metadata(size_t bytes) {
+    static bool calling = false;
+    struct guard {
+        guard() { sk_assert(!calling); calling = true; }
+        ~guard() { calling = false; }
+    } guard;
+
+    if (unlikely(bytes == 0)) bytes = 1;
+
+    if (unlikely(bytes % shm_config::PAGE_SIZE != 0)) {
+        sk_info("fix metadata size: %lu.", bytes);
+        bytes +=  shm_config::PAGE_SIZE - 1;
+        bytes >>= shm_config::PAGE_SHIFT;
+        bytes <<= shm_config::PAGE_SHIFT;
     }
 
-    ++stat.raw_alloc_count;
+    if (bytes > mgr->metadata_.current_meta_left) {
+        sk_info("current metadata block %lu used up, waste: %lu.",
+                mgr->metadata_.current_meta_block, mgr->metadata_.current_meta_left);
 
-    return __sbrk(bytes);
-}
+        // TODO: create a config value in shm_config, to represent the metadata
+        // block allocation size
+        const shm_block *block = mgr->block_mgr()->allocate_block(bytes);
+        if (!block) return nullptr;
 
-offset_t shm_mgr::allocate_metadata(size_t bytes) {
-    if (bytes % PAGE_SIZE != 0) {
-        sk_info("bytes: %lu to be fixed.", bytes);
-        bytes = ((bytes + PAGE_SIZE - 1) >> PAGE_SHIFT) << PAGE_SHIFT;
+        mgr->metadata_.current_meta_block  = block->id;
+        mgr->metadata_.current_meta_left   = block->size;
+        mgr->metadata_.current_meta_offset = 0;
+        assert_retval(block->size >= bytes, nullptr);
+
+        // TODO: how to set_block_map() here? as in that function, radix_tree:set() is
+        // called, which might call allocate_metadata() again if there is no enough
+        // memory, this will lead to a recursive call, which might lead to bugs...
     }
 
-    if (bytes > metadata_left) {
-        sk_info("metadata block used up.");
-        return allocate(bytes);
-    }
-
-    offset_t offset = metadata_offset;
-    metadata_offset += bytes;
-    metadata_left -= bytes;
-
-    ++stat.meta_alloc_count;
-
-    return offset;
+    shm_address addr(mgr->metadata_.current_meta_block, mgr->metadata_.current_meta_offset);
+    mgr->metadata_.current_meta_left   -= bytes;
+    mgr->metadata_.current_meta_offset += bytes;
+    return addr;
 }
 
-page_t shm_mgr::offset2page(offset_t offset) {
-    sk_assert(offset >= sizeof(*this));
-    sk_assert(offset < used_size);
+int shm_mgr::on_create(const char *basename) {
+    int ret = 0;
+    size_t used_bytes = 0;
 
-    return offset >> PAGE_SHIFT;
+    used_bytes += sizeof(*this);
+    size_map_ = sk::byte_offset<detail::size_map>(this, used_bytes);
+    ret = size_map_->init();
+    if (ret != 0) return ret;
+
+    used_bytes += sizeof(detail::size_map);
+    block_mgr_ = sk::byte_offset<detail::block_mgr>(this, used_bytes);
+    new (block_mgr_) detail::block_mgr(basename);
+
+    // TODO: make this a config option in shm_config
+    // TODO: change this to a small value to test new block allocation when
+    // the following set_block_map() called, which will allocate a new block
+    // if the existing metadata is not enough
+    size_t total_bytes = 2 * 1024 * 1024;
+    total_bytes += sizeof(detail::page_heap);
+    total_bytes += sizeof(detail::chunk_cache);
+
+    const shm_block *block = block_mgr()->allocate_block(total_bytes);
+    if (!block) return -ENOMEM;
+
+    used_bytes = 0;
+
+    page_heap_ = sk::byte_offset<detail::page_heap>(block->addr, used_bytes);
+    used_bytes += sizeof(detail::page_heap);
+
+    chunk_cache_ = sk::byte_offset<detail::chunk_cache>(block->addr, used_bytes);
+    used_bytes += sizeof(detail::chunk_cache);
+
+    new (page_heap_) detail::page_heap();
+    new (chunk_cache_) detail::chunk_cache();
+
+    // make metadata page-aligned, as allocate_metadata()
+    // will forcely align the requested size to page size
+    used_bytes += shm_config::PAGE_SIZE - (used_bytes & shm_config::PAGE_MASK);
+    sk_assert((used_bytes & shm_config::PAGE_MASK) == 0);
+
+    metadata_.current_meta_block = block->id;
+    metadata_.current_meta_offset = used_bytes;
+    metadata_.current_meta_left = block->size > used_bytes ? block->size - used_bytes : 0;
+
+    block_mgr()->register_block(block->id, false);
+    special_block_ = block->id;
+    return 0;
 }
 
-void *shm_mgr::offset2ptr(offset_t offset) {
-    assert_retval(offset >= sizeof(*this), NULL);
-    assert_retval(offset < used_size, NULL);
+int shm_mgr::on_resume(const char *basename) {
+    int ret = 0;
+    size_t used_bytes = 0;
 
-    return sk::byte_offset<void>(this, offset);
+    used_bytes += sizeof(*this);
+    size_map_ = sk::byte_offset<detail::size_map>(this, used_bytes);
+
+    used_bytes += sizeof(detail::size_map);
+    block_mgr_ = sk::byte_offset<detail::block_mgr>(this, used_bytes);
+
+    std::vector<block_t> changed_blocks;
+    ret = block_mgr_->on_resume(basename, changed_blocks);
+    if (ret != 0) return ret;
+
+    const shm_block *block = block_mgr()->get_block(special_block_);
+    if (!block) return -EINVAL;
+
+    used_bytes = 0;
+    page_heap_ = sk::byte_offset<detail::page_heap>(block->addr, used_bytes);
+
+    used_bytes += sizeof(detail::page_heap);
+    chunk_cache_ = sk::byte_offset<detail::chunk_cache>(block->addr, used_bytes);
+
+    for (const auto& id : changed_blocks)
+        block_mgr()->register_block(id, true);
+
+    return 0;
 }
-
-offset_t shm_mgr::ptr2offset(void *ptr) {
-    char *p = char_ptr(ptr);
-    char *base = char_ptr(this);
-    assert_retval(p >= base + sizeof(*this), OFFSET_NULL);
-    assert_retval(p < base + used_size, OFFSET_NULL);
-
-    return p - base;
-}
-
-void *shm_mgr::mid2ptr(u64 mid) {
-    const shm_mid *pmid = cast_ptr(shm_mid, &mid);
-    assert_retval(pmid->offset != OFFSET_NULL, NULL);
-
-    void *ptr = offset2ptr(pmid->offset);
-    const shm_meta *pmeta = cast_ptr(shm_meta, ptr);
-
-    if (pmeta->magic != static_cast<u32>(MAGIC) || pmeta->serial != pmid->serial) {
-        sk_warn("object freed? expected<serial: %lu>, actual<serial: %lu>.",
-                pmid->serial, pmeta->serial);
-        return NULL;
-    }
-
-    return sk::byte_offset<void>(ptr, sizeof(shm_meta));
-}
-
-
 
 shm_ptr<void> shm_malloc(size_t bytes) {
-    shm_mgr *mgr = shm_mgr::get();
-    assert_retval(mgr, SHM_NULL);
-
-    return mgr->malloc(bytes);
+    return shm_mgr::malloc(bytes);
 }
 
-void shm_free(shm_ptr<void> ptr) {
-    shm_mgr *mgr = shm_mgr::get();
-    assert_retnone(mgr);
-
-    mgr->free(ptr);
+void sk::shm_free(const shm_ptr<void>& ptr) {
+    return mgr->free(ptr);
 }
 
-} // namespace sk
+int shm_mgr_init(const char *basename, bool resume_mode) {
+    return shm_mgr::init(basename, resume_mode);
+}
 
+int shm_mgr_fini() {
+    if (!mgr) return 0;
+
+    // TODO: call desctructors and destroy shm segments here
+    return 0;
+}

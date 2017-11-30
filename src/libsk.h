@@ -34,11 +34,11 @@
 
 // concrete headers
 #include <utility/utility.h>
+#include <container/fixed_bitmap.h>
 #include <container/fixed_vector.h>
 #include <container/referable_array.h>
 #include <container/extensible_stack.h>
 #include <container/extensible_hash.h>
-#include <time/time.h>
 #include <shm/shm_mgr.h>
 #include <shm/shm_ptr.h>
 #include <container/fixed_stack.h>
@@ -54,11 +54,11 @@
 #include <container/shm_map.h>
 #include <bus/bus.h>
 #include <time/shm_timer.h>
+#include <time/heap_timer.h>
 #include <server/option_parser.h>
 #include <server/server.h>
 #include <core/buffer.h>
 #include <core/callback.h>
-#include <core/heap_timer.h>
 #include <core/tcp_client.h>
 #include <core/tcp_server.h>
 #include <core/inet_address.h>

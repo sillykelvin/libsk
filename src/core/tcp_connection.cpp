@@ -106,6 +106,7 @@ void tcp_connection::on_alloc(uv_handle_t *handle, size_t size_hint, uv_buf_t *b
 }
 
 void tcp_connection::on_read(int nbytes, const uv_buf_t *buf) {
+    unused_parameter(buf);
     if (nbytes == 0) return;
 
     int error = 0;

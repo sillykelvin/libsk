@@ -1,5 +1,4 @@
 #include <signal.h>
-#include <core/heap_timer.h>
 #include <core/rest_client.h>
 #include <utility/assert_helper.h>
 #include <utility/string_helper.h>
@@ -194,6 +193,7 @@ CURL *rest_client::create_handle(const char *uri,
 
 int rest_client::handle_socket(CURL *h, curl_socket_t sockfd,
                                int action, void *userp, void *socketp) {
+    unused_parameter(h);
     rest_client *client = static_cast<rest_client*>(userp);
     switch (action) {
     case CURL_POLL_IN:
@@ -279,6 +279,9 @@ int rest_client::on_log(CURL *, curl_infotype type, char *data, size_t size, voi
     switch (type) {
     case CURLINFO_TEXT:
         sk_trace("== info: %s", data);
+#if GCC_VERSION >= 70000
+        __attribute__ ((fallthrough));
+#endif
     default: /* in case a new one is introduced to shock us */
         return 0;
 

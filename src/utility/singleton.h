@@ -67,9 +67,11 @@ volatile T *singleton<T>::instance = NULL;
         static T *get() {                   \
             return sk::singleton<T>::get(); \
         }                                   \
+                                            \
+        T (const T&) = delete;              \
+        T& operator=(const T&) = delete;    \
+                                            \
     private:                                \
-        T (const T&);                       \
-        T& operator=(const T&);             \
         friend class sk::singleton<T>
 
 #endif // SINGLETON_H

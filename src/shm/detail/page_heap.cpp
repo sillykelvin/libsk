@@ -1,315 +1,275 @@
-#include "libsk.h"
-#include "span.h"
-#include "page_map.h"
-#include "metadata_allocator.h"
-#include "page_heap.h"
+#include <shm/shm_mgr.h>
+#include <shm/detail/page_heap.h>
 
-namespace sk {
-namespace detail {
+using namespace sk::detail;
 
-size_t page_heap::estimate_space(size_t bytes) {
-    int page_count = (bytes >> PAGE_SHIFT) + ((bytes & (PAGE_SIZE - 1)) > 0 ? 1 : 0);
-
-    // shm_mgr and other structs will consume some pages at the
-    // beginning of the pool, so add a reasonable large number
-    // here to ensure the page count is enough
-    page_count += 8;
-
-    size_t map_size = page_map::estimate_space(page_count);
-
-    // the limiting case is every page is mapped to a span
-    size_t span_size = page_count * sizeof(span);
-    // metadata allocator will allocate META_ALLOC_INCREMENT bytes at a time
-    if (span_size < META_ALLOC_INCREMENT)
-        span_size = META_ALLOC_INCREMENT;
-
-    sk_debug("estimate space, span map: %dKB, span: %dKB.", (int)(map_size / 1024.0), (int)(span_size / 1024.0));
-
-    return map_size + span_size;
-}
-
-void page_heap::init() {
-    span_map.init();
-
-    memset(free_lists, 0x00, sizeof(free_lists));
-    memset(&large_list, 0x00, sizeof(large_list));
-
-    // init the double linked span list
-    for (int i = 0; i < MAX_PAGES; ++i) {
-        offset_ptr<span> head = free_lists[i].ptr();
-        span_list_init(head);
-    }
-    {
-        offset_ptr<span> head = large_list.ptr();
+page_heap::page_heap() {
+    for (size_t i = 0; i < shm_config::MAX_PAGES; ++i) {
+        shm_address head = free_lists_[i].addr();
         span_list_init(head);
     }
 
-    span_allocator.init();
-
-    memset(&stat, 0x00, sizeof(stat));
+    shm_address head = large_list_.addr();
+    span_list_init(head);
 }
 
-void page_heap::report() {
-    sk_assert(stat.used_size <= stat.total_size);
-    sk_assert(stat.alloc_count >= stat.free_count);
+shm_address page_heap::allocate_span(size_t page_count) {
+    assert_retval(page_count > 0, nullptr);
 
-    span_allocator.report();
+    shm_address addr = search_existing(page_count);
+    if (!addr && grow_heap(page_count))
+        addr = search_existing(page_count);
 
-    sk_info("page heap => allocation count: %lu, deallocation count: %lu.",
-            stat.alloc_count, stat.free_count);
-    sk_info("page heap => grow count: %lu.", stat.grow_count);
-    sk_info("page heap => page count, total: %lu, used: %lu (%.2lf%%).",
-            stat.total_size, stat.used_size, stat.total_size <= 0 ? 0.0 : stat.used_size * 100.0 / stat.total_size);
-}
-
-offset_ptr<span> page_heap::allocate_span(int page_count) {
-    assert_retval(page_count > 0, offset_ptr<span>::null());
-
-    offset_ptr<span> ret = __search_existing(page_count);
-    if (ret) {
-        ++stat.alloc_count;
-        stat.used_size += page_count;
-        return ret;
+    if (addr) {
+        ++stat_.alloc_count;
+        stat_.used_size += page_count;
+        return addr;
     }
 
-    if (__grow_heap(page_count)) {
-        offset_ptr<span> ret = __search_existing(page_count);
-        if (ret) {
-            ++stat.alloc_count;
-            stat.used_size += page_count;
-        }
-
-        return ret;
-    }
-
-    sk_error("cannot grow heap, allocation failed, page count: %d.", page_count);
-    return offset_ptr<span>::null();
+    sk_error("cannot allocate span, page count: %lu.", page_count);
+    return nullptr;
 }
 
-void page_heap::deallocate_span(offset_ptr<span> ptr) {
-    assert_retnone(ptr);
+void page_heap::deallocate_span(shm_address sp) {
+    assert_retnone(sp);
 
-    span *s = ptr.get();
-
+    span *s = sp.as<span>();
     sk_assert(s->in_use);
-    sk_assert(s->count > 0);
-    sk_assert(!s->prev);
-    sk_assert(!s->next);
-    sk_assert(find_span(s->start) == ptr);
-    sk_assert(find_span(s->start + s->count - 1) == ptr);
+    sk_assert(s->page_count > 0);
+    sk_assert(!s->prev_span);
+    sk_assert(!s->next_span);
+    sk_assert(get_span_map(s->block, s->start_page) == sp);
+    sk_assert(get_span_map(s->block, s->start_page + s->page_count - 1) == sp);
 
-    s->in_use = false;
+    s->in_use = 0;
 
-    const page_t orig_start = s->start;
-    const int    orig_count = s->count;
+    const page_t orig_start = s->start_page;
+    const size_t orig_count = s->page_count;
 
-    offset_ptr<span> prev = find_span(orig_start - 1);
+    shm_address prev = (orig_start == 0) ? nullptr : get_span_map(s->block, orig_start - 1);
     if (prev) {
-        span *p = prev.get();
+        span *p = prev.as<span>();
         if (!p->in_use) {
-            sk_assert(p->count > 0);
-            sk_assert(p->start + p->count == orig_start);
+            sk_assert(p->page_count > 0);
+            sk_assert(cast_size(p->start_page + p->page_count) == orig_start);
 
-            s->start -= p->count;
-            s->count += p->count;
+            s->start_page -= p->page_count;
+            s->page_count += p->page_count;
 
             span_list_remove(prev);
-            __del_span(prev);
-
-            span_map.set(s->start, ptr.as<void>());
+            del_span(prev);
+            set_span_map(s->block, s->start_page, sp);
         }
     }
 
-    offset_ptr<span> next = find_span(orig_start + orig_count);
+    // TODO: orig_start + orig_count may overflow MAX_PAGE_BITS, the same below
+    shm_address next = get_span_map(s->block, orig_start + orig_count);
     if (next) {
-        span *n = next.get();
+        span *n = next.as<span>();
         if (!n->in_use) {
-            sk_assert(n->count > 0);
-            sk_assert(n->start - orig_count == orig_start);
+            sk_assert(n->page_count > 0);
+            sk_assert(n->start_page - orig_count == orig_start);
 
-            s->count += n->count;
+            s->page_count += n->page_count;
 
             span_list_remove(next);
-            __del_span(next);
-
-            span_map.set(s->start + s->count - 1, ptr.as<void>());
+            del_span(next);
+            set_span_map(s->block, s->start_page + s->page_count - 1, sp);
         }
     }
 
-    __link(ptr);
+    link(sp);
 
-    ++stat.free_count;
-    sk_assert(stat.used_size >= (size_t) orig_count);
-    stat.used_size -= orig_count;
+    ++stat_.free_count;
+    sk_assert(stat_.used_size >= orig_count);
+    stat_.used_size -= orig_count;
 
     // TODO: may try to return some memory to shm_mgr here
     // if the top most block is empty
 }
 
-offset_ptr<span> page_heap::find_span(page_t page) {
-    return span_map.get(page).as<span>();
-}
+void page_heap::register_span(shm_address sp) {
+    assert_retnone(sp);
 
-void page_heap::register_span(offset_ptr<span> ptr) {
-    assert_retnone(ptr);
-
-    span *s = ptr.get();
+    span *s = sp.as<span>();
     sk_assert(s->in_use);
-    sk_assert(find_span(s->start) == ptr);
-    sk_assert(find_span(s->start + s->count - 1) == ptr);
+    sk_assert(get_span_map(s->block, s->start_page) == sp);
+    sk_assert(get_span_map(s->block, s->start_page + s->page_count - 1) == sp);
 
-    for (int i = 1; i < s->count - 1; ++i)
-        span_map.set(s->start + i, ptr.as<void>());
+    for (size_t i = 1; i < s->page_count - cast_size(1); ++i)
+        set_span_map(s->block, s->start_page + i, sp);
 }
 
-offset_ptr<span> page_heap::__search_existing(int page_count) {
-    for (int i = page_count; i < MAX_PAGES; ++i) {
-        offset_ptr<span> head = free_lists[i].ptr();
+shm_address page_heap::find_span(shm_address addr) {
+    return get_span_map(addr.block(), addr.offset() >> shm_config::PAGE_SHIFT);
+}
+
+shm_address page_heap::search_existing(size_t page_count) {
+    for (size_t i = page_count; i < shm_config::MAX_PAGES; ++i) {
+        shm_address head = free_lists_[i].addr();
         if (!span_list_empty(head))
-            return __carve(head.get()->next, page_count);
+            return carve(head.as<span>()->next_span, page_count);
     }
 
-    return __allocate_large(page_count);
+    return allocate_large(page_count);
 }
 
-offset_ptr<span> page_heap::__allocate_large(int page_count) {
-    offset_ptr<span> best;
+shm_address page_heap::allocate_large(size_t page_count) {
+    shm_address best(nullptr);
 
-    offset_ptr<span> it = large_list.next;
-    offset_ptr<span> end = large_list.ptr();
+    shm_address it  = large_list_.next_span;
+    shm_address end = large_list_.addr();
     while (it != end) {
-        span *s = it.get();
-        if (s->count < page_count) {
-            it = s->next;
+        span *s = it.as<span>();
+        if (s->page_count < page_count) {
+            it = s->next_span;
             continue;
         }
 
         if (!best) {
             best = it;
-            it = s->next;
+            it = s->next_span;
             continue;
         }
 
-        span *b = best.get();
-        if (s->count < b->count || (s->count == b->count && s->start < b->start)) {
+        span *b = best.as<span>();
+        if (s->page_count < b->page_count ||
+            (s->page_count == b->page_count && s->block < b->block) ||
+            (s->page_count == b->page_count && s->block == b->block && s->start_page < b->start_page)) {
             best = it;
-            it = s->next;
+            it = s->next_span;
             continue;
         }
 
-        it = s->next;
+        it = s->next_span;
     }
 
-    if (best)
-        return __carve(best, page_count);
+    if (best) return carve(best, page_count);
 
-    return offset_ptr<span>::null();
+    return nullptr;
 }
 
-offset_ptr<span> page_heap::__carve(offset_ptr<span> ptr, int page_count) {
-    span *s = ptr.get();
-    assert_retval(!s->in_use, offset_ptr<span>::null());
-    assert_retval(s->count >= page_count, offset_ptr<span>::null());
+shm_address page_heap::carve(shm_address sp, size_t page_count) {
+    span *s = sp.as<span>();
+    assert_retval(!s->in_use, nullptr);
+    assert_retval(s->page_count >= page_count, nullptr);
 
-    span_list_remove(ptr);
+    span_list_remove(sp);
 
-    const int extra = s->count - page_count;
+    const size_t extra = s->page_count - page_count;
     if (extra > 0) {
-        offset_ptr<span> left = __new_span();
-        span *l = left.get();
-        l->init(s->start + page_count, extra);
+        // TODO: what if the allocation failed??
+        shm_address left = new_span(s->block, s->start_page + page_count, extra);
+        span *l = left.as<span>();
 
-        span_map.set(l->start, left.as<void>());
-        if (l->count > 1)
-            span_map.set(l->start + l->count - 1, left.as<void>());
+        set_span_map(l->block, l->start_page, left);
+        if (l->page_count > 1)
+            set_span_map(l->block, l->start_page + l->page_count - 1, left);
 
-        offset_ptr<span> next = find_span(l->start + l->count);
-        sk_assert(!next || next.get()->in_use);
+        shm_address next = get_span_map(l->block, l->start_page + l->page_count);
+        sk_assert(!next || next.as<span>()->in_use);
 
-        __link(left);
-        s->count = page_count;
-        span_map.set(s->start + s->count - 1, ptr.as<void>());
+        link(left);
+        s->page_count = page_count;
+        set_span_map(s->block, s->start_page + s->page_count - 1, sp);
     }
 
-    s->in_use = true;
-    return ptr;
+    s->in_use = 1;
+    return sp;
 }
 
-void page_heap::__link(offset_ptr<span> ptr) {
-    span *s = ptr.get();
-    int page_count = s->count;
-    span *head = page_count < MAX_PAGES ? &free_lists[page_count] : &large_list;
+void page_heap::link(shm_address sp) {
+    span *s = sp.as<span>();
+    size_t page_count = s->page_count;
+    span *head = (page_count < shm_config::MAX_PAGES) ? &free_lists_[page_count] : &large_list_;
 
-    span_list_prepend(head->ptr(), ptr);
+    span_list_prepend(head->addr(), sp);
 }
 
-offset_ptr<span> page_heap::__new_span() {
-    return span_allocator.allocate();
+shm_address page_heap::new_span(block_t block, page_t start_page, size_t page_count) {
+    shm_address sp = span_allocator_.allocate();
+    if (sp) {
+        span *s = sp.as<span>();
+        new (s) span(block, start_page, page_count);
+    }
+
+    return sp;
 }
 
-void page_heap::__del_span(offset_ptr<span> ptr) {
-    return span_allocator.deallocate(ptr);
+void page_heap::del_span(shm_address sp) {
+    span_allocator_.deallocate(sp);
 }
 
-bool page_heap::__grow_heap(int page_count) {
-    assert_retval(page_count > 0, false);
-    sk_assert(MAX_PAGES >= HEAP_GROW_PAGE_COUNT);
+shm_address page_heap::get_span_map(block_t block, page_t page) const {
+    assert_retval((block >> shm_config::MAX_BLOCK_BITS) == 0, nullptr);
+    assert_retval((page >> shm_config::MAX_PAGE_BITS) == 0, nullptr);
 
-    if (page_count > MAX_VALID_PAGES)
+    size_t key = (block << shm_config::MAX_PAGE_BITS) + page;
+    const shm_address *addr = span_map_.get(key);
+    return addr ? *addr : nullptr;
+}
+
+void page_heap::set_span_map(block_t block, page_t page, shm_address sp) {
+    assert_retnone((block >> shm_config::MAX_BLOCK_BITS) == 0);
+    assert_retnone((page >> shm_config::MAX_PAGE_BITS) == 0);
+
+    size_t key = (block << shm_config::MAX_PAGE_BITS) + page;
+    span_map_.set(key, sp);
+}
+
+bool page_heap::grow_heap(size_t page_count) {
+    sk_assert(shm_config::MAX_PAGES >= shm_config::MIN_HEAP_GROW_PAGE_COUNT);
+
+    if (page_count > shm_config::MAX_PAGE_COUNT)
         return false;
 
-    int ask = page_count;
-    if (page_count < HEAP_GROW_PAGE_COUNT)
-        ask = HEAP_GROW_PAGE_COUNT;
+    size_t ask = page_count;
+    if (page_count < shm_config::MIN_HEAP_GROW_PAGE_COUNT)
+        ask = shm_config::MIN_HEAP_GROW_PAGE_COUNT;
 
-    offset_t offset = shm_mgr::get()->allocate(ask << PAGE_SHIFT);
+    size_t real_bytes = 0;
+    shm_address addr = shm_mgr::allocate(ask << shm_config::PAGE_SHIFT, &real_bytes);
     do {
-        if (offset != OFFSET_NULL)
-            break;
-
-        if (page_count >= ask)
-            return false;
+        if (addr) break;
+        if (page_count >= ask) return false;
 
         ask = page_count;
-        offset = shm_mgr::get()->allocate(ask << PAGE_SHIFT);
-        if (offset != OFFSET_NULL)
-            break;
+        addr = shm_mgr::allocate(ask << shm_config::PAGE_SHIFT, &real_bytes);
+        if (addr) break;
 
         return false;
     } while (0);
 
-    stat.grow_count += 1;
-    stat.total_size += ask;
+    sk_assert((real_bytes & shm_config::PAGE_MASK) == 0);
+    sk_assert((addr.offset() & shm_config::PAGE_MASK) == 0);
 
-    sk_assert(offset % PAGE_SIZE == 0);
-    const page_t p = offset >> PAGE_SHIFT;
+    stat_.grow_count += 1;
+    stat_.total_size += real_bytes >> shm_config::PAGE_SHIFT;
 
-    offset_ptr<span> sp = __new_span();
+    shm_address sp = new_span(addr.block(),
+                              addr.offset() >> shm_config::PAGE_SHIFT,
+                              real_bytes >> shm_config::PAGE_SHIFT);
     if (!sp) {
         // TODO: handle the allocated memory here...
+        // shm_mgr::deallocate(addr, real_bytes);
         sk_assert(0);
         return false;
     }
 
-    span *s = sp.get();
-    s->init(p, ask);
-    span_map.set(p, sp.as<void>());
-    if (ask > 1)
-        span_map.set(p + ask - 1, sp.as<void>());
+    span *s = sp.as<span>();
+    set_span_map(s->block, s->start_page, sp);
+    if (s->page_count > 1)
+        set_span_map(s->block, s->start_page + s->page_count - 1, sp);
 
-    s->in_use = true;
+    s->in_use = 1;
 
-    // in fact, this is not an actual allocation here, however,
-    // in deallocate_span() stat.free_count & stat.used_size will
-    // be changed, to match that, we should also change the
-    // stat.alloc_count & stat.used_size here
-    ++stat.alloc_count;
-    stat.used_size += ask;
+    // in fact, this is actually not an allocation here, however, in
+    // deallocate_span() stat_.free_count & stat_.used_size will be
+    // changed, to match that, we should also change the corresponding
+    // stat_.alloc_count & stat_.used_size here
+    ++stat_.alloc_count;
+    stat_.used_size += ask;
 
     deallocate_span(sp);
-
     return true;
 }
-
-} // namespace detail
-} // namespace sk

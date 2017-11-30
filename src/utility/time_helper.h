@@ -12,8 +12,8 @@ int day_start_time(time_t t);
 bool is_same_day(time_t t1, time_t t2, int offset_hour);
 bool is_same_week(time_t t1, time_t t2, int offset_hour);
 
-void timeval_add(const timeval& tv1, const timeval& tv2, timeval& out);
-void timeval_sub(const timeval& tv1, const timeval& tv2, timeval& out);
+void timeval_add(const timeval& tv1, const timeval& tv2, timeval *out);
+void timeval_sub(const timeval& tv1, const timeval& tv2, timeval *out);
 
 NS_END(time)
 NS_END(sk)

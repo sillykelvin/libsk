@@ -6,6 +6,7 @@ include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/deps/pugixml/include")
 include_directories("${PROJECT_SOURCE_DIR}/deps/spdlog/include")
 include_directories("${PROJECT_SOURCE_DIR}/deps/curl/include")
+include_directories("${PROJECT_SOURCE_DIR}/deps/libuv/include")
 
 link_directories("${PROJECT_SOURCE_DIR}/lib")
 
