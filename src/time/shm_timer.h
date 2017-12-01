@@ -9,7 +9,7 @@ NS_BEGIN(sk)
 NS_BEGIN(time)
 
 class shm_timer;
-using shm_timer_ptr = sk::shm_ptr<shm_timer>;
+using shm_timer_ptr = shm_ptr<shm_timer>;
 
 class shm_timer {
 public:

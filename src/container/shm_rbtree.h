@@ -149,7 +149,7 @@ struct shm_rbtree {
     }
 
     void __destroy(pointer n) {
-        shm_del(n);
+        shm_delete(n);
     }
 
     pointer __grand_parent(pointer n) {

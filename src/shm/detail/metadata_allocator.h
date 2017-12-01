@@ -22,7 +22,7 @@ public:
             if (free_list_) break;
 
             size_t size = ALLOCATION_SIZE;
-            shm_address space = sk::shm_allocate_metadata(&size);
+            shm_address space = shm_allocate_metadata(&size);
             if (!space) return nullptr;
 
             sk_assert(space.serial() == shm_config::METADATA_SERIAL_NUM);
@@ -30,7 +30,7 @@ public:
 
             char *base = char_ptr(block.get());
             char *ptr  = char_ptr(space.get());
-            char *end  = sk::byte_offset<char>(ptr, size);
+            char *end  = byte_offset<char>(ptr, size);
             while (ptr + sizeof(T) <= end) {
                 *cast_ptr(shm_address, ptr) = free_list_;
                 free_list_ = shm_address(space.serial(), ptr - base);

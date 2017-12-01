@@ -110,7 +110,7 @@ public:
     const Config& config() const { return cfg_; }
     const server_context& context() const { return ctx_; }
     uv_loop_t *loop() const { return loop_; }
-    sk::signal_watcher *signal_watcher() const { return sig_watcher_; }
+    class signal_watcher *signal_watcher() const { return sig_watcher_; }
 
 private:
     int init(int argc, const char **argv) {
@@ -208,10 +208,10 @@ private:
             }
 
             if (!ctx_.disable_bus)
-                sk::bus::deregister_bus();
+                bus::deregister_bus();
 
             if (!ctx_.disable_shm)
-                sk::shm_fini();
+                shm_fini();
         } while (0);
 
         sk_info("exit fini()");
@@ -249,7 +249,7 @@ private:
         else
             cfg_ = tmp;
 
-        ret = sk::logger::reload();
+        ret = logger::reload();
         if (ret != 0)
             sk_error("reload logger error<%d>.", ret);
 
@@ -302,7 +302,7 @@ private:
         while (total < MAX_MSG_PER_PROC) {
             int src_busid = -1;
             size_t len = buf_len_;
-            ret = sk::bus::recv(src_busid, buf_, len);
+            ret = bus::recv(src_busid, buf_, len);
 
             if (ret == 0)
                 break;
@@ -420,9 +420,9 @@ private:
         if (ctx_.str_id.empty()) return -EINVAL;
 
         int area_id, zone_id, func_id, inst_id;
-        ctx_.id = sk::bus::from_string(ctx_.str_id.c_str(),
-                                       &area_id, &zone_id,
-                                       &func_id, &inst_id);
+        ctx_.id = bus::from_string(ctx_.str_id.c_str(),
+                                   &area_id, &zone_id,
+                                   &func_id, &inst_id);
         if (ctx_.id == -1) return -EINVAL;
 
         // the command line option does not provide a pid file
@@ -445,7 +445,7 @@ private:
 
         // the command line option does not provide a bus shm path
         if (ctx_.bus_shm_path.empty())
-            ctx_.bus_shm_path = sk::bus::DEFAULT_BUS_SHM_PATH;
+            ctx_.bus_shm_path = bus::DEFAULT_BUS_SHM_PATH;
 
         // the command line option does not provide a shm path prefix
         if (ctx_.shm_path_prefix.empty())
@@ -453,17 +453,17 @@ private:
 
         // the command line option does not provide a bus node size
         if (ctx_.bus_node_size == 0)
-            ctx_.bus_node_size = sk::bus::DEFAULT_BUS_NODE_SIZE;
+            ctx_.bus_node_size = bus::DEFAULT_BUS_NODE_SIZE;
 
         // the command line option does not provide a bus node count
         if (ctx_.bus_node_count == 0)
-            ctx_.bus_node_count = sk::bus::DEFAULT_BUS_NODE_COUNT;
+            ctx_.bus_node_count = bus::DEFAULT_BUS_NODE_COUNT;
 
         return 0;
     }
 
     int init_logger() {
-        return sk::logger::init(ctx_.log_conf);
+        return logger::init(ctx_.log_conf);
     }
 
     int init_conf() {
@@ -486,7 +486,7 @@ private:
         if (ctx_.disable_shm)
             return 0;
 
-        return sk::shm_init(ctx_.shm_path_prefix.c_str(), ctx_.resume_mode);
+        return shm_init(ctx_.shm_path_prefix.c_str(), ctx_.resume_mode);
     }
 
     int make_daemon() {
@@ -534,7 +534,7 @@ private:
 
     int register_bus() {
         if (ctx_.disable_bus) return 0;
-        return sk::bus::register_bus(ctx_.bus_shm_path.c_str(), ctx_.id, ctx_.bus_node_size, ctx_.bus_node_count);
+        return bus::register_bus(ctx_.bus_shm_path.c_str(), ctx_.id, ctx_.bus_node_size, ctx_.bus_node_count);
     }
 
     int create_loop() {
@@ -575,8 +575,8 @@ private:
         ret = sig_watcher_->watch(SIGUSR2);
         if (ret != 0) return ret;
 
-        sk_info("signal: BUS_INCOMING(%d), action: recv", sk::bus::BUS_INCOMING_SIGNO);
-        ret = sig_watcher_->watch(sk::bus::BUS_INCOMING_SIGNO);
+        sk_info("signal: BUS_INCOMING(%d), action: recv", bus::BUS_INCOMING_SIGNO);
+        ret = sig_watcher_->watch(bus::BUS_INCOMING_SIGNO);
         if (ret != 0) return ret;
 
         return sig_watcher_->start();
@@ -590,7 +590,7 @@ private:
     Config cfg_;
     server_context ctx_;
     uv_loop_t *loop_;
-    sk::signal_watcher *sig_watcher_;
+    class signal_watcher *sig_watcher_;
     std::unique_ptr<heap_timer> stop_timer_;
 };
 
