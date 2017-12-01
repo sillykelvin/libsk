@@ -4,13 +4,33 @@
 #+DATE:      2015-06-19
 
 
-1. Make =INVALID_OFFSET= a member of =shm_mgr=, like =npos= in =std::string=.
+- Some containers only have =emplace()= function, add a =push(const V& v)=,
+  otherwise, a default constructor must be provided. Or, add a variadic
+  version function =emplace(Args&& args...)= to call the constructor which
+  needs some parameters.
 
-2. Some containers only have =emplace()= function, add a =push(const V& v)=,
-   otherwise, a default constructor must be provided. Or, add a variadic
-   version function =emplace(Args&& args...)= to call the constructor which
-   needs some parameters.
+- =operator++= and =operator--= in iterator of =fixed_rbtree= are not bug-free,
+  if the iterator points to =end()=, through =++= is meaningless, but =--= is
+  meaningful, but currently this operation will not work.
 
-3. =operator++= and =operator--= in iterator of =fixed_rbtree= are not
-   bug-free, if the iterator points to =end()=, through =++= is meaningless,
-   but =--= is meaningful, but currently this operation will not work.
+- change function call =sk::shm_xxx()= to =shm_xxx()=, omit the prefix
+  namespace =sk::=
+
+- add back all missing =report()= functions in *shm* system
+
+- remove utility/config.h
+
+- change all =namespace sk= -> =NS_BEGIN(sk)=
+
+- =shm_size= in config file is not needed anymore (in *server.h*)
+
+- in *shm_timer.cpp*, the list head in =timer_vector= is allocated dynamically,
+  actually we don't need this, just put them in =timer_vector=, and then get a
+  =shm_ptr= from the raw pointer
+
+- the bit count in *guid.cpp* is not reasonable, improve it, and also, the guid
+  key -> value map is not needed, remove it
+
+- all function parameters with type =shm_address/shm_ptr= should be called by
+  const reference, currently they are called by value
+
