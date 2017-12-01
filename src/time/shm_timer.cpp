@@ -108,7 +108,7 @@ struct timer_vector {
 class shm_timer_mgr {
 public:
     explicit shm_timer_mgr(int time_offset_sec)
-        : loop_(nullptr), current_tick_(0) {
+        : current_tick_(0) {
         time_offset_.tv_sec = time_offset_sec;
         time_offset_.tv_usec = 0;
 
@@ -127,7 +127,6 @@ public:
         // shm_timer, this will save a lot of empty ticks
         timer->start_forever(TIMER_PRECISION_MS, TIMER_PRECISION_MS);
 
-        loop_ = loop;
         tick_timer_ = std::unique_ptr<heap_timer>(timer);
         return 0;
     }
@@ -278,9 +277,8 @@ private:
     using timer_vector_node = sk::time::timer_vector<TVN_SIZE>;
     using timer_vector_root = sk::time::timer_vector<TVR_SIZE>;
 
-    // BE CAREFUL, the following two members should be
+    // BE CAREFUL, the following member should be
     // initialized after every process restarting
-    uv_loop_t *loop_;
     std::unique_ptr<heap_timer> tick_timer_;
 
     s64 current_tick_;            // current tick
@@ -336,16 +334,16 @@ shm_timer_ptr shm_timer::start(s64 timeout_ms, s64 repeat_ms, int repeat_count,
 
 shm_timer_ptr shm_timer::construct(size_t extra_len) {
     size_t mem_len  = sizeof(shm_timer) + extra_len;
-    shm_timer_ptr ptr(shm_malloc(mem_len));
+    shm_ptr<void> ptr = shm_malloc(mem_len);
     if (!ptr) return nullptr;
 
     new (ptr.get()) shm_timer();
-    return ptr;
+    return shm_timer_ptr(ptr.address());
 }
 
 void shm_timer::destruct(shm_timer_ptr ptr) {
     ptr->~shm_timer();
-    shm_free(shm_ptr<void>(ptr));
+    shm_free(shm_ptr<void>(ptr.address()));
 }
 
 int init(uv_loop_t *loop, int time_offset_sec) {
@@ -356,9 +354,17 @@ int init(uv_loop_t *loop, int time_offset_sec) {
     return mgr->init(loop);
 }
 
-void stop() { if (mgr) mgr->stop(); }
-void fini() { shm_delete_singleton<shm_timer_mgr>(SHM_SINGLETON_SHM_TIMER_MGR); }
-int  now()  { return mgr->current_sec(); }
+void stop() {
+    if (mgr) mgr->stop();
+}
+
+void fini() {
+    shm_delete_singleton<shm_timer_mgr>(SHM_SINGLETON_SHM_TIMER_MGR);
+}
+
+int now() {
+    return mgr->current_sec();
+}
 
 NS_END(time)
 NS_END(sk)

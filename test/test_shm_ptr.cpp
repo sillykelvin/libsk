@@ -2,8 +2,7 @@
 #include <iostream>
 #include "libsk.h"
 
-#define SHM_MGR_KEY         (0x77777)
-#define SHM_SIZE            (102400)
+#define SHM_PATH_PREFIX "/libsk-test"
 
 using namespace std;
 using namespace sk;
@@ -21,7 +20,7 @@ struct ptr_test {
 };
 
 TEST(shm_ptr, shm_ptr) {
-    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    int ret = shm_init(SHM_PATH_PREFIX, false);
     ASSERT_TRUE(ret == 0);
 
     shm_ptr<ptr_test> ptr;
@@ -29,15 +28,14 @@ TEST(shm_ptr, shm_ptr) {
 
     ptr = shm_new<ptr_test>();
     ASSERT_TRUE(!!ptr);
-    ASSERT_TRUE(ptr.mid != MID_NULL);
 
     ASSERT_TRUE(ptr->a == 7);
     ASSERT_STREQ(ptr->str, "hello world");
     ASSERT_TRUE((*ptr).a == 7);
     ASSERT_STREQ((*ptr).str, "hello world");
 
-    shm_del(ptr);
+    shm_delete(ptr);
 
-    ret = shm_mgr_fini();
+    ret = shm_fini();
     ASSERT_TRUE(ret == 0);
 }

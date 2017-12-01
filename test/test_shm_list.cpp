@@ -1,9 +1,8 @@
 #include <gtest/gtest.h>
 #include <iostream>
-#include "libsk.h"
+#include <libsk.h>
 
-#define SHM_MGR_KEY         (0x77777)
-#define SHM_SIZE            (1024000)
+#define SHM_PATH_PREFIX "/libsk-test"
 
 using namespace sk;
 using namespace sk::detail;
@@ -28,7 +27,7 @@ struct list_test {
 typedef shm_list<list_test> list;
 
 TEST(shm_list, normal) {
-    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    int ret = shm_init(SHM_PATH_PREFIX, false);
     ASSERT_TRUE(ret == 0);
 
     shm_ptr<list> l = shm_new<list>();
@@ -113,14 +112,14 @@ TEST(shm_list, normal) {
     t.a = 111;
     l->push_front(t);
 
-    shm_del(l);
+    shm_delete(l);
 
-    ret = shm_mgr_fini();
+    ret = shm_fini();
     ASSERT_TRUE(ret == 0);
 }
 
 TEST(shm_list, loop_erase) {
-    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    int ret = shm_init(SHM_PATH_PREFIX, false);
     ASSERT_TRUE(ret == 0);
 
     shm_ptr<list> l = shm_new<list>();
@@ -158,8 +157,8 @@ TEST(shm_list, loop_erase) {
             ASSERT_TRUE(it != l->end());
     }
 
-    shm_del(l);
+    shm_delete(l);
 
-    ret = shm_mgr_fini();
+    ret = shm_fini();
     ASSERT_TRUE(ret == 0);
 }

@@ -1,10 +1,9 @@
 #include <gtest/gtest.h>
 #include <iostream>
-#include "libsk.h"
+#include <libsk.h>
 
-#define SHM_MGR_KEY         (0x77777)
-#define SHM_SIZE            (1024000)
-#define SHM_HASH_NODE_COUNT (10)
+#define SHM_PATH_PREFIX     "/libsk-test"
+#define SHM_HASH_NODE_COUNT 10
 
 using namespace std;
 using namespace sk;
@@ -26,7 +25,7 @@ struct hash_test {
 typedef shm_hash<u64, hash_test, hashfunc> hash;
 
 TEST(shm_hash, normal) {
-    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    int ret = shm_init(SHM_PATH_PREFIX, false);
     ASSERT_TRUE(ret == 0);
 
     shm_ptr<::hash> h = shm_new<::hash>(SHM_HASH_NODE_COUNT);
@@ -79,14 +78,14 @@ TEST(shm_hash, normal) {
 
     ASSERT_TRUE(h->insert(99, t) == 0);
 
-    shm_del(h);
+    shm_delete(h);
 
-    ret = shm_mgr_fini();
+    ret = shm_fini();
     ASSERT_TRUE(ret == 0);
 }
 
 TEST(shm_hash, iterator) {
-    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    int ret = shm_init(SHM_PATH_PREFIX, false);
     ASSERT_TRUE(ret == 0);
 
     shm_ptr<::hash> h = shm_new<::hash>(SHM_HASH_NODE_COUNT);
@@ -186,8 +185,8 @@ TEST(shm_hash, iterator) {
     for (; it != h->end(); ++it)
         cout << "key: " << it->first << ", value: " << it->second.a << endl;
 
-    shm_del(h);
+    shm_delete(h);
 
-    ret = shm_mgr_fini();
+    ret = shm_fini();
     ASSERT_TRUE(ret == 0);
 }

@@ -26,13 +26,10 @@ void shm_free_singleton(int id);
 
 template<typename T, typename... Args>
 shm_ptr<T> shm_new(Args&&... args) {
-    shm_ptr<T> ptr = shm_malloc(sizeof(T));
-    if (likely(ptr)) {
-        T *t = ptr.get();
-        new (t) T(std::forward<Args>(args)...);
-    }
+    shm_ptr<void> ptr = shm_malloc(sizeof(T));
+    if (likely(ptr)) new (ptr.get()) T(std::forward<Args>(args)...);
 
-    return ptr;
+    return shm_ptr<T>(ptr.address());
 }
 
 template<typename T>
@@ -40,7 +37,30 @@ void shm_delete(shm_ptr<T> ptr) {
     if (likely(ptr)) {
         T *t = ptr.get();
         t->~T();
-        shm_free(ptr);
+        shm_free(shm_ptr<void>(ptr.address()));
+    }
+}
+
+template<typename T, typename... Args>
+shm_ptr<T> shm_array_new(size_t n, Args&&... args) {
+    shm_ptr<void> ptr = shm_malloc(sizeof(T) * n);
+    if (likely(ptr)) {
+        T *array = cast_ptr(T, ptr.get());
+        for (size_t i = 0; i < n; ++i)
+            new (array + i) T(std::forward<Args>(args)...);
+    }
+
+    return shm_ptr<T>(ptr.address());
+}
+
+template<typename T>
+void shm_array_delete(shm_ptr<T> ptr, size_t n) {
+    if (likely(ptr)) {
+        T *array = ptr.get();
+        for (size_t i = 0; i < n; ++i)
+            (array + i)->~T();
+
+        shm_free(shm_ptr<void>(ptr.address()));
     }
 }
 
@@ -57,22 +77,20 @@ void shm_delete(shm_ptr<T> ptr) {
 template<typename T, typename... Args>
 shm_ptr<T> shm_get_singleton(int id, Args&&... args) {
     bool first_call = false;
-    shm_ptr<T> ptr(shm_get_singleton(id, sizeof(T), &first_call));
-    if (ptr && first_call) {
-        T *t = ptr.get();
-        new (t) T(std::forward<Args>(args)...);
-    }
+    shm_ptr<void> ptr = shm_get_singleton(id, sizeof(T), &first_call);
+    if (ptr && first_call) new (ptr.get()) T(std::forward<Args>(args)...);
 
-    return ptr;
+    return shm_ptr<T>(ptr.address());
 }
 
 template<typename T>
 void shm_delete_singleton(int id) {
     check_retnone(shm_has_singleton(id));
 
-    shm_ptr<T> ptr(shm_get_singleton(id, sizeof(T), nullptr));
-    ptr->~T();
+    shm_ptr<void> ptr = shm_get_singleton(id, sizeof(T), nullptr);
+    assert_retnone(ptr);
 
+    shm_ptr<T>(ptr.address())->~T();
     shm_free_singleton(id);
 }
 

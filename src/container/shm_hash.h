@@ -131,21 +131,17 @@ struct shm_hash {
         total_node_count = max_node_count;
         used_node_count = 0;
         bucket_size = detail::hash_size(max_node_count);
+        buckets = shm_array_new<pointer>(bucket_size, nullptr);
 
-        size_t bucket_memory = bucket_size * sizeof(pointer);
-
-        buckets = shm_malloc(bucket_memory);
         if (!buckets) {
             sk_error("memory allocation failure, bucket_size<%lu>.", bucket_size);
             assert_retnone(0);
         }
-
-        memset(buckets.get(), 0x00, bucket_memory);
     }
 
     ~shm_hash() {
         clear();
-        shm_free(buckets);
+        shm_array_delete(buckets, bucket_size);
     }
 
     bool full() const {
@@ -283,7 +279,7 @@ struct shm_hash {
         size_t hashcode = F(n->data.first);
         size_t idx = hashcode % bucket_size;
 
-        pointer *base_addr = buckets.get();
+        const pointer *base_addr = buckets.get();
         pointer p = base_addr[idx];
         assert_retval(p, NULL);
 

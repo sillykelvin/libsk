@@ -25,13 +25,8 @@ public:
     shm_serial_t serial() const { return addr_ >> shm_config::ADDRESS_BITS; }
     shm_offset_t offset() const { return addr_ &  shm_config::ADDRESS_MASK; }
 
-    void *get();
-    const void *get() const;
-
-    template<typename T> T *as() { return static_cast<T*>(get()); }
-    template<typename T> const T *as() const { return static_cast<const T*>(get()); }
-
-    // shm_address& operator=(std::nullptr_t) { addr_ = 0; }
+    void *get() const;
+    template<typename T> T *as() const { return static_cast<T*>(get()); }
 
     bool operator==(const shm_address& that) const { return addr_ == that.addr_; }
     bool operator!=(const shm_address& that) const { return addr_ != that.addr_; }

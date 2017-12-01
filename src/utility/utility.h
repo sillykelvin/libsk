@@ -1,20 +1,18 @@
 #ifndef UTILITY_H
 #define UTILITY_H
 
-namespace sk {
+#include <utility/types.h>
+
+NS_BEGIN(sk)
 
 template<typename T>
 const T& max(const T& a, const T& b) {
-    if (a < b)
-        return b;
-    return a;
+    return a < b ? b : a;
 }
 
 template<typename T>
 const T& min(const T& a, const T& b) {
-    if (a < b)
-        return a;
-    return b;
+    return a < b ? a : b;
 }
 
 /*
@@ -31,7 +29,6 @@ struct pair {
     pair() : first(), second() {}
     pair(const T1& first, const T2& second) : first(first), second(second) {}
 };
-
 
 /*
  * single type selector, used for set/rbtree to extract key from value
@@ -83,6 +80,17 @@ struct if_<false, T, F> {
     typedef F type;
 };
 
-} // namespace sk
+/*
+ * define a type according to a bool value
+ */
+template<bool, typename T = void>
+struct enable_if;
+
+template<typename T>
+struct enable_if<true, T> {
+    typedef T type;
+};
+
+NS_END(sk)
 
 #endif // UTILITY_H

@@ -1,9 +1,8 @@
 #include <gtest/gtest.h>
 #include <iostream>
-#include "libsk.h"
+#include <libsk.h>
 
-#define SHM_MGR_KEY         (0x77777)
-#define SHM_SIZE            (102400)
+#define SHM_PATH_PREFIX "/libsk-test"
 
 using namespace sk;
 
@@ -18,7 +17,7 @@ struct set_test {
 typedef shm_set<set_test> set;
 
 TEST(shm_set, normal) {
-    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    int ret = shm_init(SHM_PATH_PREFIX, false);
     ASSERT_TRUE(ret == 0);
 
     {
@@ -59,11 +58,11 @@ TEST(shm_set, normal) {
             ASSERT_TRUE(i.it->i == i.i);
     }
 
-    shm_mgr_fini();
+    shm_fini();
 }
 
 TEST(shm_set, loop_erase) {
-    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    int ret = shm_init(SHM_PATH_PREFIX, false);
     ASSERT_TRUE(ret == 0);
 
     {
@@ -98,5 +97,5 @@ TEST(shm_set, loop_erase) {
         }
     }
 
-    shm_mgr_fini();
+    shm_fini();
 }

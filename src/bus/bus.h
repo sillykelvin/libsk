@@ -8,12 +8,12 @@
 NS_BEGIN(sk)
 NS_BEGIN(bus)
 
-static const key_t  DEFAULT_BUS_KEY        = 1799;
-static const size_t DEFAULT_BUS_NODE_SIZE  = 128;
-static const size_t DEFAULT_BUS_NODE_COUNT = 102400;
-static const s32    BUS_INCOMING_SIGNO     = SIGRTMIN + 7;
-static const s32    BUS_OUTGOING_SIGNO     = SIGRTMIN + 8;
-static const s32    BUS_REGISTRATION_SIGNO = SIGRTMIN + 9;
+static const char * const DEFAULT_BUS_SHM_PATH   = "/libsk-bus.mmap";
+static const size_t       DEFAULT_BUS_NODE_SIZE  = 128;
+static const size_t       DEFAULT_BUS_NODE_COUNT = 102400;
+static const s32          BUS_INCOMING_SIGNO     = SIGRTMIN + 7;
+static const s32          BUS_OUTGOING_SIGNO     = SIGRTMIN + 8;
+static const s32          BUS_REGISTRATION_SIGNO = SIGRTMIN + 9;
 
 /**
  * @brief parse a bus id from string

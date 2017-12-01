@@ -1,100 +1,87 @@
 #include <gtest/gtest.h>
-#include "libsk.h"
-#include "shm/detail/shm_segment.h"
-#include "shm/detail/page_map.h"
-#include "shm/detail/metadata_allocator.h"
+#include <shm/detail/shm_object.h>
+#include <shm/detail/metadata_allocator.h>
+#include <libsk.h>
 
-#define SHM_SEG_KEY         (0x77)
-#define SHM_MGR_KEY         (0x77777)
-#define SHM_SIZE            (102400)
+#define SHM_PATH        "/libsk-test.mmap"
+#define SHM_PATH_PREFIX "/libsk-test"
 
 using namespace sk;
 using namespace sk::detail;
 
-TEST(shm_mgr, shm_segment) {
-    {
-        sk::detail::shm_segment seg;
-        int ret = seg.init(SHM_SEG_KEY, sizeof(int), false);
-        ASSERT_TRUE(ret == 0);
+TEST(shm_mgr, shm_object) {
+    int shmfd = -1;
+    size_t page_size = cast_size(sysconf(_SC_PAGESIZE));
+    size_t real_size = 1;
+    size_t mmap_size = page_size * 2;
 
-        int *n = cast_ptr(int, seg.address());
-        ASSERT_TRUE(n != NULL);
+    shmfd = shm_object_create(SHM_PATH, &real_size);
+    ASSERT_TRUE(shmfd != -1);
+    ASSERT_TRUE(real_size == page_size);
 
-        *n = 77;
+    void *addr = shm_object_map(shmfd, &mmap_size, page_size);
+    ASSERT_TRUE(addr);
+    ASSERT_TRUE(mmap_size == page_size * 2);
 
-        seg.release();
-    }
+    close(shmfd);
+    memset(addr, 0x00, page_size);
 
-    {
-        sk::detail::shm_segment seg;
-        int ret = seg.init(SHM_SEG_KEY, sizeof(int), true);
-        ASSERT_TRUE(ret == 0);
+    int *array = cast_ptr(int, addr);
+    const int array_len = (int) (page_size / sizeof(int));
+    for (int i = 0; i < array_len; ++i)
+        array[i] = 77 + i;
 
-        int *n = cast_ptr(int, seg.address());
-        ASSERT_TRUE(n != NULL);
-        ASSERT_TRUE(*n == 77);
-    }
+    real_size = page_size + page_size - 1;
+    shmfd = shm_object_resize(SHM_PATH, &real_size);
+    ASSERT_TRUE(shmfd != -1);
+    ASSERT_TRUE(real_size == page_size * 2);
 
-    {
-        sk::detail::shm_segment seg;
-        int ret = seg.init(SHM_SEG_KEY, sizeof(int), true);
-        ASSERT_TRUE(ret != 0);
-    }
-}
+    close(shmfd);
+    for (int i = 0; i < array_len; ++i)
+        ASSERT_TRUE(array[i] == 77 + i);
 
-TEST(shm_mgr, page_map) {
-    page_map m;
-    m.init();
+    real_size = 0;
+    shm_object_unmap(addr, mmap_size);
+    shmfd = shm_object_attach(SHM_PATH, &real_size);
+    ASSERT_TRUE(shmfd != -1);
+    ASSERT_TRUE(real_size == page_size * 2);
 
-    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
-    ASSERT_TRUE(ret == 0);
+    addr = shm_object_map(shmfd, &mmap_size, page_size);
+    ASSERT_TRUE(addr);
+    ASSERT_TRUE(mmap_size == page_size * 2);
 
-    offset_ptr<void> tmp(777);
+    close(shmfd);
+    array = cast_ptr(int, addr);
+    for (int i = 0; i < array_len; ++i)
+        ASSERT_TRUE(array[i] == 77 + i);
 
-    ASSERT_TRUE(m.get(0) == offset_ptr<void>::null());
-    m.set(0, tmp);
-    ASSERT_TRUE(m.get(0) == tmp);
+    shmfd = shm_object_create(SHM_PATH, &real_size);
+    ASSERT_TRUE(shmfd == -1);
 
-    ASSERT_TRUE(m.get(1) == offset_ptr<void>::null());
-    m.set(1, tmp);
-    ASSERT_TRUE(m.get(1) == tmp);
+    shm_object_unmap(addr, mmap_size);
+    shm_object_unlink(SHM_PATH);
 
-    ASSERT_TRUE(m.get(222) == offset_ptr<void>::null());
-    m.set(222, tmp);
-    ASSERT_TRUE(m.get(222) == tmp);
-
-    ASSERT_TRUE(m.get(3333) == offset_ptr<void>::null());
-    m.set(3333, tmp);
-    ASSERT_TRUE(m.get(3333) == tmp);
-
-    ASSERT_TRUE(m.get(99999) == offset_ptr<void>::null());
-    m.set(99999, tmp);
-    ASSERT_TRUE(m.get(99999) == tmp);
-
-    shm_mgr_fini();
+    shmfd = shm_object_attach(SHM_PATH, &real_size);
+    ASSERT_TRUE(shmfd == -1);
 }
 
 TEST(shm_mgr, metadata_allocator) {
     metadata_allocator<size_t> allocator;
-    allocator.init();
 
-    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    int ret = shm_init(SHM_PATH_PREFIX, false);
     ASSERT_TRUE(ret == 0);
 
-    offset_ptr<size_t> ptr = allocator.allocate();
-    ASSERT_TRUE(ptr != offset_ptr<size_t>::null());
-    offset_t offset = ptr.offset;
+    shm_address addr = allocator.allocate();
+    ASSERT_TRUE(!!addr);
 
-    allocator.deallocate(ptr);
-    ptr = allocator.allocate();
-    ASSERT_TRUE(ptr != offset_ptr<size_t>::null());
-    ASSERT_TRUE(ptr.offset == offset);
+    shm_offset_t offset = addr.offset();
+    allocator.deallocate(addr);
+    addr = allocator.allocate();
+    ASSERT_TRUE(!!addr);
+    ASSERT_TRUE(addr.offset() == offset);
 
-    allocator.deallocate(ptr);
-    ASSERT_TRUE(allocator.stat.alloc_count == 2);
-    ASSERT_TRUE(allocator.stat.free_count == 2);
-
-    shm_mgr_fini();
+    allocator.deallocate(addr);
+    shm_fini();
 }
 
 TEST(shm_mgr, size_map) {

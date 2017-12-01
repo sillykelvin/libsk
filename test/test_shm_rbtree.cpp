@@ -1,9 +1,8 @@
 #include <gtest/gtest.h>
 #include <iostream>
-#include "libsk.h"
+#include <libsk.h>
 
-#define SHM_MGR_KEY         (0x77777)
-#define SHM_SIZE            (102400)
+#define SHM_PATH_PREFIX "/libsk-test"
 
 using namespace std;
 using namespace sk;
@@ -56,7 +55,7 @@ void print_tree(tree *t) {
 
 
 TEST(shm_rbtree, normal) {
-    int ret = shm_mgr_init(SHM_MGR_KEY, SHM_SIZE, false);
+    int ret = shm_init(SHM_PATH_PREFIX, false);
     ASSERT_TRUE(ret == 0);
 
     // must create a scope here to make sure tree is destructed
@@ -165,5 +164,5 @@ TEST(shm_rbtree, normal) {
         ASSERT_TRUE(t.__check());
     }
 
-    shm_mgr_fini();
+    shm_fini();
 }

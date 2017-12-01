@@ -25,9 +25,9 @@ inline std::string default_pid_file(int area_id, int zone_id,
     return buf;
 }
 
-inline std::string default_shm_path(int area_id, int zone_id,
-                                    int func_id, int inst_id,
-                                    const char *program) {
+inline std::string default_shm_path_prefix(int area_id, int zone_id,
+                                           int func_id, int inst_id,
+                                           const char *program) {
     char buf[256];
     snprintf(buf, sizeof(buf), "/%s_%d.%d.%d.%d",
              program, area_id, zone_id, func_id, inst_id);
@@ -35,18 +35,18 @@ inline std::string default_shm_path(int area_id, int zone_id,
 }
 
 struct server_context {
-    int id;                // id of this server, it is also the bus id
-    std::string str_id;    // string id of this server, like "x.x.x.x"
-    std::string pid_file;  // pid file location
-    std::string shm_path;  // shm object location prefix
-    std::string log_conf;  // log config location
-    std::string proc_conf; // process config location
-    bool resume_mode;      // if the process is running under resume mode
-    bool disable_shm;      // disable shared memory manager explicitly
-    bool disable_bus;      // disable bus explicitly
-    int bus_key;           // shm key of bus, if disable_bus is true, this one is useless
-    size_t bus_node_size;  // bus node size, if disable_bus is true, this one is useless
-    size_t bus_node_count; // bus node count, if disable_bus is true, this one is useless
+    int id;                      // id of this server, it is also the bus id
+    std::string str_id;          // string id of this server, like "x.x.x.x"
+    std::string pid_file;        // pid file location
+    std::string log_conf;        // log config location
+    std::string proc_conf;       // process config location
+    std::string bus_shm_path;    // shm object path of bus, is useless if disable_bus is true
+    std::string shm_path_prefix; // shm object path prefix of shm managed by this server
+    bool resume_mode;            // if the process is running under resume mode
+    bool disable_shm;            // disable shared memory manager explicitly
+    bool disable_bus;            // disable bus explicitly
+    size_t bus_node_size;        // bus node size, is useless if disable_bus is true
+    size_t bus_node_count;       // bus node count, is useless if disable_bus is true
 
     // do NOT touch the following fields unless you know what you are doing
 
@@ -59,7 +59,6 @@ struct server_context {
         resume_mode(false),
         disable_shm(false),
         disable_bus(false),
-        bus_key(0),
         bus_node_size(0),
         bus_node_count(0),
         hotfixing(false)
@@ -81,7 +80,8 @@ public:
 
     MAKE_NONCOPYABLE(server);
 
-    static const size_t MAX_MSG_PER_PROC = 1000; // process 1000 messages in one run
+    // process 1000 messages at most in one run to avoid starvation
+    static const size_t MAX_MSG_PER_PROC = 1000;
 
     static Derived& get() {
         if (likely(instance_))
@@ -161,11 +161,6 @@ private:
         ret = on_init();
         if (ret != 0) return ret;
 
-        if (sk::time::time_enabled(nullptr)) {
-            ret = start_tick_timer(1000);
-            if (ret != 0) return ret;
-        }
-
         /*
          * in guid.cpp, we create a guid based on current
          * time and self-increased serial, however, if we
@@ -194,12 +189,7 @@ private:
         int ret = 0;
 
         do {
-            if (ctx_.hotfixing) {
-                sk_info("hotfixing, exit.");
-                break;
-            }
-
-            ret = on_fini();
+            if (!ctx_.hotfixing) ret = on_fini();
 
             if (buf_) {
                 free(buf_);
@@ -210,6 +200,11 @@ private:
             if (sig_watcher_) {
                 delete sig_watcher_;
                 sig_watcher_ = nullptr;
+            }
+
+            if (ctx_.hotfixing) {
+                sk_info("hotfixing, exit.");
+                break;
             }
 
             if (!ctx_.disable_bus)
@@ -228,7 +223,6 @@ private:
         sk_assert(!stop_timer_);
 
         sig_watcher_->stop();
-        if (tick_timer_) tick_timer_->stop();
 
         stop_timer_ = std::unique_ptr<heap_timer>(new heap_timer(loop_,
                                                                  std::bind(&this_type::on_stop_timeout,
@@ -298,40 +292,6 @@ protected:
      * own signals with sig_watcher_, otherwise, no override is needed
      */
     virtual void on_signal(const signalfd_siginfo *info) {}
-
-    /**
-     * @brief on_tick will be called every fixed milliseconds, the interval
-     * is specified at start_tick_timer(...) call
-     *
-     * NOTE: this function will never be called if the tick timer is not enabled,
-     * see @start_tick_timer() for more information
-     */
-    virtual void on_tick() {}
-
-    /**
-     * @brief start_tick_timer will start the tick timer
-     * @param tick_ms: the interval(in ms) that the tick timer will run
-     * @return 0 if started successfully, error otherwise
-     *
-     * NOTE: if the derived class initializes own time manager with
-     * sk::time::init_time(...) in on_init(...) call, the base class
-     * will call this function to start a tick timer which runs every
-     * 1 second to update the time manager's current time, however,
-     * the derived class can also call this function to start the tick
-     * timer, but if the time manager is enabled, it's better to start
-     * the tick timer with a interval <= 1 second.
-     */
-    int start_tick_timer(u64 tick_ms) {
-        if (tick_timer_) return 0;
-
-        tick_timer_ = std::unique_ptr<heap_timer>(new heap_timer(loop_,
-                                                                 std::bind(&this_type::on_tick_timeout,
-                                                                           this, std::placeholders::_1)));
-        if (!tick_timer_) return -ENOMEM;
-
-        tick_timer_->start_forever(tick_ms, tick_ms);
-        return 0;
-    }
 
 private:
     void recv_bus_msg() {
@@ -416,15 +376,6 @@ private:
         stop_timer_->start_once(500);
     }
 
-    void on_tick_timeout(heap_timer *timer) {
-        sk_assert(timer == tick_timer_.get());
-
-        if (sk::time::time_enabled(nullptr))
-            sk::time::update_time();
-
-        return on_tick();
-    }
-
 private:
     int init_parser(option_parser& p) {
         int ret = 0;
@@ -435,13 +386,16 @@ private:
         ret = p.register_option(0, "pid-file", "pid file location", "PID", false, &ctx_.pid_file);
         if (ret != 0) return ret;
 
-        ret = p.register_option(0, "shm-path", "shm object location prefix", "PATH", false, &ctx_.shm_path);
-        if (ret != 0) return ret;
-
         ret = p.register_option(0, "log-conf", "log config location", "CONF", false, &ctx_.log_conf);
         if (ret != 0) return ret;
 
         ret = p.register_option(0, "proc-conf", "process config location", "CONF", false, &ctx_.proc_conf);
+        if (ret != 0) return ret;
+
+        ret = p.register_option(0, "bus-shm-path", "bus shm object location", "PATH", false, &ctx_.bus_shm_path);
+        if (ret != 0) return ret;
+
+        ret = p.register_option(0, "shm-path-prefix", "shm object location prefix", "PATH", false, &ctx_.shm_path_prefix);
         if (ret != 0) return ret;
 
         ret = p.register_option(0, "resume", "process start in resume mode or not", nullptr, false, &ctx_.resume_mode);
@@ -451,9 +405,6 @@ private:
         if (ret != 0) return ret;
 
         ret = p.register_option(0, "disable-bus", "do NOT use bus", nullptr, false, &ctx_.disable_bus);
-        if (ret != 0) return ret;
-
-        ret = p.register_option(0, "bus-key", "shm key of bus, 1799 by default", "KEY", false, &ctx_.bus_key);
         if (ret != 0) return ret;
 
         ret = p.register_option(0, "bus-node-size", "bus node size of bus, 128 by default", "SIZE", false, &ctx_.bus_node_size);
@@ -466,7 +417,7 @@ private:
     }
 
     int init_context(const char *program) {
-        assert_retval(!ctx_.str_id.empty(), -1);
+        if (ctx_.str_id.empty()) return -EINVAL;
 
         int area_id, zone_id, func_id, inst_id;
         ctx_.id = sk::bus::from_string(ctx_.str_id.c_str(),
@@ -477,10 +428,6 @@ private:
         // the command line option does not provide a pid file
         if (ctx_.pid_file.empty())
             ctx_.pid_file = default_pid_file(area_id, zone_id, func_id, inst_id, program);
-
-        // the command line option does not provide a shm path
-        if (ctx_.shm_path.empty())
-            ctx_.shm_path = default_shm_path(area_id, zone_id, func_id, inst_id, program);
 
         // the command line option does not provide a log config
         if (ctx_.log_conf.empty()) {
@@ -496,20 +443,21 @@ private:
             ctx_.proc_conf = buf;
         }
 
-        // the command line option does not provide a bus key
-        if (ctx_.bus_key == 0) {
-            ctx_.bus_key = sk::bus::DEFAULT_BUS_KEY;
-        }
+        // the command line option does not provide a bus shm path
+        if (ctx_.bus_shm_path.empty())
+            ctx_.bus_shm_path = sk::bus::DEFAULT_BUS_SHM_PATH;
+
+        // the command line option does not provide a shm path prefix
+        if (ctx_.shm_path_prefix.empty())
+            ctx_.shm_path_prefix = default_shm_path_prefix(area_id, zone_id, func_id, inst_id, program);
 
         // the command line option does not provide a bus node size
-        if (ctx_.bus_node_size == 0) {
+        if (ctx_.bus_node_size == 0)
             ctx_.bus_node_size = sk::bus::DEFAULT_BUS_NODE_SIZE;
-        }
 
         // the command line option does not provide a bus node count
-        if (ctx_.bus_node_count == 0) {
+        if (ctx_.bus_node_count == 0)
             ctx_.bus_node_count = sk::bus::DEFAULT_BUS_NODE_COUNT;
-        }
 
         return 0;
     }
@@ -523,7 +471,7 @@ private:
     }
 
     int init_buf() {
-        buf_len_ = 1 * 1024 * 1024; // 1MB
+        buf_len_ = 1ULL * 1024 * 1024; // 1MB
         buf_ = malloc(buf_len_);
         if (buf_) return 0;
 
@@ -538,7 +486,7 @@ private:
         if (ctx_.disable_shm)
             return 0;
 
-        return sk::shm_init(ctx_.shm_path.c_str(), ctx_.resume_mode);
+        return sk::shm_init(ctx_.shm_path_prefix.c_str(), ctx_.resume_mode);
     }
 
     int make_daemon() {
@@ -585,16 +533,13 @@ private:
     }
 
     int register_bus() {
-        if (ctx_.disable_bus)
-            return 0;
-
-        return sk::bus::register_bus(ctx_.bus_key, ctx_.id, ctx_.bus_node_size, ctx_.bus_node_count);
+        if (ctx_.disable_bus) return 0;
+        return sk::bus::register_bus(ctx_.bus_shm_path.c_str(), ctx_.id, ctx_.bus_node_size, ctx_.bus_node_count);
     }
 
     int create_loop() {
         loop_ = uv_default_loop();
-        if (!loop_) return -1;
-        return 0;
+        return loop_ ? 0 : -1;
     }
 
     int watch_signal() {
@@ -647,7 +592,6 @@ private:
     uv_loop_t *loop_;
     sk::signal_watcher *sig_watcher_;
     std::unique_ptr<heap_timer> stop_timer_;
-    std::unique_ptr<heap_timer> tick_timer_;
 };
 
 template<typename C, typename D>
