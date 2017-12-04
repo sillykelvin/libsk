@@ -245,7 +245,7 @@ void *shm_mgr::addr2ptr(shm_address addr) {
 shm_address shm_mgr::ptr2addr(const void *ptr) {
     assert_retval(ptr, nullptr);
 
-    shm_serial_t serials[] = {
+    static const shm_serial_t serials[] = {
         shm_config::METADATA_SERIAL_NUM, shm_config::USERDATA_SERIAL_NUM
     };
     static_assert(array_len(blocks_) == array_len(serials), "array size mismatch");
@@ -273,12 +273,12 @@ shm_address shm_mgr::sbrk(int block_index, size_t *bytes) {
         sk_assert((real_bytes & shm_config::PAGE_MASK) == 0);
     }
 
-    shm_serial_t serials[] = {
+    static const shm_serial_t serials[] = {
         shm_config::METADATA_SERIAL_NUM, shm_config::USERDATA_SERIAL_NUM
     };
     static_assert(array_len(blocks_) == array_len(serials), "array size mismatch");
 
-    size_t grow_size[] = {
+    static const size_t grow_size[] = {
         shm_config::METADATA_GROW_SIZE, shm_config::USERDATA_GROW_SIZE
     };
     static_assert(array_len(blocks_) == array_len(grow_size), "array size mismatch");
