@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <iostream>
-#include "libsk.h"
+#include <libsk.h>
 
 #define MAX_SIZE 5
 
@@ -12,10 +12,17 @@ struct list_test {
     list_test(int i) : i(i) {}
 };
 
-typedef fixed_list<list_test, MAX_SIZE> list;
+typedef fixed_list<list_test, MAX_SIZE> xxlist;
 
 TEST(fixed_list, normal) {
-    list l;
+    xxlist l;
+
+    // compile error, intended
+    // list::iterator xxx0(const_cast<const list&>(l).begin());
+    xxlist::iterator xxx1(l.begin());
+    xxlist::const_iterator xxx2(const_cast<const list&>(l).begin());
+    xxlist::const_iterator xxx3(l.begin());
+    xxlist::const_iterator xxx4(xxx1);
 
     ASSERT_TRUE(l.empty());
     ASSERT_TRUE(l.size() == 0);
@@ -34,7 +41,7 @@ TEST(fixed_list, normal) {
     ASSERT_TRUE(l.full());
     ASSERT_TRUE(l.insert(l.end(), list_test(999)) != 0);
 
-    list::iterator it = l.begin();
+    xxlist::iterator it = l.begin();
     ASSERT_TRUE(it != l.end());
     ASSERT_TRUE(it->i == 1);
     ++it;

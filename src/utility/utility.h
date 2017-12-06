@@ -134,6 +134,22 @@ struct or_<T, U, V, W...> : if_<T::value, T, or_<U, V, W...>>::type {};
 template<typename T>
 struct not_ : if_<T::value, std::false_type, std::true_type>::type {};
 
+/*
+ * choose a bigger number between N1 and N2
+ */
+template<size_t N1, size_t N2>
+struct bigger {
+    static const size_t value = N1 > N2 ? N1 : N2;
+};
+
+/*
+ * choose a smaller number between N1 and N2
+ */
+template<size_t N1, size_t N2>
+struct smaller {
+    static const size_t value = N1 < N2 ? N1 : N2;
+};
+
 NS_END(sk)
 
 #endif // UTILITY_H

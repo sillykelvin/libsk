@@ -24,20 +24,20 @@ struct list_test {
     }
 };
 
-typedef shm_list<list_test> list;
+typedef shm_list<list_test> xxlist;
 
 TEST(shm_list, normal) {
     int ret = shm_init(SHM_PATH_PREFIX, false);
     ASSERT_TRUE(ret == 0);
 
-    shm_ptr<list> l = shm_new<list>();
+    shm_ptr<xxlist> l = shm_new<xxlist>();
     ASSERT_TRUE(l && l->empty() && l->size() == 0);
     ASSERT_TRUE(l->front() == NULL);
     ASSERT_TRUE(l->back() == NULL);
     ASSERT_TRUE(l->begin() == l->end());
 
     list_test t;
-    list::iterator it = l->begin();
+    xxlist::iterator it = l->begin();
 
     t.a = 4;
     ret = l->insert(l->end(), t);
@@ -122,7 +122,7 @@ TEST(shm_list, loop_erase) {
     int ret = shm_init(SHM_PATH_PREFIX, false);
     ASSERT_TRUE(ret == 0);
 
-    shm_ptr<list> l = shm_new<list>();
+    shm_ptr<xxlist> l = shm_new<xxlist>();
     ASSERT_TRUE(!!l);
 
     const int max_size = 20;
@@ -139,7 +139,7 @@ TEST(shm_list, loop_erase) {
     vec.push_back(9);
     vec.push_back(15);
     vec.push_back(19);
-    for (list::iterator it = l->begin(), end = l->end(); it != end;) {
+    for (xxlist::iterator it = l->begin(), end = l->end(); it != end;) {
         if (std::find(vec.begin(), vec.end(), it->a) != vec.end()) {
             l->erase(it++);
         } else {
@@ -150,7 +150,7 @@ TEST(shm_list, loop_erase) {
     for (int i = 0; i < max_size; ++i) {
         list_test t;
         t.a = i;
-        list::iterator it = std::find(l->begin(), l->end(), t);
+        xxlist::iterator it = std::find(l->begin(), l->end(), t);
         if (std::find(vec.begin(), vec.end(), i) != vec.end())
             ASSERT_TRUE(it == l->end());
         else
