@@ -130,30 +130,32 @@ shm_ptr<void> shm_mgr::malloc(size_t bytes) {
     if (!addr) return nullptr;
 
     shm_meta *meta = addr.as<shm_meta>();
-    meta->magic = SK_MAGIC;
-    meta->serial = serial_;
+    meta->magic  = SK_MAGIC;
+    meta->serial = serial_++;
 
-    ++serial_;
     if ((serial_ & shm_config::SERIAL_MASK) == 0)
         serial_ = shm_config::MIN_VALID_SERIAL_NUM;
+
+    addr = shm_address(meta->serial, addr.offset() + sizeof(shm_meta));
 
     sk_trace("=> shm_mgr::malloc(): size<%lu>, serial<%lu>, offset<%lu>, mid<%lu>.",
              bytes, meta->serial, addr.offset(), addr.as_u64());
 
     memset(sk::byte_offset<void>(meta, sizeof(shm_meta)), 0x00, bytes - sizeof(shm_meta));
-    return shm_ptr<void>(shm_address(meta->serial, addr.offset()));
+    return shm_ptr<void>(addr);
 }
 
-void shm_mgr::free(shm_ptr<void> ptr) {
+void shm_mgr::free(const shm_ptr<void>& ptr) {
     assert_retnone(ptr);
 
     ++stat_.free_count;
 
     shm_address addr = ptr.address();
-    assert_retnone(addr.serial() > shm_config::MIN_VALID_SERIAL_NUM);
-    assert_retnone(addr.offset() > sizeof(shm_meta));
+    assert_retnone(addr.serial() >= shm_config::MIN_VALID_SERIAL_NUM);
+    assert_retnone(addr.offset() >= sizeof(shm_meta));
 
-    shm_meta *meta = addr.as<shm_meta>();
+    shm_address base(shm_config::USERDATA_SERIAL_NUM, addr.offset() - sizeof(shm_meta));
+    shm_meta *meta = base.as<shm_meta>();
     if (meta->magic != SK_MAGIC || meta->serial != addr.serial()) {
         sk_warn("invalid free, expected<serial: %lu>, actual<serial: %lu>, addr<%lu>.",
                 addr.serial(), meta->serial, addr.as_u64());
@@ -163,7 +165,7 @@ void shm_mgr::free(shm_ptr<void> ptr) {
     meta->magic  = 0;
     meta->serial = 0;
 
-    shm_address sp = page_heap_->find_span(addr);
+    shm_address sp = page_heap_->find_span(base);
     assert_retnone(sp);
 
     span *s = sp.as<span>();
@@ -174,7 +176,7 @@ void shm_mgr::free(shm_ptr<void> ptr) {
         return page_heap_->deallocate_span(sp);
     }
 
-    chunk_cache_->deallocate_chunk(addr, sp);
+    chunk_cache_->deallocate_chunk(base, sp);
 }
 
 bool shm_mgr::has_singleton(int id) {
@@ -216,7 +218,7 @@ shm_address shm_mgr::allocate_userdata(size_t *bytes) {
     return sbrk(USERDATA_BLOCK, bytes);
 }
 
-void *shm_mgr::addr2ptr(shm_address addr) {
+void *shm_mgr::addr2ptr(const shm_address& addr) {
     assert_retval(addr, nullptr);
 
     if (addr.serial() < shm_config::MIN_VALID_SERIAL_NUM) {
@@ -230,9 +232,10 @@ void *shm_mgr::addr2ptr(shm_address addr) {
     }
 
     shm_block *block = &blocks_[USERDATA_BLOCK];
-    assert_retval(addr.offset() + sizeof(shm_meta) < block->used_size, nullptr);
+    assert_retval(addr.offset() < block->used_size, nullptr);
+    assert_retval(addr.offset() >= sizeof(shm_meta), nullptr);
 
-    shm_meta *meta = sk::byte_offset<shm_meta>(block->addr, addr.offset());
+    shm_meta *meta = sk::byte_offset<shm_meta>(block->addr, addr.offset() - sizeof(shm_meta));
     if (meta->magic != SK_MAGIC || meta->serial != addr.serial()) {
         sk_warn("object freed? expected<serial: %lu>, actual<serial: %lu>, addr<%lu>.",
                 addr.serial(), meta->serial, addr.as_u64());

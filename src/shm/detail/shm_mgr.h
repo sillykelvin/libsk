@@ -20,7 +20,7 @@ public:
     int on_resume(const char *basename);
 
     shm_ptr<void> malloc(size_t bytes);
-    void free(shm_ptr<void> ptr);
+    void free(const shm_ptr<void>& ptr);
 
     bool has_singleton(int id);
     shm_ptr<void> get_singleton(int id, size_t bytes, bool *first_call);
@@ -29,7 +29,7 @@ public:
     shm_address allocate_metadata(size_t *bytes);
     shm_address allocate_userdata(size_t *bytes);
 
-    void *addr2ptr(shm_address addr);
+    void *addr2ptr(const shm_address& addr);
     shm_address ptr2addr(const void *ptr);
 
     class size_map *size_map() { return size_map_; }

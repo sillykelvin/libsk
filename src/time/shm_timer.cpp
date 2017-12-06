@@ -334,16 +334,15 @@ shm_timer_ptr shm_timer::start(s64 timeout_ms, s64 repeat_ms, int repeat_count,
 
 shm_timer_ptr shm_timer::construct(size_t extra_len) {
     size_t mem_len  = sizeof(shm_timer) + extra_len;
-    shm_ptr<void> ptr = shm_malloc(mem_len);
-    if (!ptr) return nullptr;
+    shm_timer_ptr ptr = shm_malloc(mem_len);
+    if (ptr) new (ptr.get()) shm_timer();
 
-    new (ptr.get()) shm_timer();
-    return shm_timer_ptr(ptr.address());
+    return ptr;
 }
 
 void shm_timer::destruct(shm_timer_ptr ptr) {
     ptr->~shm_timer();
-    shm_free(shm_ptr<void>(ptr.address()));
+    shm_free(ptr);
 }
 
 int init(uv_loop_t *loop, int time_offset_sec) {

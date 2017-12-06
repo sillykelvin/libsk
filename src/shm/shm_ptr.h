@@ -19,21 +19,29 @@ public:
     shm_ptr& operator=(std::nullptr_t) { addr_ = nullptr; return *this; }
 
     /*
-     * the "explicit" keyword is not added here to make some convenient implicit
-     * conversion available, however, we need to use the standard type traits
-     * is_convertible<...> to confirm if a type U can be converted into T
-     * the following operator=(...) function is similar to this
+     * this constructor enables some convenient implicit conversions, however,
+     * at least one constraint below must be passed to enable the conversion:
+     *
+     * 0. U* can be converted into T*, checked by std::is_convertible<...>
+     * 1. U is void, checked by std::is_void<...>
+     *
+     * the following operator=(...) function is similar to this one
      */
-    template<typename U,
-             typename enable_if<std::is_convertible<U*, T*>::value>::type>
+    template<typename U, typename =
+             typename enable_if<or_<std::is_void<U>,
+                                    std::is_convertible<U*, T*>>::value>::type>
     shm_ptr(const shm_ptr<U>& ptr) : addr_(ptr.address()) {}
 
-    template<typename U,
-             typename enable_if<std::is_convertible<U*, T*>::value>::type>
+    template<typename U, typename =
+             typename enable_if<or_<std::is_void<U>,
+                                    std::is_convertible<U*, T*>>::value>::type>
     shm_ptr& operator=(const shm_ptr<U>& that) {
         addr_ = that.address();
         return *this;
     }
+
+    template<typename U, U* = static_cast<U*>(static_cast<T*>(nullptr))>
+    shm_ptr<U> cast() const { return shm_ptr<U>(addr_); }
 
     const detail::shm_address& address() const { return addr_; }
 

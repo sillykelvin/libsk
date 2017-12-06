@@ -28,8 +28,23 @@ public:
     void *get() const;
     template<typename T> T *as() const { return static_cast<T*>(get()); }
 
-    bool operator==(const shm_address& that) const { return addr_ == that.addr_; }
-    bool operator!=(const shm_address& that) const { return addr_ != that.addr_; }
+    bool operator==(const shm_address& that) const {
+        if (addr_ == that.addr_) return true;
+        if (offset() != that.offset()) return false;
+
+        // the two serials are different, it must be a special userdata serial
+        // and a generated serial if they are equal
+        shm_serial_t this_serial = this->serial();
+        shm_serial_t that_serial = that.serial();
+        return (this_serial >= shm_config::MIN_VALID_SERIAL_NUM &&
+                that_serial == shm_config::USERDATA_SERIAL_NUM) ||
+               (that_serial >= shm_config::MIN_VALID_SERIAL_NUM &&
+                this_serial == shm_config::USERDATA_SERIAL_NUM);
+    }
+
+    bool operator!=(const shm_address& that) const {
+        return !operator==(that);
+    }
 
     explicit operator bool() const { return serial() != 0; }
 

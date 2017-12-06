@@ -18,7 +18,7 @@ enum shm_singleton_id {
 };
 
 shm_ptr<void> shm_malloc(size_t bytes);
-void shm_free(shm_ptr<void> ptr);
+void shm_free(const shm_ptr<void>& ptr);
 
 bool shm_has_singleton(int id);
 shm_ptr<void> shm_get_singleton(int id, size_t bytes, bool *first_call);
@@ -26,31 +26,31 @@ void shm_free_singleton(int id);
 
 template<typename T, typename... Args>
 shm_ptr<T> shm_new(Args&&... args) {
-    shm_ptr<void> ptr = shm_malloc(sizeof(T));
+    shm_ptr<T> ptr = shm_malloc(sizeof(T));
     if (likely(ptr)) new (ptr.get()) T(std::forward<Args>(args)...);
 
-    return shm_ptr<T>(ptr.address());
+    return ptr;
 }
 
 template<typename T>
-void shm_delete(shm_ptr<T> ptr) {
+void shm_delete(const shm_ptr<T>& ptr) {
     if (likely(ptr)) {
         T *t = ptr.get();
         t->~T();
-        shm_free(shm_ptr<void>(ptr.address()));
+        shm_free(ptr);
     }
 }
 
 template<typename T, typename... Args>
 shm_ptr<T> shm_array_new(size_t n, Args&&... args) {
-    shm_ptr<void> ptr = shm_malloc(sizeof(T) * n);
+    shm_ptr<T> ptr = shm_malloc(sizeof(T) * n);
     if (likely(ptr)) {
-        T *array = cast_ptr(T, ptr.get());
+        T *array = ptr.get();
         for (size_t i = 0; i < n; ++i)
             new (array + i) T(std::forward<Args>(args)...);
     }
 
-    return shm_ptr<T>(ptr.address());
+    return ptr;
 }
 
 template<typename T>
@@ -60,7 +60,7 @@ void shm_array_delete(shm_ptr<T> ptr, size_t n) {
         for (size_t i = 0; i < n; ++i)
             (array + i)->~T();
 
-        shm_free(shm_ptr<void>(ptr.address()));
+        shm_free(ptr);
     }
 }
 
@@ -77,20 +77,20 @@ void shm_array_delete(shm_ptr<T> ptr, size_t n) {
 template<typename T, typename... Args>
 shm_ptr<T> shm_get_singleton(int id, Args&&... args) {
     bool first_call = false;
-    shm_ptr<void> ptr = shm_get_singleton(id, sizeof(T), &first_call);
+    shm_ptr<T> ptr = shm_get_singleton(id, sizeof(T), &first_call);
     if (ptr && first_call) new (ptr.get()) T(std::forward<Args>(args)...);
 
-    return shm_ptr<T>(ptr.address());
+    return ptr;
 }
 
 template<typename T>
 void shm_delete_singleton(int id) {
     check_retnone(shm_has_singleton(id));
 
-    shm_ptr<void> ptr = shm_get_singleton(id, sizeof(T), nullptr);
+    shm_ptr<T> ptr = shm_get_singleton(id, sizeof(T), nullptr);
     assert_retnone(ptr);
 
-    shm_ptr<T>(ptr.address())->~T();
+    ptr->~T();
     shm_free_singleton(id);
 }
 
@@ -100,7 +100,7 @@ detail::page_heap *shm_page_heap();
 detail::shm_address shm_allocate_metadata(size_t *bytes);
 detail::shm_address shm_allocate_userdata(size_t *bytes);
 
-void *shm_addr2ptr(detail::shm_address addr);
+void *shm_addr2ptr(const detail::shm_address& addr);
 detail::shm_address shm_ptr2addr(const void *ptr);
 
 int shm_init(const char *basename, bool resume_mode);

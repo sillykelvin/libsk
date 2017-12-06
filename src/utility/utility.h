@@ -1,6 +1,7 @@
 #ifndef UTILITY_H
 #define UTILITY_H
 
+#include <type_traits>
 #include <utility/types.h>
 
 NS_BEGIN(sk)
@@ -90,6 +91,48 @@ template<typename T>
 struct enable_if<true, T> {
     typedef T type;
 };
+
+/*
+ * define the logical "and" operator
+ */
+template<typename...>
+struct and_;
+
+template<>
+struct and_<> : std::true_type {};
+
+template<typename T>
+struct and_<T> : T {};
+
+template<typename T, typename U>
+struct and_<T, U> : if_<T::value, U, T>::type {};
+
+template<typename T, typename U, typename V, typename... W>
+struct and_<T, U, V, W...> : if_<T::value, and_<U, V, W...>, T>::type {};
+
+/*
+ * define the logical "or" operator
+ */
+template<typename...>
+struct or_;
+
+template<>
+struct or_<> : std::false_type {};
+
+template<typename T>
+struct or_<T> : T {};
+
+template<typename T, typename U>
+struct or_<T, U> : if_<T::value, T, U>::type {};
+
+template<typename T, typename U, typename V, typename... W>
+struct or_<T, U, V, W...> : if_<T::value, T, or_<U, V, W...>>::type {};
+
+/*
+ * define the logical "not" operator
+ */
+template<typename T>
+struct not_ : if_<T::value, std::false_type, std::true_type>::type {};
 
 NS_END(sk)
 

@@ -18,7 +18,7 @@ shm_ptr<void> shm_malloc(size_t bytes) {
     return ctx->mgr->malloc(bytes);
 }
 
-void shm_free(shm_ptr<void> ptr) {
+void shm_free(const shm_ptr<void>& ptr) {
     ctx->mgr->free(ptr);
 }
 
@@ -50,7 +50,7 @@ shm_address shm_allocate_userdata(size_t *bytes) {
     return ctx->mgr->allocate_userdata(bytes);
 }
 
-void *shm_addr2ptr(shm_address addr) {
+void *shm_addr2ptr(const shm_address& addr) {
     return ctx->mgr->addr2ptr(addr);
 }
 
