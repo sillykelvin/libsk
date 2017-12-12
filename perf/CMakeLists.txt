@@ -12,4 +12,4 @@ include_directories("${PROJECT_SOURCE_DIR}/deps/hiredis/include")
 link_directories("${PROJECT_SOURCE_DIR}/lib")
 
 add_executable(test-perf ${SRC_LIST})
-target_link_libraries(test-perf sk)
+target_link_libraries(test-perf sk rt)

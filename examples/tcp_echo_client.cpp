@@ -1,3 +1,10 @@
+/************************************************
+ *
+ * TODO: the example is old, have to comment it
+ * out to compile, may update new example later
+ *
+ ************************************************
+
 #include <iostream>
 #include "net/tcp_client.h"
 #include "net/reactor_epoll.h"
@@ -98,3 +105,7 @@ int main() {
     cout << "exit" << endl;
     return 0;
 }
+
+************************************************/
+
+int main() { return 0; }

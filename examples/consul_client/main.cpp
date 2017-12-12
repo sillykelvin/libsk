@@ -1,3 +1,10 @@
+/************************************************
+ *
+ * TODO: the example is old, have to comment it
+ * out to compile, may update new example later
+ *
+ ************************************************
+
 #include <iostream>
 #include <libsk.h>
 
@@ -68,3 +75,7 @@ int main() {
 
     return 0;
 }
+
+************************************************/
+
+int main() { return 0; }
