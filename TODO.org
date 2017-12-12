@@ -7,6 +7,9 @@
 - refine all the containers, try to integrate algorithms of fixed_xxx and shm_xxx,
   just use allocators and type traits to distinguish them
 
+- extend the =fixed_xxx= containers, let the allocator allocates memory from the
+  cache first, if the memory is not enough, then allocate memory from shm
+
 - Some containers only have =emplace()= function, add a =push(const V& v)=,
   otherwise, a default constructor must be provided. Or, add a variadic
   version function =emplace(Args&& args...)= to call the constructor which
