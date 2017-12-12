@@ -14,51 +14,51 @@ static struct shm_context {
     char path[shm_config::MAX_PATH_SIZE];
 } *ctx = nullptr;
 
-shm_ptr<void> shm_malloc(size_t bytes) {
+shm_ptr<void> sk::shm_malloc(size_t bytes) {
     return ctx->mgr->malloc(bytes);
 }
 
-void shm_free(const shm_ptr<void>& ptr) {
+void sk::shm_free(const shm_ptr<void>& ptr) {
     ctx->mgr->free(ptr);
 }
 
-bool shm_has_singleton(int id) {
+bool sk::shm_has_singleton(int id) {
     return ctx->mgr->has_singleton(id);
 }
 
-shm_ptr<void> shm_get_singleton(int id, size_t bytes, bool *first_call) {
+shm_ptr<void> sk::shm_get_singleton(int id, size_t bytes, bool *first_call) {
     return ctx->mgr->get_singleton(id, bytes, first_call);
 }
 
-void shm_free_singleton(int id) {
+void sk::shm_free_singleton(int id) {
     return ctx->mgr->free_singleton(id);
 }
 
-size_map *shm_size_map() {
+size_map *sk::shm_size_map() {
     return ctx->mgr->size_map();
 }
 
-page_heap *shm_page_heap() {
+page_heap *sk::shm_page_heap() {
     return ctx->mgr->page_heap();
 }
 
-shm_address shm_allocate_metadata(size_t *bytes) {
+shm_address sk::shm_allocate_metadata(size_t *bytes) {
     return ctx->mgr->allocate_metadata(bytes);
 }
 
-shm_address shm_allocate_userdata(size_t *bytes) {
+shm_address sk::shm_allocate_userdata(size_t *bytes) {
     return ctx->mgr->allocate_userdata(bytes);
 }
 
-void *shm_addr2ptr(const shm_address& addr) {
+void *sk::shm_addr2ptr(const shm_address& addr) {
     return ctx->mgr->addr2ptr(addr);
 }
 
-detail::shm_address shm_ptr2addr(const void *ptr) {
+shm_address sk::shm_ptr2addr(const void *ptr) {
     return ctx->mgr->ptr2addr(ptr);
 }
 
-int shm_init(const char *basename, bool resume_mode) {
+int sk::shm_init(const char *basename, bool resume_mode) {
     if (ctx) {
         sk_warn("shm mgr already initialized.");
         return 0;
@@ -111,7 +111,7 @@ int shm_init(const char *basename, bool resume_mode) {
     return 0;
 }
 
-int shm_fini() {
+int sk::shm_fini() {
     if (!ctx) return 0;
 
     ctx->mgr->~shm_mgr();

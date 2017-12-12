@@ -3,9 +3,7 @@
 #include <shm/detail/shm_object.h>
 #include <utility/assert_helper.h>
 
-using namespace sk::detail;
-
-int shm_object_create(const char *path, size_t *size) {
+int sk::detail::shm_object_create(const char *path, size_t *size) {
     int shmfd = shm_open(path, O_CREAT | O_TRUNC | O_RDWR, 0666);
     if (shmfd == -1) {
         sk_error("shm_open() error: %s.", strerror(errno));
@@ -35,7 +33,7 @@ int shm_object_create(const char *path, size_t *size) {
     return shmfd;
 }
 
-int shm_object_attach(const char *path, size_t *size) {
+int sk::detail::shm_object_attach(const char *path, size_t *size) {
     int shmfd = shm_open(path, O_RDWR, 0666);
     if (shmfd == -1) {
         sk_error("shm_open() error: %s.", strerror(errno));
@@ -58,7 +56,7 @@ int shm_object_attach(const char *path, size_t *size) {
     return shmfd;
 }
 
-int shm_object_resize(const char *path, size_t *size) {
+int sk::detail::shm_object_resize(const char *path, size_t *size) {
     int shmfd = shm_open(path, O_RDWR, 0666);
     if (shmfd == -1) {
         sk_error("shm_open() error: %s.", strerror(errno));
@@ -87,7 +85,7 @@ int shm_object_resize(const char *path, size_t *size) {
     return shmfd;
 }
 
-void *shm_object_map(int shmfd, size_t *mmap_size, size_t alignment) {
+void *sk::detail::shm_object_map(int shmfd, size_t *mmap_size, size_t alignment) {
     const size_t page_size = cast_size(sysconf(_SC_PAGESIZE));
 
     // alignment should be at least page_size due to mmap() call
@@ -148,12 +146,12 @@ void *shm_object_map(int shmfd, size_t *mmap_size, size_t alignment) {
     return addr;
 }
 
-void shm_object_unmap(void *addr, size_t mmap_size) {
+void sk::detail::shm_object_unmap(void *addr, size_t mmap_size) {
     int ret = munmap(addr, mmap_size);
     sk_assert(ret == 0);
 }
 
-void shm_object_unlink(const char *path) {
+void sk::detail::shm_object_unlink(const char *path) {
     int ret = shm_unlink(path);
     sk_assert(ret == 0);
 }
