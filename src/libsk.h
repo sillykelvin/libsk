@@ -40,8 +40,8 @@
 #include <utility/singleton.h>
 #include <common/lock_guard.h>
 #include <container/shm_set.h>
-#include <core/file_watcher.h>
 #include <container/shm_map.h>
+#include <core/file_watcher.h>
 #include <common/murmurhash3.h>
 #include <utility/error_info.h>
 #include <container/shm_hash.h>
@@ -56,7 +56,6 @@
 #include <utility/time_helper.h>
 #include <utility/math_helper.h>
 #include <container/fixed_list.h>
-#include <container/shm_rbtree.h>
 #include <server/option_parser.h>
 #include <utility/assert_helper.h>
 #include <utility/string_helper.h>
@@ -64,7 +63,6 @@
 #include <redis/redis_connection.h>
 #include <container/fixed_bitmap.h>
 #include <container/fixed_vector.h>
-#include <container/fixed_rbtree.h>
 #include <container/fixed_string.h>
 #include <container/extensible_hash.h>
 #include <container/referable_array.h>

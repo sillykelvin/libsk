@@ -223,8 +223,8 @@ public:
 
     template<typename Iterator>
     void assign(Iterator first, Iterator last) {
-        iterator it = begin();
-        iterator end = end();
+        iterator it = this->begin();
+        iterator end = this->end();
         for (; first != last && it != end; ++first, ++it)
             *it = *first;
 
