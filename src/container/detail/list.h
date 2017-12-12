@@ -28,7 +28,9 @@ struct list_node_base {
 template<typename T>
 struct list_node : public list_node_base {
     template<typename... Args>
-    list_node(Args&&... args) : list_node_base(), value(std::forward<Args>(args)...) {}
+    list_node(Args&&... args)
+        : list_node_base(),
+          value(std::forward<Args>(args)...) {}
 
     T value;
 };
@@ -46,14 +48,14 @@ struct list_iterator {
      * the following definitions are required by std::iterator_traits
      * when using algorithms defined in std, e.g. std::find_if(...)
      */
-    typedef std::bidirectional_iterator_tag       iterator_category;
-    typedef T                                     value_type;
-    typedef ptrdiff_t                             difference_type;
-    typedef typename if_<C, const T*, T*>::type   pointer;
-    typedef typename if_<C, const T&, T&>::type   reference;
+    typedef std::bidirectional_iterator_tag     iterator_category;
+    typedef T                                   value_type;
+    typedef ptrdiff_t                           difference_type;
+    typedef typename if_<C, const T*, T*>::type pointer;
+    typedef typename if_<C, const T&, T&>::type reference;
 
     list_iterator() : ptr(nullptr) {}
-    explicit list_iterator(base_pointer p) : ptr(p) {}
+    explicit list_iterator(const base_pointer& p) : ptr(p) {}
 
     /*
      * this constructor enables implicit convertion: iterator -> const_iterator

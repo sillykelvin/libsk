@@ -6,8 +6,11 @@
 
 NS_BEGIN(sk)
 
+template<typename T>
+using fixed_list_node = detail::list_node<T>;
+
 template<typename T, size_t N>
-using fixed_list_allocator = detail::fixed_allocator<bigger<sizeof(T), sizeof(shm_ptr<void>)>::value, N>;
+using fixed_list_allocator = detail::fixed_allocator<sizeof(fixed_list_node<T>), N>;
 
 template<typename T, size_t N>
 using fixed_list = detail::list<T, fixed_list_allocator<T, N>>;
