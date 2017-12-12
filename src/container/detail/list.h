@@ -168,7 +168,7 @@ public:
 
     template<typename... Args>
     T *emplace_back(Args&&... args) {
-        base_pointer node = construct(args...);
+        base_pointer node = construct(std::forward<Args>(args)...);
         if (!node) return nullptr;
 
         link(node, sentinel_);
@@ -177,7 +177,7 @@ public:
 
     template<typename... Args>
     T *emplace_front(Args&&... args) {
-        base_pointer node = construct(args...);
+        base_pointer node = construct(std::forward<Args>(args)...);
         if (!node) return nullptr;
 
         link(node, sentinel_->next);
@@ -194,7 +194,7 @@ public:
 
     template<typename... Args>
     T *emplace(const_iterator pos, Args&&... args) {
-        base_pointer node = construct(args...);
+        base_pointer node = construct(std::forward<Args>(args)...);
         if (!node) return nullptr;
 
         link(node, pos.ptr);
