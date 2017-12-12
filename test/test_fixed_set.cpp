@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <iostream>
-#include "libsk.h"
+#include <libsk.h>
 
 #define MAX_SIZE 20
 
@@ -15,6 +15,35 @@ struct set_test {
 };
 
 typedef fixed_set<set_test, MAX_SIZE> set;
+
+#define INDENT_STEP 4
+void print_tree_aux(const set& s, const set::base_pointer& n, int indent) {
+    if (!n) {
+        printf("<empty tree>");
+        return;
+    }
+
+    if (n->right)
+        print_tree_aux(s, n->right, indent + INDENT_STEP);
+
+    for (int i = 0; i < indent; ++i)
+        printf(" ");
+
+    if (!n->red)
+        printf("B%d\n", n.cast<set::node_type>()->value.i);
+    else
+        printf("R%d\n", n.cast<set::node_type>()->value.i);
+
+    if (n->left)
+        print_tree_aux(s, n->left, indent + INDENT_STEP);
+}
+
+void print_tree(const set& s) {
+    // WOW, what a tricky and dirty way!!
+    set::base_pointer root = s.end().ptr->parent;
+    print_tree_aux(s, root, 0);
+    printf("=========================================\n");
+}
 
 TEST(fixed_set, normal) {
     set s;
@@ -37,12 +66,13 @@ TEST(fixed_set, normal) {
     ASSERT_TRUE(s.find(set_test(3)) != s.end());
     ASSERT_TRUE(s.find(set_test(3))->i == 3);
 
-    ASSERT_TRUE(s.insert(set_test(2)) == 0);
+    ASSERT_TRUE(s.emplace(2));
     ASSERT_TRUE(s.size() == 5);
-    ASSERT_TRUE(s.insert(set_test(6)) == 0);
+    ASSERT_TRUE(s.emplace(6));
     ASSERT_TRUE(s.size() == 6);
 
     set::iterator it = s.begin();
+    // it->i = 777; // compile error, intended
     ++it; ++it;
     s.erase(it);
     ASSERT_TRUE(s.find(set_test(3)) == s.end());
@@ -85,4 +115,55 @@ TEST(fixed_set, loop_erase) {
             ASSERT_TRUE(it != s.end());
         }
     }
+}
+
+TEST(fixed_set, visualization) {
+    set s;
+
+    s.emplace(4);
+    s.emplace(1);
+    s.emplace(7);
+    s.emplace(3);
+    ASSERT_TRUE(s.size() == 4);
+
+    print_tree(s);
+
+    s.emplace(0);
+    print_tree(s);
+
+    s.emplace(6);
+    print_tree(s);
+
+    s.emplace(2);
+    print_tree(s);
+
+    s.emplace(5);
+    print_tree(s);
+    ASSERT_TRUE(s.size() == 8);
+
+    s.erase(set_test(3));
+    print_tree(s);
+
+    s.erase(set_test(6));
+    print_tree(s);
+
+    s.erase(set_test(0));
+    print_tree(s);
+
+    s.erase(set_test(5));
+    print_tree(s);
+
+    s.erase(set_test(7));
+    print_tree(s);
+
+    s.erase(set_test(2));
+    print_tree(s);
+
+    s.erase(set_test(1));
+    print_tree(s);
+
+    s.erase(set_test(4));
+    print_tree(s);
+    ASSERT_TRUE(s.empty());
+    ASSERT_TRUE(s.size() == 0);
 }

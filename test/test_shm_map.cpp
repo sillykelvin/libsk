@@ -6,11 +6,15 @@
 
 using namespace sk;
 
+static int ctor_call_count = 0;
+static int dtor_call_count = 0;
+
 struct map_test {
     char c;
     int  i;
 
-    map_test(char c, int i) : c(c), i(i) {}
+    map_test(char c, int i) : c(c), i(i) { ctor_call_count++; }
+    ~map_test() { dtor_call_count++; }
 
     bool operator<(const map_test& that) const { return this->c < that.c; }
 };
@@ -28,11 +32,11 @@ TEST(shm_map, normal) {
         ASSERT_TRUE(m.size() == 0);
 
         int ret = 0;
-        ret = m.insert('a', map_test('a', 'a'));
+        ret = m.insert(make_pair('a', map_test('a', 'a')));
         ASSERT_TRUE(ret == 0);
-        ret = m.insert('b', map_test('b', 'b'));
+        ret = m.insert(make_pair('b', map_test('b', 'b')));
         ASSERT_TRUE(ret == 0);
-        ret = m.insert('c', map_test('c', 'c'));
+        ret = m.insert(make_pair('c', map_test('c', 'c')));
         ASSERT_TRUE(ret == 0);
 
         ASSERT_TRUE(!m.empty());
@@ -45,7 +49,7 @@ TEST(shm_map, normal) {
         m.erase(it);
         ASSERT_TRUE(m.find('a') == m.end());
 
-        ret = m.insert('a', map_test('a', 'a'));
+        ret = m.insert(make_pair('a', map_test('a', 'a')));
         ASSERT_TRUE(ret == 0);
         it = m.find('a');
         it->second.c = 'h';
@@ -71,6 +75,41 @@ TEST(shm_map, normal) {
     shm_fini();
 }
 
+TEST(shm_map, ctor_dtor) {
+    int ret = shm_init(SHM_PATH_PREFIX, false);
+    ASSERT_TRUE(ret == 0);
+
+    {
+        map m;
+        m.insert(make_pair('a', map_test('a', 'a')));
+        m.insert(make_pair('b', map_test('b', 'b')));
+        m.insert(make_pair('c', map_test('c', 'c')));
+        ASSERT_TRUE(m.size() == 3);
+        ASSERT_TRUE(ctor_call_count == 6);
+        ASSERT_TRUE(dtor_call_count == 3);
+
+        m.emplace('d', map_test('d', 'd'));
+        m.emplace('e', map_test('e', 'e'));
+        m.emplace('f', map_test('f', 'f'));
+        ASSERT_TRUE(m.size() == 6);
+        ASSERT_TRUE(ctor_call_count == 9);
+        ASSERT_TRUE(dtor_call_count == 3);
+
+        m.erase(m.begin());
+        m.erase(m.begin());
+        ASSERT_TRUE(m.size() == 4);
+        ASSERT_TRUE(ctor_call_count == 9);
+        ASSERT_TRUE(dtor_call_count == 5);
+
+        m.clear();
+        ASSERT_TRUE(m.size() == 0);
+        ASSERT_TRUE(ctor_call_count == 9);
+        ASSERT_TRUE(dtor_call_count == 9);
+    }
+
+    shm_fini();
+}
+
 TEST(shm_map, loop_erase) {
     int ret = shm_init(SHM_PATH_PREFIX, false);
     ASSERT_TRUE(ret == 0);
@@ -80,7 +119,7 @@ TEST(shm_map, loop_erase) {
 
         int ret = 0;
         for (int i = 0; i < 20; ++i) {
-            ret = m.insert(i, i);
+            ret = m.insert(make_pair(i, i));
             ASSERT_TRUE(ret == 0);
         }
 

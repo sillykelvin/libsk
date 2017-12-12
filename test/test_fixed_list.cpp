@@ -6,10 +6,14 @@
 
 using namespace sk;
 
+static int ctor_call_count = 0;
+static int dtor_call_count = 0;
+
 struct list_test {
     int i;
 
-    list_test(int i) : i(i) {}
+    list_test(int i) : i(i) { ctor_call_count++; }
+    ~list_test() { dtor_call_count++; }
 };
 
 typedef fixed_list<list_test, MAX_SIZE> xxlist;
@@ -20,7 +24,7 @@ TEST(fixed_list, normal) {
     // compile error, intended
     // list::iterator xxx0(const_cast<const list&>(l).begin());
     xxlist::iterator xxx1(l.begin());
-    xxlist::const_iterator xxx2(const_cast<const list&>(l).begin());
+    xxlist::const_iterator xxx2(const_cast<const xxlist&>(l).begin());
     xxlist::const_iterator xxx3(l.begin());
     xxlist::const_iterator xxx4(xxx1);
 
@@ -57,7 +61,6 @@ TEST(fixed_list, normal) {
     it--;
     ASSERT_TRUE(it->i == 3);
 
-
     ASSERT_TRUE(l.front()->i == 1);
     ASSERT_TRUE(l.back()->i == 5);
 
@@ -70,8 +73,69 @@ TEST(fixed_list, normal) {
     ASSERT_TRUE(l.back()->i == 4);
     ASSERT_TRUE(l.push_back(list_test(5)) == 0);
 
+    l.pop_back();
+    ASSERT_TRUE(l.emplace_back(6));
+
+    l.pop_front();
+    ASSERT_TRUE(l.emplace_front(7));
+
+    ASSERT_TRUE(l.back()->i == 6);
+    ASSERT_TRUE(l.front()->i == 7);
+
+    std::vector<int> vec;
+    vec.push_back(0);
+    vec.push_back(1);
+    vec.push_back(2);
+
+    l.assign(vec.begin(), vec.end());
+    ASSERT_TRUE(l.size() == 3);
+    ASSERT_TRUE(l.front()->i == 0);
+    l.pop_front();
+    ASSERT_TRUE(l.front()->i == 1);
+    l.pop_front();
+    ASSERT_TRUE(l.front()->i == 2);
+
+    l.assign(vec.begin(), vec.end());
+    ASSERT_TRUE(l.size() == 3);
+
     l.clear();
     ASSERT_TRUE(l.empty());
+}
+
+TEST(fixed_list, copy_assign) {
+    xxlist l1;
+
+    l1.emplace_back(0);
+    l1.emplace_back(1);
+    l1.emplace_back(2);
+    ASSERT_TRUE(l1.size() == 3);
+
+    xxlist l2(l1);
+    ASSERT_TRUE(l2.size() == 3);
+
+    xxlist::iterator it = l2.begin();
+    ASSERT_TRUE(it->i == 0);
+    ++it;
+    ASSERT_TRUE(it->i == 1);
+    ++it;
+    ASSERT_TRUE(it->i == 2);
+
+    l1.emplace_back(3);
+    l1.emplace_back(4);
+
+    l2 = l1;
+    ASSERT_TRUE(l2.size() == 5);
+    it = l2.end();
+    --it;
+    ASSERT_TRUE(it->i == 4);
+    --it;
+    ASSERT_TRUE(it->i == 3);
+    --it;
+    ASSERT_TRUE(it->i == 2);
+    --it;
+    ASSERT_TRUE(it->i == 1);
+    --it;
+    ASSERT_TRUE(it->i == 0);
 }
 
 TEST(fixed_list, loop_erase) {
@@ -126,4 +190,25 @@ TEST(fixed_list, loop_erase) {
         else
             ASSERT_TRUE(it != l.end());
     }
+}
+
+TEST(fixed_list, ctor_dtor) {
+    xxlist l;
+
+    ctor_call_count = 0;
+    dtor_call_count = 0;
+    l.push_back(list_test(1));
+    l.push_front(list_test(2));
+    l.emplace_back(3);
+    l.emplace_front(4);
+    ASSERT_TRUE(ctor_call_count == 6);
+    ASSERT_TRUE(dtor_call_count == 2);
+
+    l.erase(l.begin());
+    ASSERT_TRUE(ctor_call_count == 6);
+    ASSERT_TRUE(dtor_call_count == 3);
+
+    l.clear();
+    ASSERT_TRUE(ctor_call_count == 6);
+    ASSERT_TRUE(dtor_call_count == 6);
 }

@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <iostream>
-#include "libsk.h"
+#include <libsk.h>
 
 #define MAX_SIZE 20
 
@@ -27,11 +27,11 @@ TEST(fixed_map, normal) {
     ASSERT_TRUE(m.capacity() == MAX_SIZE);
 
     int ret = 0;
-    ret = m.insert('a', map_test('a', 'a'));
+    ret = m.insert(make_pair('a', map_test('a', 'a')));
     ASSERT_TRUE(ret == 0);
-    ret = m.insert('b', map_test('b', 'b'));
+    ret = m.insert(make_pair('b', map_test('b', 'b')));
     ASSERT_TRUE(ret == 0);
-    ret = m.insert('c', map_test('c', 'c'));
+    ret = m.insert(make_pair('c', map_test('c', 'c')));
     ASSERT_TRUE(ret == 0);
 
     ASSERT_TRUE(!m.empty());
@@ -44,7 +44,7 @@ TEST(fixed_map, normal) {
     m.erase(it);
     ASSERT_TRUE(m.find('a') == m.end());
 
-    ret = m.insert('a', map_test('a', 'a'));
+    ret = m.insert(make_pair('a', map_test('a', 'a')));
     ASSERT_TRUE(ret == 0);
     it = m.find('a');
     it->second.c = 'h';
@@ -53,12 +53,18 @@ TEST(fixed_map, normal) {
     ASSERT_TRUE(m.find('a')->second.i == 'h');
 
     it = m.begin();
+    // it->first = 'x'; // should not compile, intended
     ++it;
     it->second.c = 'i';
     it->second.i = 'i';
     ++it;
     it->second.c = 'j';
     it->second.i = 'j';
+
+    map::const_iterator cit = it;
+    // cit->first    = 'x'; // should not compile, intended
+    // cit->second.c = 'x';
+    // cit->second.i = 'x';
 
     for (struct {char c; map::iterator it;} i = {'a', m.begin()}; i.it != m.end(); ++i.it, ++i.c) {
         ASSERT_TRUE(i.it->first == i.c);
@@ -69,7 +75,7 @@ TEST(fixed_map, normal) {
     m.clear();
     for (int i = 0; i < MAX_SIZE; ++i) {
         char c = 'a' + i;
-        m[c] = map_test(c, c);
+        ASSERT_TRUE(m.emplace(c, map_test(c, c)));
         ASSERT_TRUE(m.find(c) != m.end());
     }
 
@@ -85,11 +91,11 @@ TEST(fixed_map, loop_erase) {
 
     int ret = 0;
     for (int i = 0; i < MAX_SIZE; ++i) {
-        ret = m.insert(i, i);
+        ret = m.insert(make_pair(i, i));
         ASSERT_TRUE(ret == 0);
     }
     ASSERT_TRUE(m.full());
-    ret = m.insert(99, 99);
+    ret = m.insert(make_pair(99, 99));
     ASSERT_TRUE(ret != 0);
 
     std::vector<int> vec;

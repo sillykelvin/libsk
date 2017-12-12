@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
+#include <pugixml.hpp>
 #include <iostream>
-#include "libsk.h"
+#include <libsk.h>
 
 TEST(pugixml, normal) {
     const char *xml = "          \
