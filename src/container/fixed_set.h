@@ -1,45 +1,21 @@
 #ifndef FIXED_SET_H
 #define FIXED_SET_H
 
-#include "utility/utility.h"
-#include "container/fixed_rbtree.h"
+#include <container/detail/rbtree.h>
+#include <container/detail/fixed_allocator.h>
 
-namespace sk {
+NS_BEGIN(sk)
+
+template<typename T>
+using fixed_set_node = detail::rbtree_node<T>;
 
 template<typename T, size_t N>
-struct fixed_set {
-    typedef fixed_rbtree<T, T, identity<T>, N> impl_type;
-    typedef typename impl_type::const_iterator iterator;
-    typedef typename impl_type::const_iterator const_iterator;
+using fixed_set_allocator = detail::fixed_allocator<sizeof(fixed_set_node<T>), N>;
 
-    impl_type tree;
+template<typename T, size_t N>
+using fixed_set = detail::rbtree<T, T, true, std::less<T>,
+                                 fixed_set_allocator<T, N>, identity<T>>;
 
-    bool empty() const { return tree.empty(); }
-
-    bool full()  const { return tree.full(); }
-
-    size_t size() const { return tree.size(); }
-
-    size_t capacity() const { return tree.capacity(); }
-
-    void clear() { tree.clear(); }
-
-    int insert(const T& t) { return tree.insert(t); }
-
-    void erase(iterator it) { tree.__erase(tree.__index(it.n)); }
-
-    void erase(const T& t) { tree.erase(t); }
-
-    iterator find(const T& t) { return tree.find(t); }
-
-    const_iterator find(const T& t) const { return tree.find(t); }
-
-    iterator begin() { return tree.begin(); }
-    iterator end()   { return tree.end(); }
-    const_iterator begin() const { return tree.begin(); }
-    const_iterator end() const   { return tree.end(); }
-};
-
-} // namespace sk
+NS_END(sk)
 
 #endif // FIXED_SET_H
