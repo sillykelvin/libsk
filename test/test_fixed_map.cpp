@@ -2,36 +2,41 @@
 #include <iostream>
 #include <libsk.h>
 
+#define SHM_PATH_PREFIX "/libsk-test"
 #define MAX_SIZE 20
 
 using namespace sk;
 
-struct map_test {
+struct fixed_map_test {
     char c;
     int  i;
 
-    map_test() : c(0), i(0) {}
+    fixed_map_test() : c(0), i(0) {}
 
-    map_test(char c, int i) : c(c), i(i) {}
+    fixed_map_test(char c, int i) : c(c), i(i) {}
 
-    bool operator<(const map_test& that) const { return this->c < that.c; }
+    bool operator<(const fixed_map_test& that) const { return this->c < that.c; }
 };
 
-typedef fixed_map<char, map_test, MAX_SIZE> map;
+typedef fixed_map<char, fixed_map_test, MAX_SIZE> map;
 
 TEST(fixed_map, normal) {
-    map m;
+    int ret = shm_init(SHM_PATH_PREFIX, false);
+    ASSERT_TRUE(ret == 0);
+
+    shm_ptr<map> xm = shm_new<map>();
+    ASSERT_TRUE(!!xm);
+    map& m = *xm;
 
     ASSERT_TRUE(m.empty());
     ASSERT_TRUE(m.size() == 0);
     ASSERT_TRUE(m.capacity() == MAX_SIZE);
 
-    int ret = 0;
-    ret = m.insert(make_pair('a', map_test('a', 'a')));
+    ret = m.insert(make_pair('a', fixed_map_test('a', 'a')));
     ASSERT_TRUE(ret == 0);
-    ret = m.insert(make_pair('b', map_test('b', 'b')));
+    ret = m.insert(make_pair('b', fixed_map_test('b', 'b')));
     ASSERT_TRUE(ret == 0);
-    ret = m.insert(make_pair('c', map_test('c', 'c')));
+    ret = m.insert(make_pair('c', fixed_map_test('c', 'c')));
     ASSERT_TRUE(ret == 0);
 
     ASSERT_TRUE(!m.empty());
@@ -44,7 +49,7 @@ TEST(fixed_map, normal) {
     m.erase(it);
     ASSERT_TRUE(m.find('a') == m.end());
 
-    ret = m.insert(make_pair('a', map_test('a', 'a')));
+    ret = m.insert(make_pair('a', fixed_map_test('a', 'a')));
     ASSERT_TRUE(ret == 0);
     it = m.find('a');
     it->second.c = 'h';
@@ -75,7 +80,7 @@ TEST(fixed_map, normal) {
     m.clear();
     for (int i = 0; i < MAX_SIZE; ++i) {
         char c = 'a' + i;
-        ASSERT_TRUE(m.emplace(c, map_test(c, c)));
+        ASSERT_TRUE(m.emplace(c, fixed_map_test(c, c)));
         ASSERT_TRUE(m.find(c) != m.end());
     }
 
@@ -84,12 +89,20 @@ TEST(fixed_map, normal) {
         ASSERT_TRUE(i.it->second.c == i.c);
         ASSERT_TRUE(i.it->second.i == i.c);
     }
+
+    shm_delete(xm);
+    ret = shm_fini();
+    ASSERT_TRUE(ret == 0);
 }
 
 TEST(fixed_map, loop_erase) {
-    fixed_map<int, int, MAX_SIZE> m;
+    int ret = shm_init(SHM_PATH_PREFIX, false);
+    ASSERT_TRUE(ret == 0);
 
-    int ret = 0;
+    shm_ptr<fixed_map<int, int, MAX_SIZE>> xm = shm_new<fixed_map<int, int, MAX_SIZE>>();
+    ASSERT_TRUE(!!xm);
+    fixed_map<int, int, MAX_SIZE>& m = *xm;
+
     for (int i = 0; i < MAX_SIZE; ++i) {
         ret = m.insert(make_pair(i, i));
         ASSERT_TRUE(ret == 0);
@@ -119,4 +132,8 @@ TEST(fixed_map, loop_erase) {
         else
             ASSERT_TRUE(it != m.end());
     }
+
+    shm_delete(xm);
+    ret = shm_fini();
+    ASSERT_TRUE(ret == 0);
 }

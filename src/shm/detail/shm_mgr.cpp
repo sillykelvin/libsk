@@ -23,7 +23,31 @@ shm_mgr::shm_mgr()
 }
 
 shm_mgr::~shm_mgr() {
-    // TODO: desctruction here
+    for (size_t i = 0; i < array_len(singletons_); ++i) {
+        int id = cast_int(i);
+        if (has_singleton(id)) {
+            sk_warn("singleton<%d> is not destroyed.");
+            free_singleton(id);
+        }
+    }
+
+    if (chunk_cache_) {
+        chunk_cache_->~chunk_cache();
+        chunk_cache_ = nullptr;
+    }
+
+    if (page_heap_) {
+        page_heap_->~page_heap();
+        page_heap_ = nullptr;
+    }
+
+    if (size_map_) {
+        size_map_->~size_map();
+        size_map_ = nullptr;
+    }
+
+    for (size_t i = 0; i < array_len(blocks_); ++i)
+        unlink_block(cast_int(i));
 }
 
 int shm_mgr::on_create(const char *basename) {

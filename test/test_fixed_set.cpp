@@ -7,15 +7,15 @@
 
 using namespace sk;
 
-struct set_test {
+struct fixed_set_test {
     int i;
 
-    explicit set_test(int i) : i(i) {}
+    explicit fixed_set_test(int i) : i(i) {}
 
-    bool operator<(const set_test& that) const { return this->i < that.i; }
+    bool operator<(const fixed_set_test& that) const { return this->i < that.i; }
 };
 
-typedef fixed_set<set_test, MAX_SIZE> set;
+typedef fixed_set<fixed_set_test, MAX_SIZE> set;
 
 #define INDENT_STEP 4
 void print_tree_aux(const set& s, set::base_pointer n, int indent) {
@@ -47,25 +47,30 @@ void print_tree(const set& s) {
 }
 
 TEST(fixed_set, normal) {
-    set s;
+    int ret = shm_init(SHM_PATH_PREFIX, false);
+    ASSERT_TRUE(ret == 0);
+
+    shm_ptr<set> xs = shm_new<set>();
+    ASSERT_TRUE(!!xs);
+    set& s = *xs;
 
     ASSERT_TRUE(s.empty());
     ASSERT_TRUE(!s.full());
     ASSERT_TRUE(s.size() == 0);
     ASSERT_TRUE(s.capacity() == MAX_SIZE);
-    ASSERT_TRUE(s.find(set_test(1)) == s.end());
+    ASSERT_TRUE(s.find(fixed_set_test(1)) == s.end());
 
-    ASSERT_TRUE(s.insert(set_test(1)) == 0);
-    ASSERT_TRUE(s.insert(set_test(2)) == 0);
-    ASSERT_TRUE(s.insert(set_test(3)) == 0);
-    ASSERT_TRUE(s.insert(set_test(4)) == 0);
-    ASSERT_TRUE(s.insert(set_test(5)) == 0);
+    ASSERT_TRUE(s.insert(fixed_set_test(1)) == 0);
+    ASSERT_TRUE(s.insert(fixed_set_test(2)) == 0);
+    ASSERT_TRUE(s.insert(fixed_set_test(3)) == 0);
+    ASSERT_TRUE(s.insert(fixed_set_test(4)) == 0);
+    ASSERT_TRUE(s.insert(fixed_set_test(5)) == 0);
 
     ASSERT_TRUE(!s.empty() && !s.full());
     ASSERT_TRUE(s.size() == 5);
 
-    ASSERT_TRUE(s.find(set_test(3)) != s.end());
-    ASSERT_TRUE(s.find(set_test(3))->i == 3);
+    ASSERT_TRUE(s.find(fixed_set_test(3)) != s.end());
+    ASSERT_TRUE(s.find(fixed_set_test(3))->i == 3);
 
     ASSERT_TRUE(s.emplace(2));
     ASSERT_TRUE(s.size() == 5);
@@ -76,22 +81,31 @@ TEST(fixed_set, normal) {
     // it->i = 777; // compile error, intended
     ++it; ++it;
     s.erase(it);
-    ASSERT_TRUE(s.find(set_test(3)) == s.end());
-    s.erase(set_test(2));
-    ASSERT_TRUE(s.find(set_test(2)) == s.end());
+    ASSERT_TRUE(s.find(fixed_set_test(3)) == s.end());
+    s.erase(fixed_set_test(2));
+    ASSERT_TRUE(s.find(fixed_set_test(2)) == s.end());
 
-    ASSERT_TRUE(s.insert(set_test(2)) == 0);
-    ASSERT_TRUE(s.insert(set_test(3)) == 0);
+    ASSERT_TRUE(s.insert(fixed_set_test(2)) == 0);
+    ASSERT_TRUE(s.insert(fixed_set_test(3)) == 0);
 
     for (struct {int i; set::iterator it;} i = {1, s.begin()}; i.it != s.end(); ++i.it, ++i.i)
         ASSERT_TRUE(i.it->i == i.i);
+
+    shm_delete(xs);
+    ret = shm_fini();
+    ASSERT_TRUE(ret == 0);
 }
 
 TEST(fixed_set, loop_erase) {
-    set s;
+    int ret = shm_init(SHM_PATH_PREFIX, false);
+    ASSERT_TRUE(ret == 0);
+
+    shm_ptr<set> xs = shm_new<set>();
+    ASSERT_TRUE(!!xs);
+    set& s = *xs;
 
     for (int i = 0; i < MAX_SIZE; ++i) {
-        ASSERT_TRUE(s.insert(set_test(i)) == 0);
+        ASSERT_TRUE(s.insert(fixed_set_test(i)) == 0);
     }
 
     std::vector<int> vec;
@@ -109,13 +123,17 @@ TEST(fixed_set, loop_erase) {
     }
 
     for (int i = 0; i < MAX_SIZE; ++i) {
-        set::iterator it = s.find(set_test(i));
+        set::iterator it = s.find(fixed_set_test(i));
         if (std::find(vec.begin(), vec.end(), i) != vec.end()) {
             ASSERT_TRUE(it == s.end());
         } else {
             ASSERT_TRUE(it != s.end());
         }
     }
+
+    shm_delete(xs);
+    ret = shm_fini();
+    ASSERT_TRUE(ret == 0);
 }
 
 TEST(fixed_set, visualization) {
@@ -154,34 +172,34 @@ TEST(fixed_set, visualization) {
     print_tree(s);
     ASSERT_TRUE(s.size() == 10);
 
-    s.erase(set_test(7));
+    s.erase(fixed_set_test(7));
     print_tree(s);
 
-    s.erase(set_test(6));
+    s.erase(fixed_set_test(6));
     print_tree(s);
 
-    s.erase(set_test(0));
+    s.erase(fixed_set_test(0));
     print_tree(s);
 
-    s.erase(set_test(5));
+    s.erase(fixed_set_test(5));
     print_tree(s);
 
-    s.erase(set_test(3));
+    s.erase(fixed_set_test(3));
     print_tree(s);
 
-    s.erase(set_test(2));
+    s.erase(fixed_set_test(2));
     print_tree(s);
 
-    s.erase(set_test(1));
+    s.erase(fixed_set_test(1));
     print_tree(s);
 
-    s.erase(set_test(4));
+    s.erase(fixed_set_test(4));
     print_tree(s);
 
-    s.erase(set_test(8));
+    s.erase(fixed_set_test(8));
     print_tree(s);
 
-    s.erase(set_test(9));
+    s.erase(fixed_set_test(9));
     print_tree(s);
 
     ASSERT_TRUE(s.empty());

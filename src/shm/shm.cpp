@@ -100,6 +100,7 @@ int sk::shm_init(const char *basename, bool resume_mode) {
 
     if (ret != 0) {
         free(ctx);
+        ctx = nullptr;
         close(shmfd);
         if (!resume_mode)
             shm_object_unlink(path);

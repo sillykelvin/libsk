@@ -4,7 +4,7 @@
 #include <utility/assert_helper.h>
 
 int sk::detail::shm_object_create(const char *path, size_t *size) {
-    int shmfd = shm_open(path, O_CREAT | O_TRUNC | O_RDWR, 0666);
+    int shmfd = shm_open(path, O_CREAT | O_EXCL | O_TRUNC | O_RDWR, 0666);
     if (shmfd == -1) {
         sk_error("shm_open() error: %s.", strerror(errno));
         return -1;
