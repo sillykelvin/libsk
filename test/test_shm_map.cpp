@@ -14,6 +14,7 @@ struct shm_map_test {
     int  i;
 
     shm_map_test(char c, int i) : c(c), i(i) { ctor_call_count++; }
+    shm_map_test(const shm_map_test& m) : c(m.c), i(m.i) { ctor_call_count++; }
     ~shm_map_test() { dtor_call_count++; }
 
     bool operator<(const shm_map_test& that) const { return this->c < that.c; }
@@ -89,30 +90,33 @@ TEST(shm_map, ctor_dtor) {
         ASSERT_TRUE(!!xm);
         map& m = *xm;
 
+        ctor_call_count = 0;
+        dtor_call_count = 0;
+
         m.insert(make_pair('a', shm_map_test('a', 'a')));
         m.insert(make_pair('b', shm_map_test('b', 'b')));
         m.insert(make_pair('c', shm_map_test('c', 'c')));
         ASSERT_TRUE(m.size() == 3);
-        ASSERT_TRUE(ctor_call_count == 6);
-        ASSERT_TRUE(dtor_call_count == 3);
+        ASSERT_TRUE(ctor_call_count == 12);
+        ASSERT_TRUE(dtor_call_count == 9);
 
         m.emplace('d', shm_map_test('d', 'd'));
         m.emplace('e', shm_map_test('e', 'e'));
         m.emplace('f', shm_map_test('f', 'f'));
         ASSERT_TRUE(m.size() == 6);
-        ASSERT_TRUE(ctor_call_count == 9);
-        ASSERT_TRUE(dtor_call_count == 3);
+        ASSERT_TRUE(ctor_call_count == 21);
+        ASSERT_TRUE(dtor_call_count == 15);
 
         m.erase(m.begin());
         m.erase(m.begin());
         ASSERT_TRUE(m.size() == 4);
-        ASSERT_TRUE(ctor_call_count == 9);
-        ASSERT_TRUE(dtor_call_count == 5);
+        ASSERT_TRUE(ctor_call_count == 21);
+        ASSERT_TRUE(dtor_call_count == 17);
 
         m.clear();
         ASSERT_TRUE(m.size() == 0);
-        ASSERT_TRUE(ctor_call_count == 9);
-        ASSERT_TRUE(dtor_call_count == 9);
+        ASSERT_TRUE(ctor_call_count == 21);
+        ASSERT_TRUE(dtor_call_count == 21);
 
         shm_delete(xm);
     }

@@ -14,6 +14,7 @@ struct list_test {
     int i;
 
     list_test(int i) : i(i) { ctor_call_count++; }
+    list_test(const list_test& l) : i(l.i) { ctor_call_count++; }
     ~list_test() { dtor_call_count++; }
 };
 
@@ -235,6 +236,7 @@ TEST(fixed_list, ctor_dtor) {
 
     ctor_call_count = 0;
     dtor_call_count = 0;
+
     l.push_back(list_test(1));
     l.push_front(list_test(2));
     l.emplace_back(3);
