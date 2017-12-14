@@ -38,6 +38,7 @@ int shm_mgr::on_create(const char *basename) {
     real_size += sizeof(class size_map);
     real_size += sizeof(class page_heap);
     real_size += sizeof(class chunk_cache);
+    real_size += shm_config::PAGE_SIZE;
     // TODO: change this to a small value to test new block allocation when
     // the following set_block_map() called, which will allocate a new block
     // if the existing metadata is not enough
@@ -51,20 +52,20 @@ int shm_mgr::on_create(const char *basename) {
     if (ret != 0) return ret;
 
     size_map_ = sk::byte_offset<class size_map>(block->addr, block->used_size);
+    block->used_size += sizeof(class size_map);
     ret = size_map_->init();
     if (ret != 0) {
         unlink_block(METADATA_BLOCK);
         return ret;
     }
-    block->used_size += sizeof(class size_map);
 
     page_heap_ = sk::byte_offset<class page_heap>(block->addr, block->used_size);
-    new (page_heap_) class page_heap();
     block->used_size += sizeof(class page_heap);
+    new (page_heap_) class page_heap();
 
     chunk_cache_ = sk::byte_offset<class chunk_cache>(block->addr, block->used_size);
-    new (chunk_cache_) class chunk_cache();
     block->used_size += sizeof(class chunk_cache);
+    new (chunk_cache_) class chunk_cache();
 
     // make metadata page-aligned, as allocate_metadata()
     // will forcely align the requested size to page size
@@ -225,7 +226,7 @@ void *shm_mgr::addr2ptr(const shm_address& addr) {
         assert_retval(addr.serial() == shm_config::METADATA_SERIAL_NUM ||
                       addr.serial() == shm_config::USERDATA_SERIAL_NUM, nullptr);
 
-        shm_block *block = &blocks_[addr.serial()];
+        shm_block *block = &blocks_[addr.serial() - 1];
         assert_retval(addr.offset() < block->used_size, nullptr);
 
         return sk::byte_offset<void>(block->addr, addr.offset());
@@ -295,7 +296,11 @@ shm_address shm_mgr::sbrk(int block_index, size_t *bytes) {
             char path[shm_config::MAX_PATH_SIZE];
             calc_path(block_index, path, sizeof(path));
 
-            size_t new_real_size = block->real_size + grow_size[block_index];
+            size_t new_real_size = block->real_size;
+            do {
+                new_real_size += grow_size[block_index];
+            } while (new_real_size - block->used_size < real_bytes);
+
             int ret = resize_block(block_index, new_real_size);
             check_break(ret != 0);
 
@@ -310,7 +315,7 @@ shm_address shm_mgr::sbrk(int block_index, size_t *bytes) {
         if (ret != 0) return nullptr;
     } while (0);
 
-    sk_assert(block->addr && block->real_size - block->used_size > real_bytes);
+    sk_assert(block->addr && block->real_size - block->used_size >= real_bytes);
 
     shm_address addr(serials[block_index], block->used_size);
     block->used_size += real_bytes;

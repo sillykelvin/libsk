@@ -34,9 +34,9 @@ private:
 
 private:
     static const size_t MAX_BITS = shm_config::ADDRESS_BITS - shm_config::PAGE_BITS;
-    static const size_t LV0_BITS = 5;
+    static const size_t LV0_BITS = 10;
     static const size_t LV1_BITS = 10;
-    static const size_t LV2_BITS = MAX_BITS - (LV0_BITS + LV1_BITS); // 20
+    static const size_t LV2_BITS = MAX_BITS - (LV0_BITS + LV1_BITS); // 15
 
     radix_tree<shm_address, LV0_BITS, LV1_BITS, LV2_BITS> span_map_;
     metadata_allocator<span> span_allocator_;

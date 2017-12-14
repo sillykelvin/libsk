@@ -2,6 +2,7 @@
 #include <iostream>
 #include <libsk.h>
 
+#define SHM_PATH_PREFIX "/libsk-test"
 #define MAX_SIZE 20
 
 using namespace sk;
@@ -17,9 +18,9 @@ struct set_test {
 typedef fixed_set<set_test, MAX_SIZE> set;
 
 #define INDENT_STEP 4
-void print_tree_aux(const set& s, const set::base_pointer& n, int indent) {
+void print_tree_aux(const set& s, set::base_pointer n, int indent) {
     if (!n) {
-        printf("<empty tree>");
+        printf("<empty tree>\n");
         return;
     }
 
@@ -118,11 +119,16 @@ TEST(fixed_set, loop_erase) {
 }
 
 TEST(fixed_set, visualization) {
-    set s;
+    int ret = shm_init(SHM_PATH_PREFIX, false);
+    ASSERT_TRUE(ret == 0);
+
+    shm_ptr<set> xs = shm_new<set>();
+    ASSERT_TRUE(!!xs);
+    set& s = *xs;
 
     s.emplace(4);
     s.emplace(1);
-    s.emplace(7);
+    s.emplace(2);
     s.emplace(3);
     ASSERT_TRUE(s.size() == 4);
 
@@ -134,14 +140,21 @@ TEST(fixed_set, visualization) {
     s.emplace(6);
     print_tree(s);
 
-    s.emplace(2);
+    s.emplace(7);
     print_tree(s);
 
     s.emplace(5);
     print_tree(s);
     ASSERT_TRUE(s.size() == 8);
 
-    s.erase(set_test(3));
+    s.emplace(8);
+    print_tree(s);
+
+    s.emplace(9);
+    print_tree(s);
+    ASSERT_TRUE(s.size() == 10);
+
+    s.erase(set_test(7));
     print_tree(s);
 
     s.erase(set_test(6));
@@ -153,7 +166,7 @@ TEST(fixed_set, visualization) {
     s.erase(set_test(5));
     print_tree(s);
 
-    s.erase(set_test(7));
+    s.erase(set_test(3));
     print_tree(s);
 
     s.erase(set_test(2));
@@ -164,6 +177,17 @@ TEST(fixed_set, visualization) {
 
     s.erase(set_test(4));
     print_tree(s);
+
+    s.erase(set_test(8));
+    print_tree(s);
+
+    s.erase(set_test(9));
+    print_tree(s);
+
     ASSERT_TRUE(s.empty());
     ASSERT_TRUE(s.size() == 0);
+
+    shm_delete(xs);
+    ret = shm_fini();
+    ASSERT_TRUE(ret == 0);
 }

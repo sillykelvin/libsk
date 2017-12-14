@@ -38,16 +38,16 @@ struct rbtree_node : public rbtree_node_base {
 struct rbtree_algorithm {
     typedef typename rbtree_node_base::base_pointer base_pointer;
 
-    static bool is_red(const base_pointer& n) {
+    static bool is_red(base_pointer n) {
         return n && n->is_red();
     }
 
-    static bool is_left_child(const base_pointer& n) {
+    static bool is_left_child(base_pointer n) {
         return n == n->parent->left;
     }
 
     // t -> top, b -> bottom
-    static size_t black_count(const base_pointer& t, base_pointer b) {
+    static size_t black_count(base_pointer t, base_pointer b) {
         size_t count = 0;
 
         for (; b; b = b->parent) {
@@ -58,7 +58,7 @@ struct rbtree_algorithm {
         return count;
     }
 
-    static void rotate_left(const base_pointer& n, base_pointer& root) {
+    static void rotate_left(base_pointer n, base_pointer& root) {
         base_pointer p  = n->parent;
         base_pointer r  = n->right;
         base_pointer rl = r->left;
@@ -79,7 +79,7 @@ struct rbtree_algorithm {
         n->parent = r;
     }
 
-    static void rotate_right(const base_pointer& n, base_pointer& root) {
+    static void rotate_right(base_pointer n, base_pointer& root) {
         base_pointer p  = n->parent;
         base_pointer l  = n->left;
         base_pointer lr = l->right;
@@ -91,10 +91,10 @@ struct rbtree_algorithm {
 
         if (n == root)
             root = l;
-        else if (is_left_child(n))
-            p->left = l;
-        else
+        else if (!is_left_child(n))
             p->right = l;
+        else
+            p->left = l;
 
         l->right = n;
         n->parent = l;
@@ -137,7 +137,7 @@ struct rbtree_algorithm {
             p = p->parent;
         }
 
-        return n;
+        return p;
     }
 
     static base_pointer min_child(base_pointer n) {
@@ -151,8 +151,8 @@ struct rbtree_algorithm {
     }
 
     // n -> node, p -> parent, s -> sentinel
-    static void insert(base_pointer n, const base_pointer& p,
-                       const base_pointer& s, bool insert_left) {
+    static void insert(base_pointer n, base_pointer p,
+                       base_pointer s, bool insert_left) {
         base_pointer& root = s->parent;
 
         n->parent = p;
@@ -219,7 +219,7 @@ struct rbtree_algorithm {
     }
 
     // n -> node, s -> sentinel
-    static void erase(const base_pointer& n, const base_pointer& s) {
+    static void erase(base_pointer n, base_pointer s) {
         base_pointer& root      = s->parent;
         base_pointer& leftmost  = s->left;
         base_pointer& rightmost = s->right;
@@ -272,7 +272,7 @@ struct rbtree_algorithm {
             }
         } else {
             n->left->parent = x;
-            x->left = n->parent;
+            x->left = n->left;
 
             if (x == n->right)
                 p = x;
@@ -384,7 +384,7 @@ struct rbtree_iterator {
     typedef typename if_<C, const T&, T&>::type reference;
 
     rbtree_iterator() : ptr(nullptr) {}
-    explicit rbtree_iterator(const base_pointer& p) : ptr(p) {}
+    explicit rbtree_iterator(base_pointer p) : ptr(p) {}
 
     /*
      * this constructor enables implicit convertion: iterator -> const_iterator
@@ -541,7 +541,7 @@ private:
         return node;
     }
 
-    void destruct(const base_pointer& node) {
+    void destruct(base_pointer node) {
         assert_retnone(node != sentinel_);
         node_pointer ptr = node.cast<node_type>();
         ptr->~node_type();
@@ -592,25 +592,25 @@ private:
         return l;
     }
 
-    void insert_child(const base_pointer& parent,
-                      const K& key, const base_pointer& node) {
+    void insert_child(base_pointer parent, const K& key, base_pointer node) {
         Compare compare;
         Extractor extractor;
 
-        V *pv = this->value(parent);
-        bool insert_left = (parent == sentinel_) || compare(key, extractor(*pv));
+        bool insert_left = true;
+        if (parent != sentinel_)
+            insert_left = compare(key, extractor(*value(parent)));
 
         rbtree_algorithm::insert(node, parent, sentinel_, insert_left);
         verify_properties();
     }
 
-    void erase_node(const base_pointer& node) {
+    void erase_node(base_pointer node) {
         rbtree_algorithm::erase(node, sentinel_);
         destruct(node);
         verify_properties();
     }
 
-    size_t clear_subtree(const base_pointer& node) {
+    size_t clear_subtree(base_pointer node) {
         if (!node) return 0;
         size_t l = clear_subtree(node->left);
         size_t r = clear_subtree(node->right);
@@ -716,13 +716,13 @@ private:
 #endif
     }
 
-    V *value(const base_pointer& node) {
+    V *value(base_pointer node) {
         assert_retval(node != sentinel_, nullptr);
         node_pointer ptr = node.cast<node_type>();
         return &(ptr->value);
     }
 
-    const V *value(const base_pointer& node) const {
+    const V *value(base_pointer node) const {
         return const_cast<rbtree>(this)->value(node);
     }
 

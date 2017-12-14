@@ -8,6 +8,10 @@ using namespace sk::detail;
 shm_address chunk_cache::allocate_chunk(size_t bytes, u8 sc) {
     assert_retval(sc < array_len(caches_), nullptr);
 
+    const size_t old_bytes = bytes;
+    bytes = shm_size_map()->class2size(sc);
+    sk_assert(bytes >= old_bytes);
+
     shm_address head = caches_[sc].free_list.addr();
     shm_address sp = nullptr;
     span *s = nullptr;

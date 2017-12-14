@@ -83,29 +83,29 @@ int sk::shm_init(const char *basename, bool resume_mode) {
         return -error;
     }
 
+    ctx = cast_ptr(shm_context, malloc(sizeof(shm_context)));
+    assert_retval(ctx, -ENOMEM);
+
+    ctx->mgr = cast_ptr(shm_mgr, addr);
+    ctx->mmap_size = total_bytes;
+    snprintf(ctx->path, sizeof(ctx->path), "%s", path);
+
     int ret = 0;
-    shm_mgr *mgr = cast_ptr(shm_mgr, addr);
     if (!resume_mode) {
-        new (mgr) shm_mgr();
-        ret = mgr->on_create(basename);
+        new (ctx->mgr) shm_mgr();
+        ret = ctx->mgr->on_create(basename);
     } else {
-        ret = mgr->on_resume(basename);
+        ret = ctx->mgr->on_resume(basename);
     }
 
     if (ret != 0) {
+        free(ctx);
         close(shmfd);
         if (!resume_mode)
             shm_object_unlink(path);
 
         return ret;
     }
-
-    ctx = cast_ptr(shm_context, malloc(sizeof(shm_context)));
-    sk_assert(ctx);
-
-    ctx->mgr = mgr;
-    ctx->mmap_size = total_bytes;
-    snprintf(ctx->path, sizeof(ctx->path), "%s", path);
 
     close(shmfd);
     return 0;

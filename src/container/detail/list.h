@@ -55,7 +55,7 @@ struct list_iterator {
     typedef typename if_<C, const T&, T&>::type reference;
 
     list_iterator() : ptr(nullptr) {}
-    explicit list_iterator(const base_pointer& p) : ptr(p) {}
+    explicit list_iterator(base_pointer p) : ptr(p) {}
 
     /*
      * this constructor enables implicit convertion: iterator -> const_iterator
@@ -117,22 +117,22 @@ public:
 
 public:
     T *front() {
-        check_retval(empty(), nullptr);
+        check_retval(!empty(), nullptr);
         return value(sentinel_->next);
     }
 
     const T *front() const {
-        check_retval(empty(), nullptr);
+        check_retval(!empty(), nullptr);
         return value(sentinel_->next);
     }
 
     T *back() {
-        check_retval(empty(), nullptr);
+        check_retval(!empty(), nullptr);
         return value(sentinel_->prev);
     }
 
     const T *back() const {
-        check_retval(empty(), nullptr);
+        check_retval(!empty(), nullptr);
         return value(sentinel_->prev);
     }
 
@@ -259,32 +259,32 @@ private:
         return node;
     }
 
-    void destruct(const base_pointer& node) {
+    void destruct(base_pointer node) {
         assert_retnone(node != sentinel_);
         node_pointer ptr = node.cast<node_type>();
         ptr->~node_type();
         allocator_.deallocate(node);
     }
 
-    void link(const base_pointer& node, const base_pointer& next) {
+    void link(base_pointer node, base_pointer next) {
         node->next = next;
         node->prev = next->prev;
         next->prev->next = node;
         next->prev = node;
     }
 
-    void unlink(const base_pointer& node) {
+    void unlink(base_pointer node) {
         node->next->prev = node->prev;
         node->prev->next = node->next;
     }
 
-    T *value(const base_pointer& node) {
+    T *value(base_pointer node) {
         assert_retval(node != sentinel_, nullptr);
         node_pointer ptr = node.cast<node_type>();
         return &(ptr->value);
     }
 
-    const T *value(const base_pointer& node) const {
+    const T *value(base_pointer node) const {
         assert_retval(node != sentinel_, nullptr);
         node_pointer ptr = node.cast<node_type>();
         return &(ptr->value);

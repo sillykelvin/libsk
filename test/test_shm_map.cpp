@@ -26,7 +26,9 @@ TEST(shm_map, normal) {
     ASSERT_TRUE(ret == 0);
 
     {
-        map m;
+        shm_ptr<map> xm = shm_new<map>();
+        ASSERT_TRUE(!!xm);
+        map& m = *xm;
 
         ASSERT_TRUE(m.empty());
         ASSERT_TRUE(m.size() == 0);
@@ -70,6 +72,8 @@ TEST(shm_map, normal) {
             ASSERT_TRUE(i.it->second.c == i.c + 'h' - 'a');
             ASSERT_TRUE(i.it->second.i == i.c + 'h' - 'a');
         }
+
+        shm_delete(xm);
     }
 
     shm_fini();
@@ -80,7 +84,10 @@ TEST(shm_map, ctor_dtor) {
     ASSERT_TRUE(ret == 0);
 
     {
-        map m;
+        shm_ptr<map> xm = shm_new<map>();
+        ASSERT_TRUE(!!xm);
+        map& m = *xm;
+
         m.insert(make_pair('a', map_test('a', 'a')));
         m.insert(make_pair('b', map_test('b', 'b')));
         m.insert(make_pair('c', map_test('c', 'c')));
@@ -105,6 +112,8 @@ TEST(shm_map, ctor_dtor) {
         ASSERT_TRUE(m.size() == 0);
         ASSERT_TRUE(ctor_call_count == 9);
         ASSERT_TRUE(dtor_call_count == 9);
+
+        shm_delete(xm);
     }
 
     shm_fini();
@@ -115,7 +124,9 @@ TEST(shm_map, loop_erase) {
     ASSERT_TRUE(ret == 0);
 
     {
-        shm_map<int, int> m;
+        shm_ptr<shm_map<int, int>> xm = shm_new<shm_map<int, int>>();
+        ASSERT_TRUE(!!xm);
+        shm_map<int, int>& m = *xm;
 
         int ret = 0;
         for (int i = 0; i < 20; ++i) {
@@ -144,6 +155,8 @@ TEST(shm_map, loop_erase) {
             else
                 ASSERT_TRUE(it != m.end());
         }
+
+        shm_delete(xm);
     }
 
     shm_fini();
