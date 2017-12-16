@@ -5,7 +5,7 @@
 #define SHM_PATH_PREFIX "/libsk-perf"
 
 // NOTE: LOOP_COUNT must be 100 * N
-#define LOOP_COUNT 10000 // 1000000
+#define LOOP_COUNT 100000 // 1000000
 
 #define TINY_COUNT 1000
 #define HUGE_COUNT 100
@@ -16,13 +16,9 @@
 #define FIXED_SIZE_COUNT 3
 
 inline int rand_range(int min, int max) {
-    if (min > max) {
-        int tmp = min;
-        min = max;
-        max = tmp;
-    }
+    if (min > max) std::swap(min, max);
 
-    return  min == max ? min : (rand() % (max - min + 1) + min);
+    return min == max ? min : (rand() % (max - min + 1) + min);
 }
 
 inline bool rand_bool() {
@@ -135,7 +131,11 @@ int main() {
 
     // parse_parameters(argc, argv, shm_size);
 
-    sk::shm_init(SHM_PATH_PREFIX, false);
+    int ret = sk::shm_init(SHM_PATH_PREFIX, false);
+    if (ret != 0) {
+        fprintf(stderr, "cannot init shm, ret: %d\n", ret);
+        exit(EXIT_FAILURE);
+    }
 
     timeval begin_time, end_time;
 
