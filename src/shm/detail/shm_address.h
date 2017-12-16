@@ -21,9 +21,9 @@ public:
         addr_ = (serial << shm_config::ADDRESS_BITS) | (offset & shm_config::ADDRESS_MASK);
     }
 
-    u64 as_u64() const { return addr_; }
-    shm_serial_t serial() const { return addr_ >> shm_config::ADDRESS_BITS; }
-    shm_offset_t offset() const { return addr_ &  shm_config::ADDRESS_MASK; }
+    inline u64 as_u64() const { return addr_; }
+    inline shm_serial_t serial() const { return addr_ >> shm_config::ADDRESS_BITS; }
+    inline shm_offset_t offset() const { return addr_ &  shm_config::ADDRESS_MASK; }
 
     void *get() const;
     template<typename T> T *as() const { return static_cast<T*>(get()); }

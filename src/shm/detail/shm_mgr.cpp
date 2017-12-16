@@ -166,7 +166,11 @@ shm_ptr<void> shm_mgr::malloc(size_t bytes) {
     sk_trace("=> shm_mgr::malloc(): size<%lu>, serial<%lu>, offset<%lu>, mid<%lu>.",
              bytes, meta->serial, addr.offset(), addr.as_u64());
 
-    memset(sk::byte_offset<void>(meta, sizeof(shm_meta)), 0x00, bytes - sizeof(shm_meta));
+    /*
+     * do NOT memset here, this will cause a huge performance issue
+     */
+    // memset(sk::byte_offset<void>(meta, sizeof(shm_meta)), 0x00, bytes - sizeof(shm_meta));
+
     return shm_ptr<void>(addr);
 }
 
