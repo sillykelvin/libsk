@@ -46,7 +46,7 @@ private:
     };
 
     void calc_path(int block_index, char *path, size_t size) {
-        const char *suffix_name[] = { "metadata", "userdata" };
+        static const char *suffix_name[] = { "metadata", "userdata" };
         snprintf(path, size, "%s-%s.mmap", basename_, suffix_name[block_index]);
     }
 

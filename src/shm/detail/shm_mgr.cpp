@@ -194,7 +194,7 @@ void shm_mgr::free(const shm_ptr<void>& ptr) {
     assert_retnone(sp);
 
     span *s = sp.as<span>();
-    if (s->size_class() < 0) {
+    if (s->size_class() == cast_u8(-1)) {
         sk_assert(!s->chunk_list());
         sk_assert(s->used_count() == 0);
 

@@ -67,7 +67,7 @@ void chunk_cache::deallocate_chunk(shm_address addr, shm_address sp) {
     span *s = sp.as<span>();
     assert_retnone(s->used_count() > 0);
 
-    const u8 sc = cast_u8(s->size_class());
+    const u8 sc = s->size_class();
     assert_retnone(sc < array_len(caches_));
 
     shm_address head = caches_[sc].free_list.addr();

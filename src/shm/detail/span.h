@@ -21,7 +21,7 @@ public:
 
 public:
     bool in_use() const { return in_use_ == 1; }
-    int size_class() const {return size_class_; }
+    u8 size_class() const { return size_class_; }
     size_t used_count() const { return used_count_; }
 
     size_t page_count() const { return page_count_; }

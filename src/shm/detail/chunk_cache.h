@@ -35,8 +35,8 @@ private:
     struct stat {
         stat() { memset(this, 0x00, sizeof(*this)); }
 
-        size_t span_alloc_count; // how many spans has allocated from heap
-        size_t span_free_count;  // how many spans has returned to heap
+        size_t span_alloc_count; // how many spans has been allocated from heap
+        size_t span_free_count;  // how many spans has been returned to heap
         size_t alloc_count;      // how many allocations has happened
         size_t free_count;       // how many deallocations has happened
         size_t used_size;        // how many bytes has been used currently
