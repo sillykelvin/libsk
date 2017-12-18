@@ -199,8 +199,8 @@ shm_address page_heap::new_span(shm_page_t start_page, size_t page_count) {
 }
 
 void page_heap::del_span(shm_address sp) {
-    // TODO: shouldn't we call span::~span() here?
-    // as we called span::span(...) in new_span(...)
+    span *s = sp.as<span>();
+    s->~span();
     span_allocator_.deallocate(sp);
 }
 

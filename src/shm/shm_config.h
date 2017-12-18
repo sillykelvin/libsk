@@ -39,9 +39,8 @@ struct shm_config {
     static const size_t MAX_PAGES = 1ULL << (20 - PAGE_BITS);
 
     /*
-     * the minimum and maximum memory we can fetch from system
-     * every time when there is no enough memory in page heap,
-     * the minimum size is 1MB (128 pages)
+     * the minimum number of pages to fetch from userdata shm block
+     * when there is no enough memory in page heap, 1MB (128 pages)
      *
      * REQUIRED: HEAP_GROW_PAGE_COUNT <= MAX_PAGES
      * TODO: find why this requirement is needed
@@ -50,6 +49,10 @@ struct shm_config {
 
     static const size_t MAX_PAGE_COUNT = 1ULL << (ADDRESS_BITS - PAGE_BITS);
 
+    /*
+     * the minimum size of bytes to fetch from system when there is no
+     * enough memory in shm block, metadata or userdata respectively, 1MB
+     */
     static const size_t METADATA_GROW_SIZE = 1ULL << 20;
     static const size_t USERDATA_GROW_SIZE = 1ULL << 20;
 

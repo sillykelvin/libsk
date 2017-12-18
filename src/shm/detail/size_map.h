@@ -31,7 +31,7 @@ NS_BEGIN(detail)
 //   32768      (32768 + 127 + (120<<7)) / 128  376
 class size_map {
 public:
-    static const u8 SIZE_CLASS_COUNT = 96; // TODO: determine proper value
+    static const u8 SIZE_CLASS_COUNT = 87;
 
     inline bool size2class(size_t bytes, u8 *sc) {
         if (likely(bytes <= MAX_SMALL_SIZE)) {
