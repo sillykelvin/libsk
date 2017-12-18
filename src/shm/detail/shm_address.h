@@ -28,7 +28,7 @@ public:
     void *get() const;
     template<typename T> T *as() const { return static_cast<T*>(get()); }
 
-    bool operator==(const shm_address& that) const {
+    inline bool operator==(const shm_address& that) const {
         if (addr_ == that.addr_) return true;
         if (offset() != that.offset()) return false;
 
@@ -42,7 +42,7 @@ public:
                 this_serial == shm_config::USERDATA_SERIAL_NUM);
     }
 
-    bool operator!=(const shm_address& that) const {
+    inline bool operator!=(const shm_address& that) const {
         return !operator==(that);
     }
 
