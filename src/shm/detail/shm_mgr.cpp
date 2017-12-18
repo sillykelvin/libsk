@@ -47,7 +47,7 @@ shm_mgr::~shm_mgr() {
     }
 
     for (size_t i = 0; i < array_len(blocks_); ++i)
-        unlink_block(cast_int(i));
+        delete_block(cast_int(i));
 }
 
 int shm_mgr::on_create(const char *basename) {
@@ -63,10 +63,6 @@ int shm_mgr::on_create(const char *basename) {
     real_size += sizeof(class page_heap);
     real_size += sizeof(class chunk_cache);
     real_size += shm_config::PAGE_SIZE;
-    // TODO: change this to a small value to test new block allocation when
-    // the following set_block_map() called, which will allocate a new block
-    // if the existing metadata is not enough
-    // real_size += 2 * 1024 * 1024; // TODO: make this an option
 
     size_t mmap_size = default_mmap_size_;
     shm_block *block = &blocks_[METADATA_BLOCK];
@@ -79,7 +75,7 @@ int shm_mgr::on_create(const char *basename) {
     block->used_size += sizeof(class size_map);
     ret = size_map_->init();
     if (ret != 0) {
-        unlink_block(METADATA_BLOCK);
+        delete_block(METADATA_BLOCK);
         return ret;
     }
 
@@ -163,7 +159,7 @@ shm_ptr<void> shm_mgr::malloc(size_t bytes) {
 
     addr = shm_address(meta->serial, addr.offset() + sizeof(shm_meta));
 
-    sk_trace("=> shm_mgr::malloc(): size<%lu>, serial<%lu>, offset<%lu>, mid<%lu>.",
+    sk_trace("=> shm_mgr::malloc(): size<%lu>, serial<%lu>, offset<%lu>, addr<%lu>.",
              bytes, meta->serial, addr.offset(), addr.as_u64());
 
     /*
@@ -317,19 +313,19 @@ shm_address shm_mgr::sbrk(int block_index, size_t *bytes) {
 
     shm_block *block = &blocks_[block_index];
     do {
-        if (block->addr) {
+        if (likely(block->addr)) {
             sk_assert(block->used_size <= block->real_size);
             check_break(block->real_size - block->used_size < real_bytes);
 
             char path[shm_config::MAX_PATH_SIZE];
             calc_path(block_index, path, sizeof(path));
 
-            size_t new_real_size = block->real_size;
+            size_t new_size = block->real_size;
             do {
-                new_real_size += grow_size[block_index];
-            } while (new_real_size - block->used_size < real_bytes);
+                new_size += grow_size[block_index];
+            } while (new_size - block->used_size < real_bytes);
 
-            int ret = resize_block(block_index, new_real_size);
+            int ret = resize_block(block_index, new_size);
             check_break(ret != 0);
 
             return nullptr;
@@ -365,7 +361,7 @@ int shm_mgr::create_block(int block_index, size_t real_size, size_t mmap_size) {
         check_break(addr);
 
         shm_block *block = &blocks_[block_index];
-        block->addr = addr;
+        block->addr      = addr;
         block->used_size = 0;
         block->real_size = real_size;
         block->mmap_size = mmap_size;
@@ -383,24 +379,23 @@ int shm_mgr::create_block(int block_index, size_t real_size, size_t mmap_size) {
     return -1;
 }
 
-int shm_mgr::resize_block(int block_index, size_t new_real_size) {
+int shm_mgr::resize_block(int block_index, size_t new_size) {
     int shmfd = -1;
     char path[shm_config::MAX_PATH_SIZE];
     shm_block *block = &blocks_[block_index];
 
-    if (new_real_size > block->mmap_size) {
-        sk_error("real size<%lu> is too large, block<%d>, mmap size<%lu>.",
-                 new_real_size, block_index, block->mmap_size);
+    if (new_size > block->mmap_size) {
+        sk_fatal("real size<%lu> is too large, block<%d>, mmap size<%lu>.",
+                 new_size, block_index, block->mmap_size);
         return -1;
     }
 
     do {
         calc_path(block_index, path, sizeof(path));
-        shmfd = shm_object_resize(path, &new_real_size);
+        shmfd = shm_object_resize(path, &new_size);
         check_break(shmfd != -1);
 
-        block->real_size = new_real_size;
-
+        block->real_size = new_size;
         close(shmfd);
         return 0;
     } while (0);
@@ -442,7 +437,7 @@ int shm_mgr::attach_block(int block_index) {
     return -1;
 }
 
-int shm_mgr::unlink_block(int block_index) {
+int shm_mgr::delete_block(int block_index) {
     shm_block *block = &blocks_[block_index];
     if (block->addr) {
         shm_object_unmap(block->addr, block->mmap_size);

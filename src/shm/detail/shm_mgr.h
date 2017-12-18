@@ -53,14 +53,16 @@ private:
     shm_address sbrk(int block_index, size_t *bytes);
 
     int create_block(int block_index, size_t real_size, size_t mmap_size);
-    int resize_block(int block_index, size_t new_real_size);
+    int resize_block(int block_index, size_t new_size);
     int attach_block(int block_index);
-    int unlink_block(int block_index);
+    int delete_block(int block_index);
 
 private:
     static const int METADATA_BLOCK = 0;
     static const int USERDATA_BLOCK = 1;
     static const int MAX_SINGLETON_COUNT = 256;
+    static_assert(METADATA_BLOCK + 1 == shm_config::METADATA_SERIAL_NUM, "invalid block index");
+    static_assert(USERDATA_BLOCK + 1 == shm_config::USERDATA_SERIAL_NUM, "invalid block index");
 
     shm_serial_t serial_;
     size_t default_mmap_size_;
