@@ -34,6 +34,10 @@ public:
         if (timeout_ms >= 0) transfer_timeout_ms_ = timeout_ms;
     }
 
+    void set_proxy(const std::string& proxy) {
+        proxy_ = proxy;
+    }
+
     int get(const char *uri, const fn_on_http_response& fn,
             const string_map *parameters, const string_map *headers);
 
@@ -115,6 +119,7 @@ private:
 private:
     long connect_timeout_ms_;
     long transfer_timeout_ms_;
+    std::string proxy_;
     CURLM *mh_;
     uv_loop_t *loop_;
     std::string host_;

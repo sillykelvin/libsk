@@ -3,10 +3,10 @@
 
 #include <vector>
 #include <string>
-#include "utility/types.h"
+#include <utility/types.h>
 
-namespace sk {
-namespace detail {
+NS_BEGIN(sk)
+NS_BEGIN(detail)
 
 template<typename R, bool integral>
 struct string_converter {
@@ -48,15 +48,13 @@ static int convert(const char *str, T& val, const string_converter<R, integral>&
     return 0;
 }
 
-} // namespace detail
+NS_END(detail)
 
 int split_string(const char *str, char delim, std::vector<std::string>& vec);
 void replace_string(std::string& str, const std::string& src, const std::string& dst);
 void fill_string(std::string& str, const char *fmt, ...);
 void trim_string(std::string& str);
-bool is_prefix(const std::string& str1, const std::string& str2);
-std::string base64_decode(const std::string& str);
-std::string md5_string(const std::string& str);
+bool is_prefix(const std::string& prefix, const std::string& target);
 
 template<typename T>
 struct string_traits {
@@ -90,6 +88,6 @@ define_trivial_string_traits(double, double, false, strtod);
 
 #undef define_trivial_string_traits
 
-} // namespace sk
+NS_END(sk)
 
 #endif // STRING_HELPER_H

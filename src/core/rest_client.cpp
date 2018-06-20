@@ -172,10 +172,15 @@ CURL *rest_client::create_handle(const char *uri,
 
     // curl_easy_setopt(h, CURLOPT_DNS_CACHE_TIMEOUT, 0);
     // curl_easy_setopt(h, CURLOPT_FORBID_REUSE, 0);
+
     if (connect_timeout_ms_ > 0)
         curl_easy_setopt(handle, CURLOPT_CONNECTTIMEOUT_MS, connect_timeout_ms_);
+
     if (transfer_timeout_ms_ > 0)
         curl_easy_setopt(handle, CURLOPT_TIMEOUT_MS, transfer_timeout_ms_);
+
+    if (!proxy_.empty())
+        curl_easy_setopt(handle, CURLOPT_PROXY, proxy_.c_str());
 
 #ifndef NDEBUG
     curl_easy_setopt(handle, CURLOPT_VERBOSE, 1L);

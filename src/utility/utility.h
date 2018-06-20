@@ -76,6 +76,19 @@ struct or_<T, U, V, W...> : if_<T::value, T, or_<U, V, W...>>::type {};
 template<typename T>
 struct not_ : if_<T::value, std::false_type, std::true_type>::type {};
 
+template<typename... Ts>
+struct largest;
+
+template<typename T>
+struct largest<T> { typedef T type; };
+
+template<typename T, typename U, typename... Ts>
+struct largest<T, U, Ts...> {
+    typedef typename largest<
+        typename std::conditional<sizeof(U) <= sizeof(T), T, U>::type,
+        Ts...>::type type;
+};
+
 template<typename T>
 const T& max(const T& a, const T& b) {
     return a < b ? b : a;

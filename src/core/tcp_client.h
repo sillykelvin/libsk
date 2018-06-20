@@ -18,6 +18,7 @@ public:
     int connect();
     void stop();
 
+    bool connected() const { return state_ == state_connected; }
     bool connecting() const { return state_ == state_connecting; }
     bool disconnected() const { return state_ == state_disconnected; }
 

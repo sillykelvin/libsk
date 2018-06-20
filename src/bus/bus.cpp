@@ -200,6 +200,10 @@ int send(int dst_busid, const void *data, size_t length) {
         sk_error("failed to write data to bus, ret<%d>, retry<%d>.", ret, retry);
     }
 
+    // we start a full memory barrier here to make sure the data is ready
+    // before we notify the bus
+    __sync_synchronize();
+
     sigval value;
     memset(&value, 0x00, sizeof(value));
     value.sival_int = fd;

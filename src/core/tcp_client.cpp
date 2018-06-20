@@ -7,12 +7,7 @@ tcp_client::tcp_client(uv_loop_t *loop, const std::string& host,
     : state_(state_disconnected),
       loop_(loop),
       addr_(host, port),
-      handle_(cast_ptr(uv_tcp_handle, malloc(sizeof(uv_tcp_handle))), ::free),
-      fn_on_connection_(fn) {
-    handle_->tcp.data = this;
-    memset(&connect_req_, 0x00, sizeof(connect_req_));
-    connect_req_.data = this;
-}
+      fn_on_connection_(fn) {}
 
 tcp_client::~tcp_client() {
     if (sk_trace_enabled())
@@ -37,15 +32,23 @@ int tcp_client::connect() {
         return 0;
     }
 
+    sk_assert(!handle_);
+    handle_ = uv_tcp_handle_ptr(cast_ptr(uv_tcp_handle, malloc(sizeof(uv_tcp_handle))), ::free);
+    handle_->tcp.data = this;
+    memset(&connect_req_, 0x00, sizeof(connect_req_));
+    connect_req_.data = this;
+
     int ret = uv_tcp_init(loop_, &handle_->tcp);
     if (ret != 0) {
         sk_error("uv_tcp_init: %s", uv_err_name(ret));
+        handle_.reset();
         return ret;
     }
 
     ret = uv_tcp_connect(&connect_req_, &handle_->tcp, addr_.address(), on_connect);
     if (ret != 0) {
         sk_error("uv_tcp_connect: %s", uv_err_name(ret));
+        handle_.reset();
         return ret;
     }
 
@@ -80,6 +83,7 @@ void tcp_client::on_connect(int error) {
     if (error != 0) {
         sk_error("on_connect: %s", uv_err_name(error));
         state_ = state_disconnected;
+        handle_.reset();
         return fn_on_connection_(error, nullptr);
     }
 
@@ -96,10 +100,10 @@ void tcp_client::on_connect(int error) {
 }
 
 void tcp_client::on_connect(uv_connect_t *req, int status) {
-    tcp_client *conn = cast_ptr(tcp_client, req->data);
-    sk_assert(&conn->connect_req_ == req);
-    sk_assert(&conn->handle_->stream == req->handle);
-    return conn->on_connect(status);
+    tcp_client *client = cast_ptr(tcp_client, req->data);
+    sk_assert(&client->connect_req_ == req);
+    sk_assert(&client->handle_->stream == req->handle);
+    return client->on_connect(status);
 }
 
 NS_END(sk)

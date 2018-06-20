@@ -106,15 +106,20 @@ int channel_mgr::register_channel(int busid, pid_t pid, size_t node_size, size_t
                 sk_warn("configuration change<%d:%d -> %d:%d> is not supported.",
                         rc->node_size, rc->node_count, node_size, node_count);
 
+            desc.closed = 0;
+            desc.pid = pid;
+            fd = i;
+
+            // the logic in bus_router::on_descriptor_change(int fd) depends on
+            // the value desc.closed heavily, so we start a full memory barrier
+            // to make sure desc.closed is set to 0 before we notify the bus
+            __sync_synchronize();
+
             int ret = notify_channel_change(this->pid, i);
             if (ret != 0) {
                 sk_error("cannot send signal: %s", strerror(errno));
                 return ret;
             }
-
-            desc.closed = 0;
-            desc.pid = pid;
-            fd = i;
 
             return 0;
         }
@@ -158,6 +163,10 @@ int channel_mgr::register_channel(int busid, pid_t pid, size_t node_size, size_t
             return ret;
         }
 
+        // we start a full memory barrier here to make sure everything is ready 
+        // before we notify the bus 
+        __sync_synchronize();
+
         ret = notify_channel_change(this->pid, fd);
         if (ret != 0) {
             sk_error("cannot send signal: %s", strerror(errno));
@@ -184,6 +193,11 @@ void channel_mgr::deregister_channel(int busid) {
 
         desc.closed = 1;
         desc.pid = 0;
+
+        // the logic in bus_router::on_descriptor_change(int fd) depends on the
+        // value desc.closed heavily, so we start a full memory barrier to make
+        // sure desc.closed is set to 1 before we notify the bus
+        __sync_synchronize();
 
         int ret = notify_channel_change(this->pid, i);
         if (ret != 0) sk_error("cannot send signal: %s", strerror(errno));

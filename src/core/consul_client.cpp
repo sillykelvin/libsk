@@ -2,6 +2,7 @@
 #include <log/log.h>
 #include <core/consul_client.h>
 #include <utility/assert_helper.h>
+#include <utility/crypto_helper.h>
 #include <utility/string_helper.h>
 
 #define DEFAULT_WATCH_TIME "10m"
