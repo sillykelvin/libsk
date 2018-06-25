@@ -8,16 +8,24 @@ int main() {
     sk::coroutine_init(uv_default_loop());
 
     sk::coroutine::create([]() {
-        sk_trace("aaa1");
-        sk::coroutine::current_coroutine()->sleep(1000);
-        sk_trace("aaa2");
-    }, 1024 * 1024);
+        for (int i = 0; i < 10; ++i) {
+            printf("==> sleep1 - %d\n", i);
+            sk_debug("==> sleep1 - %d", i);
+            sk::coroutine::current_coroutine()->sleep(1000);
+            printf("<== sleep1 - %d\n", i);
+            sk_debug("<== sleep1 - %d", i);
+        }
+    });
 
     sk::coroutine::create([]() {
-        sk_trace("bbb1");
-        sk::coroutine::current_coroutine()->sleep(1000);
-        sk_trace("bbb2");
-    }, 1024 * 1024);
+        for (int i = 0; i < 10; ++i) {
+            printf("==> sleep2 - %d\n", i);
+            sk_debug("==> sleep2 - %d", i);
+            sk::coroutine::current_coroutine()->sleep(1000);
+            printf("<== sleep2 - %d\n", i);
+            sk_debug("<== sleep2 - %d", i);
+        }
+    });
 
     sk::coroutine_schedule();
     sk::coroutine_fini();
