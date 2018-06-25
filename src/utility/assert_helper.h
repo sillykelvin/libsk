@@ -5,9 +5,9 @@
 #include "log/log.h"
 #include "utility/types.h"
 
-namespace sk {
+NS_BEGIN(sk)
 const char *stacktrace();
-} // namespace sk
+NS_END(sk)
 
 #define ASSERT(exp)                                    \
     do {                                               \
@@ -51,6 +51,10 @@ const char *stacktrace();
             continue;                           \
         }                                       \
     }
+
+#define assert_ensure(exp)                      \
+    if (unlikely(!(exp))) ASSERT(exp);          \
+    else
 
 
 #define check_retval(exp, val)                  \
