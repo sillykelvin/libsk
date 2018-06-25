@@ -129,15 +129,11 @@ void coroutine::schedule() {
     }
 }
 
-void coroutine::sleep() {
-    sleep(-1);
-}
-
-void coroutine::sleep(s64 ms) {
+void coroutine::sleep(u64 ms) {
     sk_assert(running());
 
     heap_timer *t = new heap_timer(mgr->loop_, on_sleep_timeout);
-    t->start_once(cast_u64(ms >= 0 ? ms : -1)); // sleep forever when ms < 0
+    t->start_once(ms);
 
     state_ = state_sleeping;
     mgr->add_sleeping(shared_from_this(), t);

@@ -32,8 +32,7 @@ public:
     bool cond_waiting() const { return state_ == state_cond_waiting; }
     bool finished()     const { return state_ == state_finished; }
 
-    void sleep();       // sleep forever
-    void sleep(s64 ms); // sleep for some time
+    void sleep(u64 ms); // sleep for some time
 
     void wait(condition_variable *cond);                 // wait forever
     void wait(condition_variable *cond, s64 timeout_ms); // wait for some time
