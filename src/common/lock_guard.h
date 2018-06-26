@@ -15,7 +15,7 @@ class lock_guard {
 public:
     MAKE_NONCOPYABLE(lock_guard);
 
-    lock_guard(L& lock) : lock_(&lock) {
+    explicit lock_guard(L& lock) : lock_(&lock) {
         lock_->lock();
     }
 
