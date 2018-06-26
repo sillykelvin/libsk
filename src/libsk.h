@@ -55,6 +55,7 @@
 #include <container/fixed_map.h>
 #include <utility/time_helper.h>
 #include <utility/math_helper.h>
+#include <coroutine/coroutine.h>
 #include <container/fixed_list.h>
 #include <server/option_parser.h>
 #include <utility/assert_helper.h>
