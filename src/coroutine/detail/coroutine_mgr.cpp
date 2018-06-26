@@ -1,11 +1,23 @@
+#include <sys/mman.h>
 #include <utility/assert_helper.h>
+#include <utility/system_helper.h>
 #include <coroutine/detail/context.h>
 #include <coroutine/detail/coroutine_mgr.h>
 
 NS_BEGIN(sk)
 
-static const int FLAG_PRESERVE_FPU = 0x1;
-static const int FLAG_TIMEOUT      = 0x2;
+static const int FLAG_PRESERVE_FPU  = 0x1;
+static const int FLAG_PROTECT_STACK = 0x2;
+static const int FLAG_TIMEOUT       = 0x4;
+
+static size_t get_page_size() {
+    static size_t page_size = 0;
+    if (unlikely(page_size == 0)) {
+        page_size = sk::get_sys_page_size();
+    }
+
+    return page_size;
+}
 
 enum coroutine_state {
     state_running,
@@ -17,9 +29,8 @@ enum coroutine_state {
 };
 
 struct coroutine {
-    coroutine(const std::string& name,
-              const coroutine_function& fn,
-              size_t stack_size, bool preserve_fpu) {
+    coroutine(const std::string& name, const coroutine_function& fn,
+              size_t stack_size, bool preserve_fpu, bool protect_stack) {
         sk_trace("coroutine::coroutine(%s)", name.c_str());
 
         this->flag       = 0;
@@ -33,6 +44,10 @@ struct coroutine {
         if (preserve_fpu) {
             flag |= FLAG_PRESERVE_FPU;
         }
+
+        if (protect_stack) {
+            flag |= FLAG_PROTECT_STACK;
+        }
     }
 
     ~coroutine() {
@@ -43,8 +58,16 @@ struct coroutine {
         }
 
         if (stack) {
-            free(stack);
+            if ((flag & FLAG_PROTECT_STACK) != 0) {
+                const size_t page_size = get_page_size();
+                const size_t mmap_size = stack_size + page_size * 2;
+                munmap(stack, mmap_size);
+            } else {
+                free(stack);
+            }
+
             stack = nullptr;
+            stack_size = 0;
 
             // ctx actually points to an object on stack, so just reset it here
             ctx = nullptr;
@@ -52,18 +75,55 @@ struct coroutine {
     }
 
     bool init() {
-        // TODO: use mprotect(...) to avoid stack overflow here
-        stack = char_ptr(malloc(stack_size));
-        if (!stack) {
-            return false;
+        void *top = nullptr;
+
+        if ((flag & FLAG_PROTECT_STACK) != 0) {
+            const size_t page_size = get_page_size();
+
+            if ((stack_size & (page_size - 1)) > 0) {
+                stack_size = (stack_size & ~(page_size - 1)) + page_size;
+                sk_assert((stack_size & (page_size - 1)) == 0);
+            }
+
+            const size_t mmap_size = stack_size + page_size * 2;
+            const int prot = PROT_READ | PROT_WRITE | PROT_EXEC;
+            const int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+
+            stack = char_ptr(mmap(nullptr, mmap_size, prot, flags, -1, 0));
+            if (stack == MAP_FAILED) {
+                sk_error("mmap() error: %s.", strerror(errno));
+                stack = nullptr; // MAP_FAILED is -1, we need to reset to null here
+                return false;
+            }
+
+            uintptr_t ptr = reinterpret_cast<uintptr_t>(stack);
+            sk_assert((ptr & (page_size - 1)) == 0);
+            sk_assert(((ptr + mmap_size) & (page_size - 1)) == 0);
+
+            if (mprotect(stack, page_size, PROT_NONE) == -1) {
+                sk_error("mprotect() error: %s.", strerror(errno));
+                munmap(stack, mmap_size);
+                return false;
+            }
+
+            if (mprotect(stack + page_size + stack_size, page_size, PROT_NONE) == -1) {
+                sk_error("mprotect() error: %s.", strerror(errno));
+                munmap(stack, mmap_size);
+                return false;
+            }
+
+            top = stack + page_size + stack_size;
+        } else {
+            stack = char_ptr(malloc(stack_size));
+            if (!stack) {
+                return false;
+            }
+
+            top = stack + stack_size;
         }
 
-        ctx = detail::make_context(stack + stack_size, stack_size, detail::coroutine_mgr::context_main);
-        if (!ctx) {
-            return false;
-        }
-
-        return true;
+        ctx = detail::make_context(top, stack_size, detail::coroutine_mgr::context_main);
+        return !!ctx;
     }
 
     int flag;
@@ -82,7 +142,7 @@ static void *main_ctx = nullptr;
 coroutine_mgr::coroutine_mgr(uv_loop_t *loop) : loop_(loop), uv_(nullptr), current_(nullptr) {
     uv_ = create("uv", [this] () {
         uv_run(loop_, UV_RUN_DEFAULT);
-    }, 8 * 1024, false);
+    }, 16 * 1024, false, true);
 
     // create(...) will push coroutine into the runnable_ queue, but
     // the uv_ coroutine should not be there, so we remove it manually
@@ -104,11 +164,9 @@ coroutine_mgr::~coroutine_mgr() {
     }
 }
 
-coroutine *coroutine_mgr::create(const std::string& name,
-                                 const coroutine_function& fn,
-                                 size_t stack_size, bool preserve_fpu) {
-    // TODO: if stack_size is less than 2 pages, adjust it to 2 pages
-    coroutine *c = new coroutine(name, fn, stack_size, preserve_fpu);
+coroutine *coroutine_mgr::create(const std::string& name, const coroutine_function& fn,
+                                 size_t stack_size, bool preserve_fpu, bool protect_stack) {
+    coroutine *c = new coroutine(name, fn, stack_size, preserve_fpu, protect_stack);
     if (!c->init()) {
         delete c;
         return nullptr;

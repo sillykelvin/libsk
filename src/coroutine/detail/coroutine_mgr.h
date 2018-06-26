@@ -16,9 +16,8 @@ public:
     explicit coroutine_mgr(uv_loop_t *loop);
     ~coroutine_mgr();
 
-    coroutine *create(const std::string& name,
-                      const coroutine_function& fn,
-                      size_t stack_size, bool preserve_fpu);
+    coroutine *create(const std::string& name, const coroutine_function& fn,
+                      size_t stack_size, bool preserve_fpu, bool protect_stack);
 
     coroutine *self();
     const char *name();

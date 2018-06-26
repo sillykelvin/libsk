@@ -19,10 +19,9 @@ void coroutine_fini() {
     }
 }
 
-coroutine *coroutine_create(const std::string& name,
-                            const coroutine_function& fn,
-                            size_t stack_size, bool preserve_fpu) {
-    return mgr->create(name, fn, stack_size, preserve_fpu);
+coroutine *coroutine_create(const std::string& name, const coroutine_function& fn,
+                            size_t stack_size, bool preserve_fpu, bool protect_stack) {
+    return mgr->create(name, fn, stack_size, preserve_fpu, protect_stack);
 }
 
 coroutine *coroutine_self() {

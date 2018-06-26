@@ -16,7 +16,8 @@ void coroutine_fini();
 coroutine *coroutine_create(const std::string& name,
                             const coroutine_function& fn,
                             size_t stack_size = 8 * 1024,
-                            bool preserve_fpu = false);
+                            bool preserve_fpu = false,
+                            bool protect_stack = false);
 
 coroutine *coroutine_self();
 
