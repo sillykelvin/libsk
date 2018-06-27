@@ -19,6 +19,8 @@ public:
     coroutine *create(const std::string& name, const coroutine_function& fn,
                       size_t stack_size, bool preserve_fpu, bool protect_stack);
 
+    uv_loop_t *loop();
+
     coroutine *self();
     const char *name();
 

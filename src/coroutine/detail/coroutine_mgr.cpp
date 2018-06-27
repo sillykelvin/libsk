@@ -176,6 +176,10 @@ coroutine *coroutine_mgr::create(const std::string& name, const coroutine_functi
     return c;
 }
 
+uv_loop_t *coroutine_mgr::loop(){
+    return loop_;
+}
+
 coroutine *coroutine_mgr::self() {
     return current_;
 }
