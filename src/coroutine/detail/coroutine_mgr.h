@@ -34,6 +34,8 @@ private:
     static void yield(coroutine *c);
     static void resume(coroutine *c);
 
+    static void on_sleep_timeout(coroutine *c, heap_timer *t);
+
 private:
     uv_loop_t *loop_;
     coroutine *uv_;
@@ -41,7 +43,6 @@ private:
     std::queue<coroutine*> runnable_;
     std::unordered_set<coroutine*> io_waiting_;
     std::unordered_set<coroutine*> cond_waiting_;
-    std::unordered_map<heap_timer*, coroutine*> sleeping_;
 };
 
 NS_END(detail)

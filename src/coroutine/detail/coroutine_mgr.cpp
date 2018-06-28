@@ -138,6 +138,7 @@ struct coroutine {
 NS_BEGIN(detail)
 
 static void *main_ctx = nullptr;
+static coroutine_mgr *mgr = nullptr;
 
 coroutine_mgr::coroutine_mgr(uv_loop_t *loop) : loop_(loop), uv_(nullptr), current_(nullptr) {
     uv_ = create("uv", [this] () {
@@ -148,6 +149,9 @@ coroutine_mgr::coroutine_mgr(uv_loop_t *loop) : loop_(loop), uv_(nullptr), curre
     // the uv_ coroutine should not be there, so we remove it manually
     sk_assert(runnable_.size() == 1);
     runnable_.pop();
+
+    sk_assert(!mgr);
+    mgr = this;
 }
 
 coroutine_mgr::~coroutine_mgr() {
@@ -159,9 +163,12 @@ coroutine_mgr::~coroutine_mgr() {
         sk_warn("uv_ is active!");
     }
 
-    if (!runnable_.empty() || !io_waiting_.empty() || !cond_waiting_.empty() || !sleeping_.empty()) {
+    if (!runnable_.empty() || !io_waiting_.empty() || !cond_waiting_.empty()) {
         sk_warn("there are still active coroutines!");
     }
+
+    sk_assert(mgr);
+    mgr = nullptr;
 }
 
 coroutine *coroutine_mgr::create(const std::string& name, const coroutine_function& fn,
@@ -191,27 +198,10 @@ const char *coroutine_mgr::name() {
 void coroutine_mgr::sleep(u64 ms) {
     sk_assert(current_ && current_->state == state_running);
 
-    heap_timer *t = new heap_timer(loop_, [this] (heap_timer *t) {
-        auto it = sleeping_.find(t);
-        assert_ensure(it != sleeping_.end()) {
-            coroutine *c = it->second;
-            sleeping_.erase(it);
-
-            c->state = state_runnable;
-            runnable_.push(c);
-
-            sk_assert(current_ == uv_);
-            yield(current_);
-        }
-
-        t->close([] (heap_timer *t) {
-            delete t;
-        });
-    });
-
+    heap_timer *t = new heap_timer(loop_, std::bind(on_sleep_timeout, current_, std::placeholders::_1));
     t->start_once(ms);
+
     current_->state = state_sleeping;
-    sleeping_.insert(std::make_pair(t, current_));
     yield(current_);
 }
 
@@ -290,6 +280,19 @@ void coroutine_mgr::yield(coroutine *c) {
 
 void coroutine_mgr::resume(coroutine *c) {
     jump_context(&main_ctx, c->ctx, reinterpret_cast<intptr_t>(c), (c->flag & FLAG_PRESERVE_FPU) != 0);
+}
+
+void coroutine_mgr::on_sleep_timeout(coroutine *c, heap_timer *t) {
+    sk_assert(c->state == state_sleeping);
+    c->state = state_runnable;
+    mgr->runnable_.push(c);
+
+    sk_assert(mgr->current_ == mgr->uv_);
+    yield(mgr->current_);
+
+    t->close([] (heap_timer *t) {
+        delete t;
+    });
 }
 
 NS_END(detail)
