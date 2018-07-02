@@ -223,8 +223,15 @@ const char *coroutine_mgr::name() {
 void coroutine_mgr::sleep(u64 ms) {
     sk_assert(current_ && current_->state == state_running);
 
-    heap_timer t(loop_, std::bind(on_sleep_timeout, current_));
-    t.start_once(ms);
+    int ret = 0;
+    uv_timer_t timer;
+    timer.data = current_;
+
+    ret = uv_timer_init(loop_, &timer);
+    sk_assert(ret == 0);
+
+    ret = uv_timer_start(&timer, on_sleep_timeout, ms, 0);
+    sk_assert(ret == 0);
 
     current_->state = state_sleeping;
     yield(current_);
@@ -476,8 +483,9 @@ void coroutine_mgr::resume(coroutine *c) {
     jump_context(&main_ctx, c->ctx, reinterpret_cast<intptr_t>(c), (c->flag & FLAG_PRESERVE_FPU) != 0);
 }
 
-void coroutine_mgr::on_sleep_timeout(coroutine *c) {
-    sk_assert(c->state == state_sleeping);
+void coroutine_mgr::on_sleep_timeout(uv_timer_t *handle) {
+    coroutine *c = cast_ptr(coroutine, handle->data);
+    sk_assert(c && c->state == state_sleeping);
 
     c->state = state_runnable;
     mgr->runnable_.push(c);

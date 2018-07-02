@@ -5,7 +5,6 @@
 #include <queue>
 #include <unordered_set>
 #include <unordered_map>
-#include <time/heap_timer.h>
 #include <coroutine/coroutine.h>
 
 NS_BEGIN(sk)
@@ -50,7 +49,7 @@ private:
     static void yield(coroutine *c);
     static void resume(coroutine *c);
 
-    static void on_sleep_timeout(coroutine *c);
+    static void on_sleep_timeout(uv_timer_t *handle);
 
     static void on_tcp_connect(uv_connect_t *req, int status);
     static void on_tcp_listen(uv_stream_t *server, int status);
