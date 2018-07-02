@@ -43,6 +43,7 @@ int coroutine_tcp_listen(coroutine_tcp_handle *h, int backlog);
 int coroutine_tcp_accept(coroutine_tcp_handle *h, coroutine_tcp_handle *client);
 int coroutine_tcp_shutdown(coroutine_tcp_handle *h);
 
+// TODO: retrun 0 when EOF instead of UV_EOF (be consistent with the "read()" system call)
 ssize_t coroutine_tcp_read(coroutine_tcp_handle *h, void *buf, size_t len); // TODO: timeout here
 ssize_t coroutine_tcp_write(coroutine_tcp_handle *h, const void *buf, size_t len); // TODO: timeout here
 
