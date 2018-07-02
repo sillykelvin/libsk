@@ -223,8 +223,8 @@ const char *coroutine_mgr::name() {
 void coroutine_mgr::sleep(u64 ms) {
     sk_assert(current_ && current_->state == state_running);
 
-    heap_timer *t = new heap_timer(loop_, std::bind(on_sleep_timeout, current_, std::placeholders::_1));
-    t->start_once(ms);
+    heap_timer t(loop_, std::bind(on_sleep_timeout, current_));
+    t.start_once(ms);
 
     current_->state = state_sleeping;
     yield(current_);
@@ -476,7 +476,7 @@ void coroutine_mgr::resume(coroutine *c) {
     jump_context(&main_ctx, c->ctx, reinterpret_cast<intptr_t>(c), (c->flag & FLAG_PRESERVE_FPU) != 0);
 }
 
-void coroutine_mgr::on_sleep_timeout(coroutine *c, heap_timer *t) {
+void coroutine_mgr::on_sleep_timeout(coroutine *c) {
     sk_assert(c->state == state_sleeping);
 
     c->state = state_runnable;
@@ -484,10 +484,6 @@ void coroutine_mgr::on_sleep_timeout(coroutine *c, heap_timer *t) {
 
     sk_assert(mgr->current_ == mgr->uv_);
     yield(mgr->current_);
-
-    t->close([] (heap_timer *t) {
-        delete t;
-    });
 }
 
 void coroutine_mgr::on_tcp_connect(uv_connect_t *req, int status) {

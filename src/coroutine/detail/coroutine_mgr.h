@@ -50,7 +50,7 @@ private:
     static void yield(coroutine *c);
     static void resume(coroutine *c);
 
-    static void on_sleep_timeout(coroutine *c, heap_timer *t);
+    static void on_sleep_timeout(coroutine *c);
 
     static void on_tcp_connect(uv_connect_t *req, int status);
     static void on_tcp_listen(uv_stream_t *server, int status);
