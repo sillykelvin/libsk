@@ -7,11 +7,11 @@ int main() {
     sk::coroutine_init(uv_default_loop());
 
     sk::coroutine_create("server", [] () {
-        sk::coroutine_tcp_handle *h = sk::coroutine_tcp_create();
+        sk::coroutine_handle *h = sk::coroutine_handle_create(sk::coroutine_handle_tcp);
         int ret = sk::coroutine_tcp_bind(h, 7777);
         if (ret != 0) {
             sk_error("bind error.");
-            sk::coroutine_tcp_free(h);
+            sk::coroutine_handle_free(h);
             return;
         }
 
@@ -24,14 +24,14 @@ int main() {
             sk_trace("<<= listen");
             if (ret != 0) {
                 sk_error("listen error.");
-                sk::coroutine_tcp_free(h);
+                sk::coroutine_handle_free(h);
                 return;
             }
 
             char buf[32];
             snprintf(buf, sizeof(buf), "conn-%d", total_count++);
 
-            sk::coroutine_tcp_handle *client = sk::coroutine_tcp_create();
+            sk::coroutine_handle *client = sk::coroutine_handle_create(sk::coroutine_handle_tcp);
             sk::coroutine *c = sk::coroutine_create(buf, [client, &exit, &active_count] () {
                 char buf[4];
                 buf[sizeof(buf) - 1] = 0;
@@ -76,10 +76,10 @@ int main() {
                 }
 
                 sk_trace("=>> close(%s)", sk::coroutine_name());
-                sk::coroutine_tcp_close(client);
+                sk::coroutine_handle_close(client);
                 sk_trace("<<= close(%s)", sk::coroutine_name());
 
-                sk::coroutine_tcp_free(client);
+                sk::coroutine_handle_free(client);
                 --active_count;
             });
 
@@ -88,8 +88,8 @@ int main() {
             ret = sk::coroutine_tcp_accept(h, client);
             if (ret != 0) {
                 sk_error("accept error.");
-                sk::coroutine_tcp_close(h);
-                sk::coroutine_tcp_free(h);
+                sk::coroutine_handle_close(h);
+                sk::coroutine_handle_free(h);
                 return;
             }
         }
@@ -110,10 +110,10 @@ int main() {
         sk_assert(active_count == 0);
 
         sk_trace("=>> close(%s)", sk::coroutine_name());
-        sk::coroutine_tcp_close(h);
+        sk::coroutine_handle_close(h);
         sk_trace("<<= close(%s)", sk::coroutine_name());
 
-        sk::coroutine_tcp_free(h);
+        sk::coroutine_handle_free(h);
     });
 
     sk::coroutine_schedule();

@@ -11,11 +11,11 @@ int main() {
         snprintf(buf, sizeof(buf), "conn-%d", i);
 
         sk::coroutine_create(buf, [i] () {
-            sk::coroutine_tcp_handle *h = sk::coroutine_tcp_create();
+            sk::coroutine_handle *h = sk::coroutine_handle_create(sk::coroutine_handle_tcp);
             int ret = sk::coroutine_tcp_connect(h, "127.0.0.1", 7777);
             if (ret != 0) {
                 sk_error("connect error.");
-                sk::coroutine_tcp_free(h);
+                sk::coroutine_handle_free(h);
                 return;
             }
 
@@ -32,8 +32,8 @@ int main() {
 
             if (nwrite < 0) {
                 sk_error("write error.");
-                sk::coroutine_tcp_close(h);
-                sk::coroutine_tcp_free(h);
+                sk::coroutine_handle_close(h);
+                sk::coroutine_handle_free(h);
                 return;
             }
 
@@ -46,13 +46,13 @@ int main() {
                 sk_debug("empty read: %s", sk::coroutine_name());
             } else if (nread == UV_EOF) {
                 sk_debug("EOF: %s", sk::coroutine_name());
-                sk::coroutine_tcp_close(h);
-                sk::coroutine_tcp_free(h);
+                sk::coroutine_handle_close(h);
+                sk::coroutine_handle_free(h);
                 return;
             } else if (nread < 0) {
                 sk_error("read error: %s", sk::coroutine_name());
-                sk::coroutine_tcp_close(h);
-                sk::coroutine_tcp_free(h);
+                sk::coroutine_handle_close(h);
+                sk::coroutine_handle_free(h);
                 return;
             } else {
                 sk_debug("read content: %s:%ld (%s)", buf, nread, sk::coroutine_name());
@@ -66,10 +66,10 @@ int main() {
             }
 
             sk_trace("=>> close(%s)", sk::coroutine_name());
-            sk::coroutine_tcp_close(h);
+            sk::coroutine_handle_close(h);
             sk_trace("<<= close(%s)", sk::coroutine_name());
 
-            sk::coroutine_tcp_free(h);
+            sk::coroutine_handle_free(h);
         });
     }
 

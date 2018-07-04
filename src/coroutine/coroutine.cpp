@@ -2,6 +2,21 @@
 #include <coroutine/coroutine.h>
 #include <coroutine/detail/coroutine_mgr.h>
 
+#define ensure_coroutine(handle, type)                                              \
+    do {                                                                            \
+        int t = coroutine_handle_type(handle);                                      \
+        if (t != type) {                                                            \
+            sk_error("handle type mismatch, this: %d, wanted: %d.", t, type);       \
+            return -EINVAL;                                                         \
+        }                                                                           \
+                                                                                    \
+        coroutine *self = coroutine_self();                                         \
+        if (!self || coroutine_get(handle) != self) {                               \
+            sk_error("this function can only be called inside its own coroutine."); \
+            return -EINVAL;                                                         \
+        }                                                                           \
+    } while (0)
+
 NS_BEGIN(sk)
 
 static detail::coroutine_mgr *mgr = nullptr;
@@ -34,7 +49,7 @@ const char *coroutine_name() {
 
 void coroutine_sleep(u64 ms) {
     if (!coroutine_self()) {
-        sk_error("coroutine_sleep() can only be called inside a coroutine.");
+        sk_error("this function can only be called inside a coroutine.");
         return;
     }
 
@@ -43,7 +58,7 @@ void coroutine_sleep(u64 ms) {
 
 void coroutine_yield() {
     if (!coroutine_self()) {
-        sk_error("coroutine_yield() can only be called inside a coroutine.");
+        sk_error("this function can only be called inside a coroutine.");
         return;
     }
 
@@ -52,23 +67,22 @@ void coroutine_yield() {
 
 void coroutine_schedule() {
     if (coroutine_self()) {
-        sk_error("coroutine_schedule() cannot be called inside a coroutine.");
+        sk_error("this function cannot be called inside a coroutine.");
         return;
     }
 
     return mgr->schedule();
 }
 
-coroutine *coroutine_get(coroutine_tcp_handle *h) {
+coroutine *coroutine_get(coroutine_handle *h) {
     return mgr->get(h);
 }
 
-void coroutine_bind(coroutine_tcp_handle *h, coroutine *c) {
+void coroutine_bind(coroutine_handle *h, coroutine *c) {
     return mgr->bind(h, c);
 }
 
-coroutine_tcp_handle *coroutine_tcp_create(coroutine *c) {
-    // bind to current coroutine if coroutine is not specified
+coroutine_handle *coroutine_handle_create(int type, coroutine *c) {
     if (!c) {
         c = coroutine_self();
         if (!c) {
@@ -77,96 +91,65 @@ coroutine_tcp_handle *coroutine_tcp_create(coroutine *c) {
         }
     }
 
-    return mgr->tcp_create(c);
+    return mgr->handle_create(type, c);
 }
 
-void coroutine_tcp_free(coroutine_tcp_handle *h) {
+void coroutine_handle_close(coroutine_handle *h) {
     coroutine *self = coroutine_self();
     if (!self || coroutine_get(h) != self) {
-        sk_error("coroutine_tcp_free() can only be called inside its own coroutine.");
+        sk_error("this function can only be called inside its own coroutine.");
         return;
     }
 
-    return mgr->tcp_free(h);
+    return mgr->handle_close(h);
 }
 
-void coroutine_tcp_close(coroutine_tcp_handle *h) {
+void coroutine_handle_free(coroutine_handle *h) {
     coroutine *self = coroutine_self();
     if (!self || coroutine_get(h) != self) {
-        sk_error("coroutine_tcp_close() can only be called inside its own coroutine.");
+        sk_error("this function can only be called inside its own coroutine.");
         return;
     }
 
-    return mgr->tcp_close(h);
+    return mgr->handle_free(h);
 }
 
-int coroutine_tcp_bind(coroutine_tcp_handle *h, u16 port) {
-    coroutine *self = coroutine_self();
-    if (!self || coroutine_get(h) != self) {
-        sk_error("coroutine_tcp_bind() can only be called inside its own coroutine.");
-        return -ESRCH;
-    }
+int coroutine_handle_type(coroutine_handle *h) {
+    return mgr->handle_type(h);
+}
 
+int coroutine_tcp_bind(coroutine_handle *h, u16 port) {
+    ensure_coroutine(h, coroutine_handle_tcp);
     return mgr->tcp_bind(h, port);
 }
 
-int coroutine_tcp_connect(coroutine_tcp_handle *h, const std::string& host, u16 port) {
-    coroutine *self = coroutine_self();
-    if (!self || coroutine_get(h) != self) {
-        sk_error("coroutine_tcp_connect() can only be called inside its own coroutine.");
-        return -ESRCH;
-    }
-
+int coroutine_tcp_connect(coroutine_handle *h, const std::string& host, u16 port) {
+    ensure_coroutine(h, coroutine_handle_tcp);
     return mgr->tcp_connect(h, host, port);
 }
 
-int coroutine_tcp_listen(coroutine_tcp_handle *h, int backlog) {
-    coroutine *self = coroutine_self();
-    if (!self || coroutine_get(h) != self) {
-        sk_error("coroutine_tcp_listen() can only be called inside its own coroutine.");
-        return -ESRCH;
-    }
-
+int coroutine_tcp_listen(coroutine_handle *h, int backlog) {
+    ensure_coroutine(h, coroutine_handle_tcp);
     return mgr->tcp_listen(h, backlog);
 }
 
-int coroutine_tcp_accept(coroutine_tcp_handle *h, coroutine_tcp_handle *client) {
-    coroutine *self = coroutine_self();
-    if (!self || coroutine_get(h) != self) {
-        sk_error("coroutine_tcp_accept() can only be called inside its own coroutine.");
-        return -ESRCH;
-    }
-
+int coroutine_tcp_accept(coroutine_handle *h, coroutine_handle *client) {
+    ensure_coroutine(h, coroutine_handle_tcp);
     return mgr->tcp_accept(h, client);
 }
 
-int coroutine_tcp_shutdown(coroutine_tcp_handle *h) {
-    coroutine *self = coroutine_self();
-    if (!self || coroutine_get(h) != self) {
-        sk_error("coroutine_tcp_shutdown() can only be called inside its own coroutine.");
-        return -ESRCH;
-    }
-
+int coroutine_tcp_shutdown(coroutine_handle *h) {
+    ensure_coroutine(h, coroutine_handle_tcp);
     return mgr->tcp_shutdown(h);
 }
 
-ssize_t coroutine_tcp_read(coroutine_tcp_handle *h, void *buf, size_t len) {
-    coroutine *self = coroutine_self();
-    if (!self || coroutine_get(h) != self) {
-        sk_error("coroutine_tcp_read() can only be called inside its own coroutine.");
-        return -ESRCH;
-    }
-
+ssize_t coroutine_tcp_read(coroutine_handle *h, void *buf, size_t len) {
+    ensure_coroutine(h, coroutine_handle_tcp);
     return mgr->tcp_read(h, buf, len);
 }
 
-ssize_t coroutine_tcp_write(coroutine_tcp_handle *h, const void *buf, size_t len) {
-    coroutine *self = coroutine_self();
-    if (!self || coroutine_get(h) != self) {
-        sk_error("coroutine_tcp_write() can only be called inside its own coroutine.");
-        return -ESRCH;
-    }
-
+ssize_t coroutine_tcp_write(coroutine_handle *h, const void *buf, size_t len) {
+    ensure_coroutine(h, coroutine_handle_tcp);
     return mgr->tcp_write(h, buf, len);
 }
 

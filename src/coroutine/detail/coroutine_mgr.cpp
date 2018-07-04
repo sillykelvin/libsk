@@ -1,4 +1,8 @@
+#include <map>
+#include <set>
 #include <sys/mman.h>
+#include <sys/inotify.h>
+#include <utility/utility.h>
 #include <core/inet_address.h>
 #include <utility/assert_helper.h>
 #include <utility/system_helper.h>
@@ -136,28 +140,153 @@ struct coroutine {
     coroutine_function fn;
 };
 
-struct coroutine_tcp_handle {
-    int retval;
-    bool listening;
-    bool uv_listen_called;
+struct coroutine_handle {
+    struct tcp_handle {
+        tcp_handle() {
+            retval = 0;
+            listening = false;
+            uv_listen_called = false;
+            pending_connection_count = 0;
+            incoming.buf = nullptr;
+            incoming.len = 0;
+            incoming.nbytes = 0;
+            outgoing.nbytes = 0;
+        }
+
+        int retval;
+        bool listening;
+        bool uv_listen_called;
+        size_t pending_connection_count;
+
+        struct {
+            void *buf;
+            size_t len;
+            ssize_t nbytes;
+        } incoming;
+
+        struct {
+            ssize_t nbytes;
+        } outgoing;
+    };
+
+    struct fs_watcher {
+        fs_watcher() {
+            ifd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+            sk_assert(ifd != -1);
+        }
+
+        ~fs_watcher() {
+            for (const auto& it : wd2file) {
+                inotify_rm_watch(ifd, it.first);
+            }
+
+            wd2file.clear();
+            file2wd.clear();
+
+            if (ifd != -1) {
+                close(ifd);
+                ifd = -1;
+            }
+        }
+
+        int ifd;
+        std::map<int, std::string> wd2file;
+        std::map<std::string, int> file2wd;
+    };
+
+    struct signal_watcher {
+        signal_watcher() {
+            sigset_t mask;
+            sigemptyset(&mask);
+
+            sfd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
+            sk_assert(sfd != -1);
+        }
+
+        ~signal_watcher() {
+            sigset_t mask;
+            sigemptyset(&mask);
+
+            for (const auto& sig : signals) {
+                sigaddset(&mask, sig);
+            }
+
+            int ret = sigprocmask(SIG_UNBLOCK, &mask, nullptr);
+            sk_assert(ret != -1);
+
+            signals.clear();
+
+            if (sfd != -1) {
+                close(sfd);
+                sfd = -1;
+            }
+        }
+
+        int sfd;
+        std::set<int> signals;
+    };
+
+    int type;
     sk::coroutine *coroutine;
-    size_t pending_connection_count;
 
-    struct {
-        void *buf;
-        size_t len;
-        ssize_t nbytes;
-    } incoming;
+    union U {
+        tcp_handle tcp;
+        fs_watcher fs;
+        signal_watcher sig;
 
-    struct {
-        ssize_t nbytes;
-    } outgoing;
+        // have to define user-defined ctor/dtor here, otherwise the code will not compile
+        U() {}
+        ~U() {}
+    } u;
 
     union {
         uv_handle_t handle;
         uv_stream_t stream;
         uv_tcp_t tcp;
+        uv_poll_t poll;
     } uv;
+
+    coroutine_handle(int type, sk::coroutine *c, uv_loop_t *loop) : type(type), coroutine(c) {
+        switch (type) {
+        case coroutine_handle_tcp: {
+            new (&u.tcp) tcp_handle();
+            int ret = uv_tcp_init(loop, &uv.tcp);
+            sk_assert(ret == 0);
+            break;
+        }
+        case coroutine_handle_fs_watcher: {
+            new (&u.fs) fs_watcher();
+            int ret = uv_poll_init(loop, &uv.poll, u.fs.ifd);
+            sk_assert(ret == 0);
+            break;
+        }
+        case coroutine_handle_signal_watcher: {
+            new (&u.sig) signal_watcher();
+            int ret = uv_poll_init(loop, &uv.poll, u.sig.sfd);
+            sk_assert(ret == 0);
+            break;
+        }
+        default: {
+            sk_error("invalid handle type: %d.", type);
+        }
+        }
+    }
+
+    ~coroutine_handle() {
+        switch (type) {
+        case coroutine_handle_tcp:
+            u.tcp.~tcp_handle();
+            break;
+        case coroutine_handle_fs_watcher:
+            u.fs.~fs_watcher();
+            break;
+        case coroutine_handle_signal_watcher:
+            u.sig.~signal_watcher();
+            break;
+        default:
+            sk_error("invalid handle type: %d.", type);
+        }
+    }
 };
 
 NS_BEGIN(detail)
@@ -298,56 +427,44 @@ void coroutine_mgr::schedule() {
     }
 }
 
-coroutine *coroutine_mgr::get(coroutine_tcp_handle *h) {
+coroutine *coroutine_mgr::get(coroutine_handle *h) {
     return h->coroutine;
 }
 
-void coroutine_mgr::bind(coroutine_tcp_handle *h, coroutine *c) {
+void coroutine_mgr::bind(coroutine_handle *h, coroutine *c) {
     h->coroutine = c;
 }
 
-coroutine_tcp_handle *coroutine_mgr::tcp_create(coroutine *c) {
+coroutine_handle *coroutine_mgr::handle_create(int type, coroutine *c) {
     sk_assert(c);
-
-    coroutine_tcp_handle *h = cast_ptr(coroutine_tcp_handle, malloc(sizeof(coroutine_tcp_handle)));
-    if (!h) {
-        return nullptr;
-    }
-
-    int ret = uv_tcp_init(loop_, &h->uv.tcp);
-    if (ret != 0) {
-        free(h);
-        return nullptr;
-    }
-
-    h->retval = 0;
-    h->listening = false;
-    h->uv_listen_called = false;
-    h->coroutine = c;
-    h->pending_connection_count = 0;
-    h->incoming.buf = nullptr;
-    h->incoming.len = 0;
-    h->incoming.nbytes = 0;
-    h->outgoing.nbytes = 0;
-    h->uv.handle.data = h;
-
-    // TODO: call uv_tcp_nodelay()/keepalive() here?
-    return h;
+    return new coroutine_handle(type, c, loop_);
 }
 
-void coroutine_mgr::tcp_free(coroutine_tcp_handle *h) {
-    free(h);
-}
-
-int coroutine_mgr::tcp_bind(coroutine_tcp_handle *h, u16 port) {
+void coroutine_mgr::handle_close(coroutine_handle *h) {
     sk_assert(current_ && current_->state == state_running && h->coroutine == current_);
+
+    uv_close(&h->uv.handle, on_uv_close);
+    current_->state = state_io_waiting;
+    yield(current_);
+}
+
+void coroutine_mgr::handle_free(coroutine_handle *h) {
+    delete h;
+}
+
+int coroutine_mgr::handle_type(coroutine_handle *h) {
+    return h->type;
+}
+
+int coroutine_mgr::tcp_bind(coroutine_handle *h, u16 port) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_tcp);
 
     inet_address addr(port);
     return uv_tcp_bind(&h->uv.tcp, addr.address(), 0);
 }
 
-int coroutine_mgr::tcp_connect(coroutine_tcp_handle *h, const std::string& host, u16 port) {
-    sk_assert(current_ && current_->state == state_running && h->coroutine == current_);
+int coroutine_mgr::tcp_connect(coroutine_handle *h, const std::string& host, u16 port) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_tcp);
 
     uv_connect_t req;
     req.data = h;
@@ -358,49 +475,49 @@ int coroutine_mgr::tcp_connect(coroutine_tcp_handle *h, const std::string& host,
         return ret;
     }
 
-    h->retval = 0;
+    h->u.tcp.retval = 0;
     current_->state = state_io_waiting;
     yield(current_);
 
-    return h->retval;
+    return h->u.tcp.retval;
 }
 
-int coroutine_mgr::tcp_listen(coroutine_tcp_handle *h, int backlog) {
-    sk_assert(current_ && current_->state == state_running && h->coroutine == current_);
+int coroutine_mgr::tcp_listen(coroutine_handle *h, int backlog) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_tcp);
 
     int ret = 0;
-    if (unlikely(!h->uv_listen_called)) {
+    if (unlikely(!h->u.tcp.uv_listen_called)) {
         ret = uv_listen(&h->uv.stream, backlog, on_tcp_listen);
         if (ret != 0) {
             return ret;
         }
 
-        h->uv_listen_called = true;
+        h->u.tcp.uv_listen_called = true;
     }
 
     // there is pending connections, just return
-    if (h->pending_connection_count > 0) {
+    if (h->u.tcp.pending_connection_count > 0) {
         return 0;
     }
 
-    h->retval = 0;
-    h->listening = true;
+    h->u.tcp.retval = 0;
+    h->u.tcp.listening = true;
     current_->state = state_io_waiting;
     yield(current_);
 
-    sk_assert(h->pending_connection_count == 1);
-    h->pending_connection_count -= 1;
-    h->listening = false;
-    return h->retval;
+    sk_assert(h->u.tcp.pending_connection_count == 1);
+    h->u.tcp.pending_connection_count -= 1;
+    h->u.tcp.listening = false;
+    return h->u.tcp.retval;
 }
 
-int coroutine_mgr::tcp_accept(coroutine_tcp_handle *h, coroutine_tcp_handle *client) {
-    sk_assert(current_ && current_->state == state_running && h->coroutine == current_);
+int coroutine_mgr::tcp_accept(coroutine_handle *h, coroutine_handle *client) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_tcp);
     return uv_accept(&h->uv.stream, &client->uv.stream);
 }
 
-int coroutine_mgr::tcp_shutdown(coroutine_tcp_handle *h) {
-    sk_assert(current_ && current_->state == state_running && h->coroutine == current_);
+int coroutine_mgr::tcp_shutdown(coroutine_handle *h) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_tcp);
 
     uv_shutdown_t req;
     req.data = h;
@@ -410,43 +527,35 @@ int coroutine_mgr::tcp_shutdown(coroutine_tcp_handle *h) {
         return ret;
     }
 
-    h->retval = 0;
+    h->u.tcp.retval = 0;
     current_->state = state_io_waiting;
     yield(current_);
 
-    return h->retval;
+    return h->u.tcp.retval;
 }
 
-void coroutine_mgr::tcp_close(coroutine_tcp_handle *h) {
-    sk_assert(current_ && current_->state == state_running && h->coroutine == current_);
-
-    uv_close(&h->uv.handle, on_uv_close);
-    current_->state = state_io_waiting;
-    yield(current_);
-}
-
-ssize_t coroutine_mgr::tcp_read(coroutine_tcp_handle *h, void *buf, size_t len) {
-    sk_assert(current_ && current_->state == state_running && h->coroutine == current_);
+ssize_t coroutine_mgr::tcp_read(coroutine_handle *h, void *buf, size_t len) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_tcp);
 
     int ret = uv_read_start(&h->uv.stream, on_tcp_alloc, on_tcp_read);
     if (ret != 0) {
         return ret;
     }
 
-    h->incoming.buf = buf;
-    h->incoming.len = len;
-    h->incoming.nbytes = 0;
+    h->u.tcp.incoming.buf = buf;
+    h->u.tcp.incoming.len = len;
+    h->u.tcp.incoming.nbytes = 0;
     current_->state = state_io_waiting;
     yield(current_);
 
     ret = uv_read_stop(&h->uv.stream);
     sk_assert(ret == 0);
 
-    return h->incoming.nbytes;
+    return h->u.tcp.incoming.nbytes;
 }
 
-ssize_t coroutine_mgr::tcp_write(coroutine_tcp_handle *h, const void *buf, size_t len) {
-    sk_assert(current_ && current_->state == state_running && h->coroutine == current_);
+ssize_t coroutine_mgr::tcp_write(coroutine_handle *h, const void *buf, size_t len) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_tcp);
 
     uv_write_t req;
     req.data = h;
@@ -460,11 +569,11 @@ ssize_t coroutine_mgr::tcp_write(coroutine_tcp_handle *h, const void *buf, size_
         return ret;
     }
 
-    h->outgoing.nbytes = len;
+    h->u.tcp.outgoing.nbytes = len;
     current_->state = state_io_waiting;
     yield(current_);
 
-    return h->outgoing.nbytes;
+    return h->u.tcp.outgoing.nbytes;
 }
 
 void coroutine_mgr::context_main(intptr_t arg) {
@@ -494,12 +603,28 @@ void coroutine_mgr::on_sleep_timeout(uv_timer_t *handle) {
     yield(mgr->current_);
 }
 
-void coroutine_mgr::on_tcp_connect(uv_connect_t *req, int status) {
-    coroutine_tcp_handle *h = cast_ptr(coroutine_tcp_handle, req->data);
+void coroutine_mgr::on_uv_close(uv_handle_t *handle) {
+    coroutine_handle *h = cast_ptr(coroutine_handle, handle->data);
+    sk_assert(h);
+
     coroutine *c = h->coroutine;
     sk_assert(c && c->state == state_io_waiting);
 
-    h->retval = status;
+    c->state = state_runnable;
+    mgr->runnable_.push(c);
+
+    sk_assert(mgr->current_ == mgr->uv_);
+    yield(mgr->current_);
+}
+
+void coroutine_mgr::on_tcp_connect(uv_connect_t *req, int status) {
+    coroutine_handle *h = cast_ptr(coroutine_handle, req->data);
+    sk_assert(h && h->type == coroutine_handle_tcp);
+
+    coroutine *c = h->coroutine;
+    sk_assert(c && c->state == state_io_waiting);
+
+    h->u.tcp.retval = status;
     c->state = state_runnable;
     mgr->runnable_.push(c);
 
@@ -508,13 +633,16 @@ void coroutine_mgr::on_tcp_connect(uv_connect_t *req, int status) {
 }
 
 void coroutine_mgr::on_tcp_listen(uv_stream_t *server, int status) {
-    coroutine_tcp_handle *h = cast_ptr(coroutine_tcp_handle, server->data);
+    coroutine_handle *h = cast_ptr(coroutine_handle, server->data);
+    sk_assert(h && h->type == coroutine_handle_tcp);
+
     coroutine *c = h->coroutine;
+    sk_assert(c);
 
-    h->retval = status;
-    h->pending_connection_count += 1; // TODO: shouldn't we check the status first?
+    h->u.tcp.retval = status;
+    h->u.tcp.pending_connection_count += 1; // TODO: shouldn't we check the status first?
 
-    if (!h->listening) {
+    if (!h->u.tcp.listening) {
         sk_trace("coroutine(%s:%d) is not listening.", c->name, c->state);
         return;
     }
@@ -528,23 +656,13 @@ void coroutine_mgr::on_tcp_listen(uv_stream_t *server, int status) {
 }
 
 void coroutine_mgr::on_tcp_shutdown(uv_shutdown_t *req, int status) {
-    coroutine_tcp_handle *h = cast_ptr(coroutine_tcp_handle, req->data);
+    coroutine_handle *h = cast_ptr(coroutine_handle, req->data);
+    sk_assert(h && h->type == coroutine_handle_tcp);
+
     coroutine *c = h->coroutine;
     sk_assert(c && c->state == state_io_waiting);
 
-    h->retval = status;
-    c->state = state_runnable;
-    mgr->runnable_.push(c);
-
-    sk_assert(mgr->current_ == mgr->uv_);
-    yield(mgr->current_);
-}
-
-void coroutine_mgr::on_uv_close(uv_handle_t *handle) {
-    coroutine_tcp_handle *h = cast_ptr(coroutine_tcp_handle, handle->data);
-    coroutine *c = h->coroutine;
-    sk_assert(c && c->state == state_io_waiting);
-
+    h->u.tcp.retval = status;
     c->state = state_runnable;
     mgr->runnable_.push(c);
 
@@ -553,18 +671,22 @@ void coroutine_mgr::on_uv_close(uv_handle_t *handle) {
 }
 
 void coroutine_mgr::on_tcp_alloc(uv_handle_t *handle, size_t, uv_buf_t *buf) {
-    coroutine_tcp_handle *h = cast_ptr(coroutine_tcp_handle, handle->data);
-    buf->base = char_ptr(h->incoming.buf);
-    buf->len = h->incoming.len;
+    coroutine_handle *h = cast_ptr(coroutine_handle, handle->data);
+    sk_assert(h && h->type == coroutine_handle_tcp);
+
+    buf->base = char_ptr(h->u.tcp.incoming.buf);
+    buf->len = h->u.tcp.incoming.len;
 }
 
 void coroutine_mgr::on_tcp_read(uv_stream_t *stream, ssize_t nbytes, const uv_buf_t *buf) {
-    coroutine_tcp_handle *h = cast_ptr(coroutine_tcp_handle, stream->data);
+    coroutine_handle *h = cast_ptr(coroutine_handle, stream->data);
+    sk_assert(h && h->type == coroutine_handle_tcp);
+
     coroutine *c = h->coroutine;
     sk_assert(c && c->state == state_io_waiting);
-    sk_assert(h->incoming.buf == buf->base && h->incoming.len == buf->len);
+    sk_assert(h->u.tcp.incoming.buf == buf->base && h->u.tcp.incoming.len == buf->len);
 
-    h->incoming.nbytes = nbytes;
+    h->u.tcp.incoming.nbytes = nbytes;
     c->state = state_runnable;
     mgr->runnable_.push(c);
 
@@ -573,12 +695,14 @@ void coroutine_mgr::on_tcp_read(uv_stream_t *stream, ssize_t nbytes, const uv_bu
 }
 
 void coroutine_mgr::on_tcp_write(uv_write_t *req, int status) {
-    coroutine_tcp_handle *h = cast_ptr(coroutine_tcp_handle, req->data);
+    coroutine_handle *h = cast_ptr(coroutine_handle, req->data);
+    sk_assert(h && h->type == coroutine_handle_tcp);
+
     coroutine *c = h->coroutine;
     sk_assert(c && c->state == state_io_waiting);
 
     if (status < 0) {
-        h->outgoing.nbytes = status;
+        h->u.tcp.outgoing.nbytes = status;
     }
 
     c->state = state_runnable;
