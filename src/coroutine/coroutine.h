@@ -2,6 +2,7 @@
 #define COROUTINE_H
 
 #include <uv.h>
+#include <vector>
 #include <functional>
 #include <utility/types.h>
 
@@ -11,6 +12,18 @@ enum coroutine_handle_type {
     coroutine_handle_tcp,
     coroutine_handle_fs_watcher,
     coroutine_handle_signal_watcher
+};
+
+struct coroutine_fs_event {
+    enum event_type {
+        event_open   = 0x1,
+        event_close  = 0x2,
+        event_change = 0x4,
+        event_delete = 0x8
+    };
+
+    int events;
+    std::string file;
 };
 
 struct coroutine;
@@ -54,6 +67,10 @@ int coroutine_tcp_shutdown(coroutine_handle *h);
 // TODO: retrun 0 when EOF instead of UV_EOF (be consistent with the "read()" system call)
 ssize_t coroutine_tcp_read(coroutine_handle *h, void *buf, size_t len); // TODO: timeout here
 ssize_t coroutine_tcp_write(coroutine_handle *h, const void *buf, size_t len); // TODO: timeout here
+
+int coroutine_fs_add_watch(coroutine_handle *h, const std::string& file);
+int coroutine_fs_rm_watch(coroutine_handle *h, const std::string& file);
+int coroutine_fs_watch(coroutine_handle *h, std::vector<coroutine_fs_event> *events);
 
 NS_END(sk)
 

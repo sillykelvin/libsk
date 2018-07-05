@@ -43,6 +43,10 @@ public:
     ssize_t tcp_read(coroutine_handle *h, void *buf, size_t len);
     ssize_t tcp_write(coroutine_handle *h, const void *buf, size_t len);
 
+    int fs_add_watch(coroutine_handle *h, const std::string& file);
+    int fs_rm_watch(coroutine_handle *h, const std::string& file);
+    int fs_watch(coroutine_handle *h, std::vector<coroutine_fs_event> *events);
+
     static void context_main(intptr_t arg);
 
 private:
@@ -59,6 +63,8 @@ private:
     static void on_tcp_alloc(uv_handle_t *handle, size_t size_hint, uv_buf_t *buf);
     static void on_tcp_read(uv_stream_t *stream, ssize_t nbytes, const uv_buf_t *buf);
     static void on_tcp_write(uv_write_t *req, int status);
+
+    static void on_fs_event(uv_poll_t *handle, int status, int events);
 
 private:
     uv_loop_t *loop_;

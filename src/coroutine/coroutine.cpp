@@ -153,4 +153,19 @@ ssize_t coroutine_tcp_write(coroutine_handle *h, const void *buf, size_t len) {
     return mgr->tcp_write(h, buf, len);
 }
 
+int coroutine_fs_add_watch(coroutine_handle *h, const std::string& file) {
+    ensure_coroutine(h, coroutine_handle_fs_watcher);
+    return mgr->fs_add_watch(h, file);
+}
+
+int coroutine_fs_rm_watch(coroutine_handle *h, const std::string& file) {
+    ensure_coroutine(h, coroutine_handle_fs_watcher);
+    return mgr->fs_rm_watch(h, file);
+}
+
+int coroutine_fs_watch(coroutine_handle *h, std::vector<coroutine_fs_event> *events) {
+    ensure_coroutine(h, coroutine_handle_fs_watcher);
+    return mgr->fs_watch(h, events);
+}
+
 NS_END(sk)

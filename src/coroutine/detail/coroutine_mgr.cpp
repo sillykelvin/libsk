@@ -173,6 +173,9 @@ struct coroutine_handle {
         fs_watcher() {
             ifd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
             sk_assert(ifd != -1);
+
+            retval = 0;
+            events = nullptr;
         }
 
         ~fs_watcher() {
@@ -190,8 +193,10 @@ struct coroutine_handle {
         }
 
         int ifd;
+        int retval;
         std::map<int, std::string> wd2file;
         std::map<std::string, int> file2wd;
+        std::vector<coroutine_fs_event> *events;
     };
 
     struct signal_watcher {
@@ -247,6 +252,8 @@ struct coroutine_handle {
     } uv;
 
     coroutine_handle(int type, sk::coroutine *c, uv_loop_t *loop) : type(type), coroutine(c) {
+        uv.handle.data = this;
+
         switch (type) {
         case coroutine_handle_tcp: {
             new (&u.tcp) tcp_handle();
@@ -297,7 +304,7 @@ static coroutine_mgr *mgr = nullptr;
 coroutine_mgr::coroutine_mgr(uv_loop_t *loop) : loop_(loop), uv_(nullptr), current_(nullptr) {
     uv_ = create("uv", [this] () {
         uv_run(loop_, UV_RUN_DEFAULT);
-    }, 16 * 1024, false, true);
+    }, 32 * 1024, false, true);
 
     // create(...) will push coroutine into the runnable_ queue, but
     // the uv_ coroutine should not be there, so we remove it manually
@@ -576,6 +583,65 @@ ssize_t coroutine_mgr::tcp_write(coroutine_handle *h, const void *buf, size_t le
     return h->u.tcp.outgoing.nbytes;
 }
 
+int coroutine_mgr::fs_add_watch(coroutine_handle *h, const std::string& file) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_fs_watcher);
+
+    auto it = h->u.fs.file2wd.find(file);
+    if (it != h->u.fs.file2wd.end()) {
+        return 0;
+    }
+
+    int wd = inotify_add_watch(h->u.fs.ifd, file.c_str(), IN_ALL_EVENTS);
+    if (wd == -1) {
+        return -errno;
+    }
+
+    h->u.fs.file2wd[file] = wd;
+    h->u.fs.wd2file[wd] = file;
+
+    return 0;
+}
+
+int coroutine_mgr::fs_rm_watch(coroutine_handle *h, const std::string& file) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_fs_watcher);
+
+    auto it = h->u.fs.file2wd.find(file);
+    if (it == h->u.fs.file2wd.end()) {
+        return 0;
+    }
+
+    int wd = it->second;
+    int ret = inotify_rm_watch(h->u.fs.ifd, wd);
+    if (ret != 0) {
+        return ret;
+    }
+
+    h->u.fs.file2wd.erase(it);
+    h->u.fs.wd2file.erase(wd);
+
+    return 0;
+}
+
+int coroutine_mgr::fs_watch(coroutine_handle *h, std::vector<coroutine_fs_event> *events) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_fs_watcher);
+
+    int ret = uv_poll_start(&h->uv.poll, UV_READABLE | UV_WRITABLE | UV_DISCONNECT, on_fs_event);
+    if (ret != 0) {
+        return ret;
+    }
+
+    h->u.fs.retval = 0;
+    h->u.fs.events = events;
+    h->u.fs.events->clear();
+    current_->state = state_io_waiting;
+    yield(current_);
+
+    ret = uv_poll_stop(&h->uv.poll);
+    sk_assert(ret == 0);
+
+    return h->u.fs.retval;
+}
+
 void coroutine_mgr::context_main(intptr_t arg) {
     coroutine *c = reinterpret_cast<coroutine*>(arg);
     c->fn();
@@ -703,6 +769,98 @@ void coroutine_mgr::on_tcp_write(uv_write_t *req, int status) {
 
     if (status < 0) {
         h->u.tcp.outgoing.nbytes = status;
+    }
+
+    c->state = state_runnable;
+    mgr->runnable_.push(c);
+
+    sk_assert(mgr->current_ == mgr->uv_);
+    yield(mgr->current_);
+}
+
+void coroutine_mgr::on_fs_event(uv_poll_t *handle, int status, int events) {
+    coroutine_handle *h = cast_ptr(coroutine_handle, handle->data);
+    sk_assert(h && h->type == coroutine_handle_fs_watcher);
+
+    coroutine *c = h->coroutine;
+    sk_assert(c && c->state == state_io_waiting);
+
+    if (status != 0) {
+        h->u.fs.retval = status;
+    } else {
+        if (unlikely(events & UV_WRITABLE)) {
+            sk_warn("writable events!");
+        }
+
+        if (unlikely(events & UV_DISCONNECT)) {
+            sk_warn("disconnect events!");
+        }
+
+        if (events & UV_READABLE) {
+            char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
+            const struct inotify_event *event = nullptr;
+            ssize_t len = 0;
+
+            while (true) {
+                do {
+                    len = read(h->u.fs.ifd, buf, sizeof(buf));
+                } while (len == -1 && errno == EINTR);
+
+                if (len == -1) {
+                    if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                        sk_error("inotify read error: %s.", strerror(errno));
+                    }
+
+                    break;
+                }
+
+                if (len == 0) {
+                    break;
+                }
+
+                for (char *ptr = buf; ptr < buf + len;
+                     ptr += sizeof(struct inotify_event) + event->len) {
+                    event = reinterpret_cast<const struct inotify_event *>(ptr);
+
+                    if (event->mask == IN_IGNORED) {
+                        continue;
+                    }
+
+                    auto it = h->u.fs.wd2file.find(event->wd);
+                    if (it == h->u.fs.wd2file.end()) {
+                        sk_warn("file watch<%d> not found.", event->wd);
+                        continue;
+                    }
+
+                    sk_trace("OPEN(%d), CLOSE(%d), CHANGE(%d), DELETE(%d), file<%s>.",
+                             event->mask & IN_OPEN ? 1 : 0, event->mask & IN_CLOSE ? 1 : 0,
+                             event->mask & IN_MODIFY ? 1 : 0, event->mask & IN_DELETE_SELF ? 1 : 0,
+                             it->second.c_str());
+
+                    coroutine_fs_event e;
+                    e.events = 0;
+                    e.file = it->second;
+
+                    if (event->mask & IN_OPEN) {
+                        e.events |= coroutine_fs_event::event_open;
+                    }
+
+                    if (event->mask & IN_MODIFY) {
+                        e.events |= coroutine_fs_event::event_change;
+                    }
+
+                    if (event->mask & IN_CLOSE) {
+                        e.events |= coroutine_fs_event::event_close;
+                    }
+
+                    if (event->mask & IN_DELETE_SELF) {
+                        e.events |= coroutine_fs_event::event_delete;
+                    }
+
+                    h->u.fs.events->push_back(std::move(e));
+                }
+            }
+        }
     }
 
     c->state = state_runnable;
