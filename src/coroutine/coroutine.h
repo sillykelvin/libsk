@@ -4,6 +4,7 @@
 #include <uv.h>
 #include <vector>
 #include <functional>
+#include <sys/signalfd.h>
 #include <utility/types.h>
 
 NS_BEGIN(sk)
@@ -71,6 +72,10 @@ ssize_t coroutine_tcp_write(coroutine_handle *h, const void *buf, size_t len); /
 int coroutine_fs_add_watch(coroutine_handle *h, const std::string& file);
 int coroutine_fs_rm_watch(coroutine_handle *h, const std::string& file);
 int coroutine_fs_watch(coroutine_handle *h, std::vector<coroutine_fs_event> *events);
+
+int coroutine_sig_add_watch(coroutine_handle *h, int signal);
+int coroutine_sig_rm_watch(coroutine_handle *h, int signal);
+int coroutine_sig_watch(coroutine_handle *h, std::vector<signalfd_siginfo> *signals);
 
 NS_END(sk)
 

@@ -206,6 +206,9 @@ struct coroutine_handle {
 
             sfd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
             sk_assert(sfd != -1);
+
+            retval = 0;
+            events = nullptr;
         }
 
         ~signal_watcher() {
@@ -228,7 +231,9 @@ struct coroutine_handle {
         }
 
         int sfd;
+        int retval;
         std::set<int> signals;
+        std::vector<signalfd_siginfo> *events;
     };
 
     int type;
@@ -642,6 +647,93 @@ int coroutine_mgr::fs_watch(coroutine_handle *h, std::vector<coroutine_fs_event>
     return h->u.fs.retval;
 }
 
+int coroutine_mgr::sig_add_watch(coroutine_handle *h, int signal) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_signal_watcher);
+
+    auto it = h->u.sig.signals.find(signal);
+    if (it != h->u.sig.signals.end()) {
+        return 0;
+    }
+
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, signal);
+
+    int ret = sigprocmask(SIG_BLOCK, &mask, nullptr);
+    if (ret != 0) {
+        return ret;
+    }
+
+    for (const auto& sig : h->u.sig.signals) {
+        sigaddset(&mask, sig);
+    }
+
+    int sfd = signalfd(h->u.sig.sfd, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
+    if (sfd == -1) {
+        int error = -errno;
+
+        // don't forget to unblock the signal here
+        sigemptyset(&mask);
+        sigaddset(&mask, signal);
+        sigprocmask(SIG_UNBLOCK, &mask, nullptr);
+
+        return error;
+    }
+
+    h->u.sig.signals.insert(signal);
+    return 0;
+}
+
+int coroutine_mgr::sig_rm_watch(coroutine_handle *h, int signal) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_signal_watcher);
+
+    auto it = h->u.sig.signals.find(signal);
+    if (it == h->u.sig.signals.end()) {
+        return 0;
+    }
+
+    sigset_t mask;
+    sigemptyset(&mask);
+
+    for (const auto& sig : h->u.sig.signals) {
+        if (sig != signal) {
+            sigaddset(&mask, sig);
+        }
+    }
+
+    int sfd = signalfd(h->u.sig.sfd, &mask , SFD_NONBLOCK | SFD_CLOEXEC);
+    if (sfd == -1) {
+        return -errno;
+    }
+
+    sigemptyset(&mask);
+    sigaddset(&mask, signal);
+    sigprocmask(SIG_UNBLOCK, &mask, nullptr);
+
+    h->u.sig.signals.erase(it);
+    return 0;
+}
+
+int coroutine_mgr::sig_watch(coroutine_handle *h, std::vector<signalfd_siginfo> *signals) {
+    sk_assert(current_ && current_->state == state_running && h->coroutine == current_ && h->type == coroutine_handle_signal_watcher);
+
+    int ret = uv_poll_start(&h->uv.poll, UV_READABLE | UV_WRITABLE | UV_DISCONNECT, on_sig_event);
+    if (ret != 0) {
+        return ret;
+    }
+
+    h->u.sig.retval = 0;
+    h->u.sig.events = signals;
+    h->u.sig.events->clear();
+    current_->state = state_io_waiting;
+    yield(current_);
+
+    ret = uv_poll_stop(&h->uv.poll);
+    sk_assert(ret == 0);
+
+    return h->u.sig.retval;
+}
+
 void coroutine_mgr::context_main(intptr_t arg) {
     coroutine *c = reinterpret_cast<coroutine*>(arg);
     c->fn();
@@ -858,6 +950,62 @@ void coroutine_mgr::on_fs_event(uv_poll_t *handle, int status, int events) {
                     }
 
                     h->u.fs.events->push_back(std::move(e));
+                }
+            }
+        }
+    }
+
+    c->state = state_runnable;
+    mgr->runnable_.push(c);
+
+    sk_assert(mgr->current_ == mgr->uv_);
+    yield(mgr->current_);
+}
+
+void coroutine_mgr::on_sig_event(uv_poll_t *handle, int status, int events) {
+    coroutine_handle *h = cast_ptr(coroutine_handle, handle->data);
+    sk_assert(h && h->type == coroutine_handle_signal_watcher);
+
+    coroutine *c = h->coroutine;
+    sk_assert(c && c->state == state_io_waiting);
+
+    if (status != 0) {
+        h->u.sig.retval = status;
+    } else {
+        if (unlikely(events & UV_WRITABLE)) {
+            sk_warn("writable events!");
+        }
+
+        if (unlikely(events & UV_DISCONNECT)) {
+            sk_warn("disconnect events!");
+        }
+
+        if (events & UV_READABLE) {
+            char buf[4096] __attribute__((aligned(__alignof__(struct signalfd_siginfo))));
+            const struct signalfd_siginfo *siginfo = nullptr;
+            ssize_t len = 0;
+
+            while (true) {
+                do {
+                    len = read(h->u.sig.sfd, buf, sizeof(buf));
+                } while(len == -1 && errno == EINTR);
+
+                if (len == -1) {
+                    if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                        sk_error("signal read error: %s", strerror(errno));
+                    }
+
+                    break;
+                }
+
+                if (len == 0) {
+                    break;
+                }
+
+                for (char *ptr = buf; ptr < buf + len;
+                     ptr += sizeof(struct signalfd_siginfo)) {
+                    siginfo = reinterpret_cast<const struct signalfd_siginfo*>(ptr);
+                    h->u.sig.events->push_back(std::move(*siginfo));
                 }
             }
         }

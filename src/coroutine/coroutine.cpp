@@ -168,4 +168,19 @@ int coroutine_fs_watch(coroutine_handle *h, std::vector<coroutine_fs_event> *eve
     return mgr->fs_watch(h, events);
 }
 
+int coroutine_sig_add_watch(coroutine_handle *h, int signal) {
+    ensure_coroutine(h, coroutine_handle_signal_watcher);
+    return mgr->sig_add_watch(h, signal);
+}
+
+int coroutine_sig_rm_watch(coroutine_handle *h, int signal) {
+    ensure_coroutine(h, coroutine_handle_signal_watcher);
+    return mgr->sig_rm_watch(h, signal);
+}
+
+int coroutine_sig_watch(coroutine_handle *h, std::vector<signalfd_siginfo> *signals) {
+    ensure_coroutine(h, coroutine_handle_signal_watcher);
+    return mgr->sig_watch(h, signals);
+}
+
 NS_END(sk)
